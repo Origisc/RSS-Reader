@@ -4,7 +4,7 @@ Mercury 是一款跨平台、强调本地优先（local first）的 RSS 阅读�
 
 ## 功能特性
 
-## 必做
+### 必做
 - 基础功能：支持 Feed / OPML 等订阅源解析；；支持订阅刷新/同步（Sync）与文章列表、文章详情等基础内容呈现。
 - 内容清洗：将原文清洗为 Cleaned HTML 与 Cleaned Markdown，保留表格、图片、列表等关键结构，并支持定制阅读样式。
 - AI 摘要：通过 Summary Agent 生成文章摘要，可指定语言和详细程度，支持自定义 prompts，并通过可配置的 LLM Providers 对接不同大语言模型服务。
