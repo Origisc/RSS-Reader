@@ -728,7 +728,93 @@ mercury/
     └── test_export_batch.py
 ```
 
-# 3. 非目标 / 延后事项
+
+# 3. 两人并行分工建议
+
+> 分工原则：按“稳定接口 + 模块所有权”划分，而不是简单按页面或阶段划分。先共同冻结少量接口，再并行开发；一方开发 UI 时必须可以使用 Mock Service，一方开发核心服务时必须可以用自动测试独立验证。
+
+## 3.1 先做一次短接口对齐
+
+在正式拆任务前，成员 A 与成员 B 共同完成并冻结以下接口草案，后续除非进入集成修正，不随意改动：
+
+- `FeedService` / `SyncService`：添加订阅、导入 OPML、刷新、返回订阅源与文章列表。
+- `ArticleReadService`：根据文章 ID 返回原始内容、Cleaned HTML、Cleaned Markdown、阅读状态。
+- `ReaderService`：触发抓取、清洗、Markdown 转换，返回状态与 fallback 信息。
+- `LLMProvider` / `SummaryAgent` / `TranslationAgent`：使用 Mock Provider 也能运行。
+- `NoteService` / `TagService` / `ExportService`：UI 只调用 service，不直接操作数据库或文件写出细节。
+
+## 3.2 修改后的人员分工
+
+| 成员 | 主要边界 | 负责内容 | 不负责内容 | 独立验证方式 |
+| --- | --- | --- | --- | --- |
+| 成员 A：核心功能与数据处理（dy） | `domain/`、`services/`、`storage/`、核心测试 fixture | Feed / Atom / JSON Feed 解析；OPML 导入与导出；订阅源、文章、详情、阅读状态、本地缓存；文章去重；文章抓取；Reader 清洗；Cleaned HTML / Markdown 转换；导出后端；数据库迁移；自动化测试；UTF-8 与跨平台文件名处理 | PySide6 页面布局、按钮交互、AI 面板、i18n 文案、验收文档主编写 | `uv run pytest` 可在无 GUI、无真实网络、无真实 LLM 环境下通过；服务接口可用 fixture 或 Mock 独立验证 |
+| 成员 B：界面交互与 AI 功能（csm） | `ui/`、`i18n/`、`llm/`、`agents/`、验收文档 | PySide6 主窗口；订阅源列表、文章列表、文章详情交互；Reader 模式展示和视图切换；阅读样式设置；中英文切换；AI 设置页；LLM Provider 配置与 Mock Provider；Summary Agent / Translation Agent 工作流；摘要与翻译 UI；原文译文段落对照；标签、导出入口与确认交互 | 数据库 schema、Feed/OPML 解析、文章抓取、清洗算法、Markdown 转换、真实文件批量导出细节 | UI 可用 Mock Service 独立运行；AI 工作流可用 Mock Provider 自动测试；人工验收文档可复现阶段功能 |
+
+## 3.3 分阶段并行方式
+
+### 第一阶段：基础阅读器原型
+
+- 成员 A：项目骨架、领域模型、Feed / OPML 解析、本地数据库、同步与去重、基础 service。
+- 成员 B：PySide6 主窗口、订阅源列表、文章列表、详情页、添加/刷新交互；在 A 的真实 service 未完成前使用 Mock Service。
+- 集成点：`FeedService`、`SyncService`、`ArticleReadService` 接口稳定后联调。
+- 阶段验收：A 用自动测试验证解析、存储、去重；B 用人工脚本验证 UI 闭环。
+
+### 第二阶段：阅读体验增强
+
+- 成员 A：文章抓取、Cleaned HTML、Cleaned Markdown、清洗失败 fallback、阅读设置持久化底层。
+- 成员 B：Reader 视图、原始内容 / Cleaned HTML / Markdown 切换、阅读样式界面、中英文 UI 切换。
+- 集成点：`ReaderService` 和 `ArticleReadService` 返回清洗状态、错误信息和 fallback 内容。
+- 阶段验收：A 验证清洗和转换保留标题、链接、图片、列表、表格、代码块；B 验证界面切换、语言切换和失败提示。
+
+### 第三阶段：AI 功能接入
+
+- 成员 A：提供文章内容快照、AI 结果本地保存接口、保证未配置 LLM 时阅读链路不受影响。
+- 成员 B：LLM Provider 抽象、Mock Provider、Summary Agent、Translation Agent、AI 设置页、摘要/翻译面板、段落对照展示。
+- 集成点：AI 输入只读取 `ArticleReadService` 给出的文章快照；AI 输出只通过约定接口保存，不直接改文章核心数据。
+- 阶段验收：B 用 Mock Provider 完成摘要/翻译自动测试；A 确认 Provider 失败或未配置时基础阅读仍可用。
+
+### 第四阶段：信息整理与导出
+
+- 成员 A：笔记/标签/导出所需的本地数据结构、查询接口、ExportService 文件生成、批量导出、文件名冲突与跨平台安全处理。
+- 成员 B：笔记面板、标签管理界面、筛选交互、导出对话框、Tag Agent 选做入口、验收文档。
+- 集成点：`NoteService`、`TagService`、`ExportService` 接口稳定后联调；Tag Agent 只生成建议，必须由用户确认后应用。
+- 阶段验收：A 验证数据增删改查、筛选和导出文件；B 验证 UI 流程、防误删确认和人工验收脚本。
+
+## 3.4 为避免等待的执行规则
+
+- B 不等待 A 的真实实现：所有 UI 先接 Mock Service。
+- A 不等待 B 的界面：所有核心能力先通过 service 单元测试和 fixture 验证。
+- 不允许两人同时改同一模块目录的核心文件；需要改接口时先写到 `docs/decisions/`。
+- 每个阶段只在接口层集成一次，不把未完成的后续功能作为当前阶段阻塞项。
+- 文档、日志、验收脚本由 B 主责，但 A 必须补充核心算法、存储、测试相关说明。
+
+## 3.5 可直接放进汇报页的版本
+
+### 成员 A｜核心功能与数据处理（dy）
+
+- Feed / Atom / JSON Feed 解析
+- OPML 导入与导出
+- 订阅源、文章、详情、阅读状态、本地缓存
+- 订阅刷新、文章去重、数据库迁移
+- 文章抓取、Reader 清洗、Cleaned HTML / Markdown 转换
+- ExportService 后端、批量导出、跨平台文件处理
+- 自动化测试、fixture、核心服务验收
+
+### 成员 B｜界面交互与 AI 功能（csm）
+
+- PySide6 主窗口、订阅源列表、文章列表、详情页
+- Reader 视图、视图切换、阅读样式设置
+- 多语言 UI 与无需重启切换
+- LLM Provider、Mock Provider、AI 设置页
+- Summary Agent、Translation Agent、摘要/翻译 UI
+- 原文译文段落对照、Tag Agent 选做入口
+- 笔记、标签、筛选、导出入口与验收文档
+
+**协作重点**：先冻结 service 接口；A 用测试独立验证核心能力，B 用 Mock Service 独立完成界面与 AI 交互，最后按阶段验收门集成。
+
+---
+
+# 4. 非目标 / 延后事项
 
 以下内容不进入前四阶段核心目标，除非另行调整计划：
 
