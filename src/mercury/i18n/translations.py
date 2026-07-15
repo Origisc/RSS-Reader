@@ -15,16 +15,25 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.add_feed": "添加 Feed",
         "action.refresh": "刷新",
         "action.preferences": "首选项",
-        "action.toggle_ai_panel": "AI 面板",
+        "action.toggle_tags_panel": "标签面板",
         "action.exit": "退出",
         "action.about": "关于 Mercury",
         "toolbar.main": "主工具栏",
-        "sidebar.title": "订阅源",
-        "article_list.title": "文章列表",
-        "article_reader.title": "阅读区",
+        "sidebar.title": "Feeds",
+        "sidebar.tab.feeds": "Feeds",
+        "sidebar.tab.tags": "Tags",
+        "sidebar.feed_detail": "{count} 未读",
+        "sidebar.footer": "Feeds: 3 · Entries: 3 · Mock Service",
+        "article_list.title": "Entries",
+        "article_list.filter.unread": "未读",
+        "article_list.entry_meta": "本地 Mock 条目",
+        "article_reader.title": "Reader",
         "article_reader.welcome_title": "欢迎使用 Mercury",
         "article_reader.welcome_body": "请从文章列表中选择一篇文章。",
         "article_reader.source_label": "来源",
+        "article_reader.local_note": (
+            "本视图仅展示本地 Mock 内容；摘要、翻译和标签建议需要用户主动配置后再调用 Provider。"
+        ),
         "settings.title": "设置",
         "settings.language": "界面语言：",
         "settings.theme": "界面主题：",
@@ -43,12 +52,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "<p>一款本地优先、跨平台的 RSS 阅读器。</p>"
             "<p>当前版本：成员 B UI 原型</p>"
         ),
-        "ai_panel.title": "AI",
-        "ai_panel.body": (
-            "摘要和翻译入口已预留。\n\n"
-            "后续会通过可配置的 LLM Provider 调用；在用户主动配置并触发前，"
-            "不会发送文章内容。"
-        ),
+        "tags.title": "Tags",
+        "tags.input_placeholder": "输入标签，逗号分隔",
+        "tags.add": "添加",
+        "tags.suggested": "Suggested",
+        "tags.existing": "Existing",
+        "tags.empty": "No tags yet",
+        "summary.title": "Summary",
+        "summary.collapsed": "⌃ Summary",
     },
     "en_US": {
         "app.title": "Mercury",
@@ -59,16 +70,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.add_feed": "Add Feed",
         "action.refresh": "Refresh",
         "action.preferences": "Preferences",
-        "action.toggle_ai_panel": "AI Panel",
+        "action.toggle_tags_panel": "Tags Panel",
         "action.exit": "Exit",
         "action.about": "About Mercury",
         "toolbar.main": "Main Toolbar",
         "sidebar.title": "Feeds",
-        "article_list.title": "Articles",
+        "sidebar.tab.feeds": "Feeds",
+        "sidebar.tab.tags": "Tags",
+        "sidebar.feed_detail": "{count} unread",
+        "sidebar.footer": "Feeds: 3 · Entries: 3 · Mock Service",
+        "article_list.title": "Entries",
+        "article_list.filter.unread": "Unread",
+        "article_list.entry_meta": "Local mock entry",
         "article_reader.title": "Reader",
         "article_reader.welcome_title": "Welcome to Mercury",
         "article_reader.welcome_body": "Select an article from the list.",
         "article_reader.source_label": "Source",
+        "article_reader.local_note": (
+            "This view only renders local mock content; summary, translation, and tag suggestions "
+            "will call a Provider only after the user configures and starts them."
+        ),
         "settings.title": "Settings",
         "settings.language": "Interface language:",
         "settings.theme": "Interface theme:",
@@ -87,12 +108,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "<p>A local-first, cross-platform RSS reader.</p>"
             "<p>Current version: Member B UI prototype</p>"
         ),
-        "ai_panel.title": "AI",
-        "ai_panel.body": (
-            "Summary and translation entries are reserved.\n\n"
-            "They will call configurable LLM Providers later; article content is not sent "
-            "until the user configures a provider and explicitly starts an action."
-        ),
+        "tags.title": "Tags",
+        "tags.input_placeholder": "Type tags (comma-separated)",
+        "tags.add": "Add",
+        "tags.suggested": "Suggested",
+        "tags.existing": "Existing",
+        "tags.empty": "No tags yet",
+        "summary.title": "Summary",
+        "summary.collapsed": "⌃ Summary",
     },
 }
 

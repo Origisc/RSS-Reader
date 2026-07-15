@@ -3,11 +3,15 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
+    QFrame,
+    QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QSplitter,
     QToolBar,
+    QVBoxLayout,
 )
 
 from mercury.i18n import Translator
@@ -26,11 +30,12 @@ class MainWindow(QMainWindow):
     def __init__(self, article_service: ArticleService) -> None:
         super().__init__()
 
+        self.setObjectName("MercuryWindow")
         self.article_service = article_service
         self.translator = Translator()
-        self._theme = "system"
+        self._theme = "dark"
 
-        self.resize(1200, 720)
+        self.resize(1320, 820)
 
         self.sidebar = Sidebar()
         self.article_list = ArticleList()
@@ -40,20 +45,26 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._setup_menu_bar()
         self._setup_tool_bar()
-        self._setup_ai_panel()
+        self._setup_tag_panel()
+        self._setup_summary_bar()
         self._connect_signals()
-        self._load_initial_data()
         self._translate_ui()
+        self._load_initial_data()
         self._apply_theme()
 
     def _setup_ui(self) -> None:
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setObjectName("MainSplitter")
+
+        self.sidebar.setMinimumWidth(190)
+        self.article_list.setMinimumWidth(250)
+        self.article_reader.setMinimumWidth(560)
 
         self.splitter.addWidget(self.sidebar)
         self.splitter.addWidget(self.article_list)
         self.splitter.addWidget(self.article_reader)
 
-        self.splitter.setSizes([220, 320, 660])
+        self.splitter.setSizes([210, 270, 840])
         self.splitter.setStretchFactor(0, 0)
         self.splitter.setStretchFactor(1, 0)
         self.splitter.setStretchFactor(2, 1)
@@ -79,8 +90,9 @@ class MainWindow(QMainWindow):
         self.open_settings_action.setShortcut("Ctrl+,")
         self.open_settings_action.triggered.connect(self._open_settings)
 
-        self.toggle_ai_action = QAction(self)
-        self.toggle_ai_action.setCheckable(True)
+        self.toggle_tags_action = QAction(self)
+        self.toggle_tags_action.setCheckable(True)
+        self.toggle_tags_action.setChecked(True)
 
         self.about_action = QAction(self)
         self.about_action.triggered.connect(self._show_about)
@@ -97,35 +109,106 @@ class MainWindow(QMainWindow):
         self.file_menu.addSeparator()
         self.file_menu.addAction(self.exit_action)
         self.settings_menu.addAction(self.open_settings_action)
-        self.view_menu.addAction(self.toggle_ai_action)
+        self.view_menu.addAction(self.toggle_tags_action)
         self.help_menu.addAction(self.about_action)
 
     def _setup_tool_bar(self) -> None:
         self.main_toolbar = QToolBar(self)
-        self.main_toolbar.setObjectName("main_toolbar")
+        self.main_toolbar.setObjectName("AppToolbar")
+        self.main_toolbar.setMovable(False)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.main_toolbar)
         self.main_toolbar.addAction(self.add_feed_action)
         self.main_toolbar.addAction(self.refresh_action)
         self.main_toolbar.addSeparator()
-        self.main_toolbar.addAction(self.toggle_ai_action)
+        self.main_toolbar.addAction(self.toggle_tags_action)
 
-    def _setup_ai_panel(self) -> None:
-        self.ai_panel_label = QLabel()
-        self.ai_panel_label.setWordWrap(True)
-        self.ai_panel_label.setMargin(12)
+    def _setup_tag_panel(self) -> None:
+        panel = QFrame()
+        panel.setObjectName("TagPanel")
 
-        self.ai_dock = QDockWidget(self)
-        self.ai_dock.setWidget(self.ai_panel_label)
-        self.ai_dock.visibilityChanged.connect(
-            self.toggle_ai_action.setChecked
+        self.tags_title_label = QLabel()
+        self.tags_title_label.setObjectName("TagPanelTitle")
+        self.tag_input_label = QLabel()
+        self.tag_input_label.setObjectName("TagInputPlaceholder")
+        self.tag_add_button = QPushButton()
+        self.tag_add_button.setObjectName("TagAddButton")
+        self.tag_add_button.setEnabled(False)
+        self.suggested_label = QLabel()
+        self.suggested_label.setObjectName("TagSectionTitle")
+        self.existing_label = QLabel()
+        self.existing_label.setObjectName("TagSectionTitle")
+        self.no_tags_label = QLabel()
+        self.no_tags_label.setObjectName("TagEmpty")
+
+        input_layout = QHBoxLayout()
+        input_layout.setContentsMargins(0, 0, 0, 0)
+        input_layout.setSpacing(6)
+        input_layout.addWidget(self.tag_input_label, 1)
+        input_layout.addWidget(self.tag_add_button)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(9)
+        layout.addWidget(self.tags_title_label)
+        layout.addLayout(input_layout)
+        layout.addWidget(self.suggested_label)
+        layout.addLayout(
+            self._chip_row(["History", "Internet", "AOL", "America"])
         )
-        self.toggle_ai_action.toggled.connect(self.ai_dock.setVisible)
+        layout.addWidget(self.existing_label)
+        layout.addLayout(
+            self._chip_row(["AI", "Programming", "Open Source", "Apple"])
+        )
+        layout.addLayout(
+            self._chip_row(["Politics", "Hardware", "Business", "Writing"])
+        )
+        layout.addWidget(self.no_tags_label)
+        layout.addStretch(1)
+
+        self.tags_dock = QDockWidget(self)
+        self.tags_dock.setObjectName("TagsDock")
+        self.tags_dock.setWidget(panel)
+        self.tags_dock.visibilityChanged.connect(
+            self.toggle_tags_action.setChecked
+        )
+        self.toggle_tags_action.toggled.connect(self.tags_dock.setVisible)
 
         self.addDockWidget(
             Qt.DockWidgetArea.RightDockWidgetArea,
-            self.ai_dock,
+            self.tags_dock,
         )
-        self.ai_dock.hide()
+
+    def _setup_summary_bar(self) -> None:
+        summary_panel = QFrame()
+        summary_panel.setObjectName("SummaryPanel")
+        self.summary_label = QLabel()
+        self.summary_label.setObjectName("SummaryLabel")
+
+        layout = QHBoxLayout(summary_panel)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.addWidget(self.summary_label)
+        layout.addStretch(1)
+
+        self.summary_dock = QDockWidget(self)
+        self.summary_dock.setObjectName("SummaryDock")
+        self.summary_dock.setWidget(summary_panel)
+        self.addDockWidget(
+            Qt.DockWidgetArea.BottomDockWidgetArea,
+            self.summary_dock,
+        )
+
+    def _chip_row(self, labels: list[str]) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(6)
+
+        for label_text in labels:
+            chip = QLabel(label_text)
+            chip.setProperty("chip", True)
+            row.addWidget(chip)
+
+        row.addStretch(1)
+        return row
 
     def _connect_signals(self) -> None:
         self.sidebar.feed_selected.connect(self._show_feed_articles)
@@ -165,6 +248,7 @@ class MainWindow(QMainWindow):
             self.translator.set_language(dialog.selected_language())
             self._theme = dialog.selected_theme()
             self._translate_ui()
+            self._load_initial_data()
             self._apply_theme()
 
             self.statusBar().showMessage(
@@ -211,8 +295,8 @@ class MainWindow(QMainWindow):
         self.open_settings_action.setText(
             self.translator.text("action.preferences")
         )
-        self.toggle_ai_action.setText(
-            self.translator.text("action.toggle_ai_panel")
+        self.toggle_tags_action.setText(
+            self.translator.text("action.toggle_tags_panel")
         )
         self.about_action.setText(self.translator.text("action.about"))
         self.main_toolbar.setWindowTitle(
@@ -220,18 +304,45 @@ class MainWindow(QMainWindow):
         )
 
         self.sidebar.set_title(self.translator.text("sidebar.title"))
+        self.sidebar.set_tabs(
+            self.translator.text("sidebar.tab.feeds"),
+            self.translator.text("sidebar.tab.tags"),
+        )
+        self.sidebar.set_footer(self.translator.text("sidebar.footer"))
+        self.sidebar.set_feed_detail_text(
+            self.translator.text("sidebar.feed_detail")
+        )
         self.article_list.set_title(
             self.translator.text("article_list.title")
+        )
+        self.article_list.set_filter_text(
+            self.translator.text("article_list.filter.unread")
+        )
+        self.article_list.set_entry_meta_text(
+            self.translator.text("article_list.entry_meta")
         )
         self.article_reader.set_texts(
             self.translator.text("article_reader.title"),
             self.translator.text("article_reader.welcome_title"),
             self.translator.text("article_reader.welcome_body"),
             self.translator.text("article_reader.source_label"),
+            self.translator.text("article_reader.local_note"),
         )
 
-        self.ai_dock.setWindowTitle(self.translator.text("ai_panel.title"))
-        self.ai_panel_label.setText(self.translator.text("ai_panel.body"))
+        self.tags_dock.setWindowTitle(self.translator.text("tags.title"))
+        self.tags_title_label.setText(self.translator.text("tags.title"))
+        self.tag_input_label.setText(
+            self.translator.text("tags.input_placeholder")
+        )
+        self.tag_add_button.setText(self.translator.text("tags.add"))
+        self.suggested_label.setText(self.translator.text("tags.suggested"))
+        self.existing_label.setText(self.translator.text("tags.existing"))
+        self.no_tags_label.setText(self.translator.text("tags.empty"))
+
+        self.summary_dock.setWindowTitle(
+            self.translator.text("summary.title")
+        )
+        self.summary_label.setText(self.translator.text("summary.collapsed"))
 
     def _apply_theme(self) -> None:
         app = QApplication.instance()
