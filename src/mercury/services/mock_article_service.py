@@ -62,3 +62,11 @@ class MockArticleService:
                 return article
 
         return None
+    def add_feed(self, xml_url: str) -> str:
+        return f"Mock add feed request received: {xml_url}"
+
+    def import_opml(self, file_path: str) -> str:
+        return f"Mock OPML import request received: {file_path}"
+
+    def refresh_all(self) -> str:
+        return "Mock feeds refreshed."

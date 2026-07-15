@@ -3,9 +3,12 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -73,14 +76,13 @@ class MainWindow(QMainWindow):
 
     def _setup_actions(self) -> None:
         self.add_feed_action = QAction(self)
-        self.add_feed_action.triggered.connect(
-            lambda: self._show_pending_message("status.add_feed_pending")
-        )
+        self.add_feed_action.triggered.connect(self._add_feed)
+
+        self.import_opml_action = QAction(self)
+        self.import_opml_action.triggered.connect(self._import_opml)
 
         self.refresh_action = QAction(self)
-        self.refresh_action.triggered.connect(
-            lambda: self._show_pending_message("status.refresh_pending")
-        )
+        self.refresh_action.triggered.connect(self._refresh_feeds)
 
         self.exit_action = QAction(self)
         self.exit_action.setShortcut("Ctrl+Q")
@@ -105,6 +107,7 @@ class MainWindow(QMainWindow):
         self.help_menu = self.menuBar().addMenu("")
 
         self.file_menu.addAction(self.add_feed_action)
+        self.file_menu.addAction(self.import_opml_action)
         self.file_menu.addAction(self.refresh_action)
         self.file_menu.addSeparator()
         self.file_menu.addAction(self.exit_action)
@@ -118,6 +121,7 @@ class MainWindow(QMainWindow):
         self.main_toolbar.setMovable(False)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.main_toolbar)
         self.main_toolbar.addAction(self.add_feed_action)
+        self.main_toolbar.addAction(self.import_opml_action)
         self.main_toolbar.addAction(self.refresh_action)
         self.main_toolbar.addSeparator()
         self.main_toolbar.addAction(self.toggle_tags_action)
@@ -221,6 +225,9 @@ class MainWindow(QMainWindow):
         self.sidebar.set_feeds(feeds)
         self.article_list.set_articles(articles)
 
+        if not articles:
+            self.article_reader.show_welcome()
+
     def _show_feed_articles(self, feed_id: str) -> None:
         articles = self.article_service.list_articles(feed_id)
         self.article_list.set_articles(articles)
@@ -234,6 +241,65 @@ class MainWindow(QMainWindow):
             return
 
         self.article_reader.show_article(article)
+
+    def _add_feed(self) -> None:
+        xml_url, accepted = QInputDialog.getText(
+            self,
+            self.translator.text("feed.add_dialog.title"),
+            self.translator.text("feed.add_dialog.label"),
+            QLineEdit.EchoMode.Normal,
+            "",
+        )
+
+        if not accepted or not xml_url.strip():
+            return
+
+        self._run_service_action(
+            lambda: self.article_service.add_feed(xml_url.strip()),
+            self.translator.text("status.add_feed_started"),
+        )
+
+    def _import_opml(self) -> None:
+        file_path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            self.translator.text("opml.import_dialog.title"),
+            "",
+            self.translator.text("opml.import_dialog.filter"),
+        )
+
+        if not file_path:
+            return
+
+        self._run_service_action(
+            lambda: self.article_service.import_opml(file_path),
+            self.translator.text("status.import_opml_started"),
+        )
+
+    def _refresh_feeds(self) -> None:
+        self._run_service_action(
+            self.article_service.refresh_all,
+            self.translator.text("status.refresh_started"),
+        )
+
+    def _run_service_action(self, action, started_message: str) -> None:
+        self.statusBar().showMessage(started_message, 5000)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+
+        try:
+            message = action()
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                self.translator.text("dialog.feature_failed.title"),
+                str(exc),
+            )
+            self.statusBar().showMessage(str(exc), 8000)
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        self._load_initial_data()
+        self.statusBar().showMessage(message, 8000)
 
     def _open_settings(self) -> None:
         """打开设置窗口。"""
@@ -267,16 +333,6 @@ class MainWindow(QMainWindow):
             self.translator.text("dialog.about.body"),
         )
 
-    def _show_pending_message(self, message_key: str) -> None:
-        message = self.translator.text(message_key)
-
-        self.statusBar().showMessage(message, 5000)
-        QMessageBox.information(
-            self,
-            self.translator.text("dialog.feature_pending.title"),
-            message,
-        )
-
     def _translate_ui(self) -> None:
         self.setWindowTitle(self.translator.text("app.title"))
 
@@ -287,6 +343,9 @@ class MainWindow(QMainWindow):
 
         self.add_feed_action.setText(
             self.translator.text("action.add_feed")
+        )
+        self.import_opml_action.setText(
+            self.translator.text("action.import_opml")
         )
         self.refresh_action.setText(
             self.translator.text("action.refresh")

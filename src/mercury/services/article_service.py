@@ -17,3 +17,14 @@ class ArticleService(Protocol):
     def get_article(self, article_id: str) -> Article | None:
         """按照文章 ID 获取文章详情。"""
         ...
+    def add_feed(self, xml_url: str) -> str:
+        """添加单个 Feed，并返回用户可理解的结果说明。"""
+        ...
+
+    def import_opml(self, file_path: str) -> str:
+        """导入 OPML，并返回用户可理解的结果说明。"""
+        ...
+
+    def refresh_all(self) -> str:
+        """刷新全部订阅源，并返回用户可理解的结果说明。"""
+        ...
