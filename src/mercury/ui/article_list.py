@@ -12,11 +12,12 @@ class ArticleList(QWidget):
     def __init__(self) -> None:
         super().__init__()
 
+        self.title_label = QLabel()
         self.list_widget = QListWidget()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(QLabel("文章列表"))
+        layout.addWidget(self.title_label)
         layout.addWidget(self.list_widget)
 
         self.list_widget.currentItemChanged.connect(
@@ -30,6 +31,9 @@ class ArticleList(QWidget):
             self.list_widget.addItem(article.title)
             item = self.list_widget.item(self.list_widget.count() - 1)
             item.setData(256, article.id)
+
+    def set_title(self, title: str) -> None:
+        self.title_label.setText(title)
 
     def _on_current_item_changed(self, current, previous) -> None:
         del previous

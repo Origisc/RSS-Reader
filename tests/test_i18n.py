@@ -1,0 +1,36 @@
+import sys
+import unittest
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = PROJECT_ROOT / "src"
+
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from mercury.i18n import Translator
+
+
+class TranslatorTest(unittest.TestCase):
+    def test_default_language_is_simplified_chinese(self) -> None:
+        translator = Translator()
+
+        self.assertEqual(translator.language, "zh_CN")
+        self.assertEqual(translator.text("menu.file"), "文件")
+
+    def test_can_switch_to_english(self) -> None:
+        translator = Translator("en_US")
+
+        self.assertEqual(translator.language, "en_US")
+        self.assertEqual(translator.text("menu.file"), "File")
+
+    def test_invalid_language_falls_back_to_default(self) -> None:
+        translator = Translator("fr_FR")
+
+        self.assertEqual(translator.language, "zh_CN")
+        self.assertEqual(translator.text("menu.help"), "帮助")
+
+    def test_missing_key_returns_key_name(self) -> None:
+        translator = Translator("en_US")
+
+        self.assertEqual(translator.text("missing.key"), "missing.key")
