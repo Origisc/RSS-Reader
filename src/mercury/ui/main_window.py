@@ -1,96 +1,66 @@
-from PySide6.QtWidgets import (
-    QLabel,
-    QListWidget,
-    QMainWindow,
-    QSplitter,
-    QTextBrowser,
-    QVBoxLayout,
-    QWidget,
-)
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QMainWindow, QSplitter
+
+from mercury.services.article_service import ArticleService
+from mercury.ui.article_list import ArticleList
+from mercury.ui.article_reader import ArticleReader
+from mercury.ui.sidebar import Sidebar
 
 
 class MainWindow(QMainWindow):
-    def __init__(self) -> None:
+    """Mercury 主窗口。"""
+
+    def __init__(self, article_service: ArticleService) -> None:
         super().__init__()
+
+        self.article_service = article_service
 
         self.setWindowTitle("Mercury")
         self.resize(1200, 720)
 
-        self.feed_list = QListWidget()
-        self.article_list = QListWidget()
-        self.article_reader = QTextBrowser()
+        self.sidebar = Sidebar()
+        self.article_list = ArticleList()
+        self.article_reader = ArticleReader()
 
         self._setup_ui()
-        self._load_mock_data()
         self._connect_signals()
+        self._load_initial_data()
 
     def _setup_ui(self) -> None:
-        left_panel = QWidget()
-        left_layout = QVBoxLayout(left_panel)
-        left_layout.addWidget(QLabel("订阅源"))
-        left_layout.addWidget(self.feed_list)
-
-        middle_panel = QWidget()
-        middle_layout = QVBoxLayout(middle_panel)
-        middle_layout.addWidget(QLabel("文章列表"))
-        middle_layout.addWidget(self.article_list)
-
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.addWidget(QLabel("阅读区"))
-        right_layout.addWidget(self.article_reader)
-
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(left_panel)
-        splitter.addWidget(middle_panel)
-        splitter.addWidget(right_panel)
+
+        splitter.addWidget(self.sidebar)
+        splitter.addWidget(self.article_list)
+        splitter.addWidget(self.article_reader)
 
         splitter.setSizes([220, 320, 660])
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 0)
+        splitter.setStretchFactor(2, 1)
 
         self.setCentralWidget(splitter)
 
-    def _load_mock_data(self) -> None:
-        self.feed_list.addItems(
-            [
-                "OpenAI Blog",
-                "Python Weekly",
-                "Hacker News",
-            ]
-        )
-
-        self.article_list.addItems(
-            [
-                "Mercury 项目启动",
-                "PySide6 三栏布局",
-                "如何设计本地优先应用",
-            ]
-        )
-
-        self.article_reader.setHtml(
-            """
-            <h1>欢迎使用 Mercury</h1>
-            <p>这是一个使用 PySide6 创建的 RSS 阅读器界面。</p>
-            <p>当前内容为 Mock 数据，还没有连接数据库和 Feed 服务。</p>
-            """
-        )
-
     def _connect_signals(self) -> None:
-        self.article_list.currentTextChanged.connect(
-            self._show_selected_article
-        )
+        self.sidebar.feed_selected.connect(self._show_feed_articles)
+        self.article_list.article_selected.connect(self._show_article)
 
-    def _show_selected_article(self, title: str) -> None:
-        if not title:
+    def _load_initial_data(self) -> None:
+        feeds = self.article_service.list_feeds()
+        articles = self.article_service.list_articles()
+
+        self.sidebar.set_feeds(feeds)
+        self.article_list.set_articles(articles)
+
+    def _show_feed_articles(self, feed_id: str) -> None:
+        articles = self.article_service.list_articles(feed_id)
+        self.article_list.set_articles(articles)
+        self.article_reader.show_welcome()
+
+    def _show_article(self, article_id: str) -> None:
+        article = self.article_service.get_article(article_id)
+
+        if article is None:
+            self.article_reader.show_welcome()
             return
 
-        self.article_reader.setHtml(
-            f"""
-            <h1>{title}</h1>
-            <p><strong>来源：</strong>Mock Feed</p>
-            <p>
-                这是文章“{title}”的示例正文。
-                目前界面使用假数据，因此不需要等待成员 A。
-            </p>
-            """
-        )
+        self.article_reader.show_article(article)

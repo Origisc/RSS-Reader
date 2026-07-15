@@ -2,13 +2,15 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
+from mercury.services.mock_article_service import MockArticleService
 from mercury.ui.main_window import MainWindow
 
 
 def main() -> int:
     app = QApplication(sys.argv)
 
-    window = MainWindow()
+    article_service = MockArticleService()
+    window = MainWindow(article_service)
     window.show()
 
     return app.exec()
