@@ -1,5 +1,17 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QMainWindow, QSplitter
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QMessageBox,
+    QSplitter,
+)
+
+from mercury.services.article_service import ArticleService
+from mercury.ui.article_list import ArticleList
+from mercury.ui.article_reader import ArticleReader
+from mercury.ui.settings_dialog import SettingsDialog
+from mercury.ui.sidebar import Sidebar
 
 from mercury.services.article_service import ArticleService
 from mercury.ui.article_list import ArticleList
@@ -23,6 +35,7 @@ class MainWindow(QMainWindow):
         self.article_reader = ArticleReader()
 
         self._setup_ui()
+        self._setup_menu_bar()
         self._connect_signals()
         self._load_initial_data()
 
@@ -39,6 +52,27 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(2, 1)
 
         self.setCentralWidget(splitter)
+
+    def _setup_menu_bar(self) -> None:
+        """创建主窗口菜单栏。"""
+        file_menu = self.menuBar().addMenu("文件")
+        settings_menu = self.menuBar().addMenu("设置")
+        help_menu = self.menuBar().addMenu("帮助")
+
+        exit_action = QAction("退出", self)
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.triggered.connect(QApplication.quit)
+
+        open_settings_action = QAction("首选项", self)
+        open_settings_action.setShortcut("Ctrl+,")
+        open_settings_action.triggered.connect(self._open_settings)
+
+        about_action = QAction("关于 Mercury", self)
+        about_action.triggered.connect(self._show_about)
+
+        file_menu.addAction(exit_action)
+        settings_menu.addAction(open_settings_action)
+        help_menu.addAction(about_action)
 
     def _connect_signals(self) -> None:
         self.sidebar.feed_selected.connect(self._show_feed_articles)
@@ -64,3 +98,28 @@ class MainWindow(QMainWindow):
             return
 
         self.article_reader.show_article(article)
+    
+    def _open_settings(self) -> None:
+        """打开设置窗口。"""
+        dialog = SettingsDialog(self)
+
+        if dialog.exec():
+            language = dialog.selected_language()
+            theme = dialog.selected_theme()
+
+            self.statusBar().showMessage(
+                f"已选择语言：{language}，主题：{theme}",
+                5000,
+            )
+
+    def _show_about(self) -> None:
+        """显示关于窗口。"""
+        QMessageBox.about(
+            self,
+            "关于 Mercury",
+            (
+                "<h2>Mercury</h2>"
+                "<p>一款本地优先、跨平台的 RSS 阅读器。</p>"
+                "<p>当前版本：UI 开发原型</p>"
+            ),
+        )
