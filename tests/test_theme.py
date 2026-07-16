@@ -17,6 +17,14 @@ class ThemeTest(unittest.TestCase):
 
         self.assertIn("QWidget#ReaderPanel", stylesheet)
         self.assertIn('QLabel[chip="true"]', stylesheet)
+        self.assertIn("QToolBar#AppToolbar QToolButton", stylesheet)
+        self.assertIn("color: #e5edf5", stylesheet)
+
+    def test_light_theme_sets_toolbar_action_text_color(self) -> None:
+        stylesheet = stylesheet_for_theme("light")
+
+        self.assertIn("QToolBar QToolButton", stylesheet)
+        self.assertIn("color: #1f2933", stylesheet)
 
     def test_system_theme_uses_default_dark_reader_style(self) -> None:
         self.assertIn("QTextBrowser#ReaderContent", stylesheet_for_theme("system"))

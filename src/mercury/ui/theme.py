@@ -31,6 +31,29 @@ QToolBar {
     spacing: 6px;
 }
 
+QToolBar QToolButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #1f2933;
+    padding: 4px 8px;
+}
+
+QToolBar QToolButton:hover {
+    background: #dde2e6;
+    border-color: #c7cdd3;
+}
+
+QToolBar QToolButton:pressed,
+QToolBar QToolButton:checked {
+    background: #cdd9e5;
+    border-color: #9fb2c4;
+}
+
+QToolBar QToolButton:disabled {
+    color: #8a949e;
+}
+
 QStatusBar {
     background: #eeeeea;
 }
@@ -80,10 +103,45 @@ QMenu::item:selected {
     background: #242b35;
 }
 
+QMenuBar::item,
+QMenu::item {
+    color: #d9e2ec;
+}
+
 QToolBar#AppToolbar {
     border-bottom: 1px solid #29313a;
     padding: 2px 8px;
     spacing: 6px;
+}
+
+QToolBar#AppToolbar QToolButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #e5edf5;
+    padding: 4px 8px;
+}
+
+QToolBar#AppToolbar QToolButton:hover {
+    background: #2a323d;
+    border-color: #3b4653;
+}
+
+QToolBar#AppToolbar QToolButton:pressed,
+QToolBar#AppToolbar QToolButton:checked {
+    background: #0f68d8;
+    border-color: #2487ff;
+    color: #ffffff;
+}
+
+QToolBar#AppToolbar QToolButton:disabled {
+    color: #707b87;
+}
+
+QToolBar#AppToolbar::separator {
+    background: #3b4653;
+    margin: 4px 6px;
+    width: 1px;
 }
 
 QSplitter::handle {
