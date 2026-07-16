@@ -34,3 +34,16 @@ class TranslatorTest(unittest.TestCase):
         translator = Translator("en_US")
 
         self.assertEqual(translator.text("missing.key"), "missing.key")
+
+    def test_reader_view_messages_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            self.assertNotEqual(
+                translator.text("reader.view.cleaned_html"),
+                "reader.view.cleaned_html",
+            )
+            self.assertIn(
+                "{error}",
+                translator.text("reader.status.fallback_error"),
+            )

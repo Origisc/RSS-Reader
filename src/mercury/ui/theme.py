@@ -34,6 +34,30 @@ QToolBar {
 QStatusBar {
     background: #eeeeea;
 }
+
+QFrame#ReaderToolbar {
+    background: #f1f3f5;
+    border-bottom: 1px solid #d5d8dc;
+}
+
+QPushButton#ReaderViewButton {
+    background: #ffffff;
+    border: 1px solid #c9ced4;
+    border-radius: 5px;
+    color: #34404b;
+    padding: 4px 10px;
+}
+
+QPushButton#ReaderViewButton:checked {
+    background: #d9e8ff;
+    border-color: #6b9de3;
+    color: #0f3d73;
+}
+
+QLabel#ReaderViewStatus {
+    color: #5d6975;
+    font-size: 11px;
+}
 """
 
 DARK_STYLESHEET = """
@@ -141,6 +165,30 @@ QListWidget#EntryList::item:selected {
 QTextBrowser#ReaderContent {
     background: #082435;
     border: 0;
+}
+
+QFrame#ReaderToolbar {
+    background: #0f2a3d;
+    border-bottom: 1px solid #294759;
+}
+
+QPushButton#ReaderViewButton {
+    background: #15384d;
+    border: 1px solid #31556c;
+    border-radius: 5px;
+    color: #b9cad7;
+    padding: 4px 10px;
+}
+
+QPushButton#ReaderViewButton:checked {
+    background: #0f68d8;
+    border-color: #2487ff;
+    color: #ffffff;
+}
+
+QLabel#ReaderViewStatus {
+    color: #92a8b8;
+    font-size: 11px;
 }
 
 QDockWidget#TagsDock,

@@ -387,6 +387,22 @@ class MainWindow(QMainWindow):
             self.translator.text("article_reader.source_label"),
             self.translator.text("article_reader.local_note"),
         )
+        self.article_reader.set_view_texts(
+            raw_label=self.translator.text("reader.view.raw"),
+            cleaned_html_label=self.translator.text(
+                "reader.view.cleaned_html"
+            ),
+            markdown_label=self.translator.text("reader.view.markdown"),
+            raw_status=self.translator.text("reader.status.raw"),
+            cleaned_html_status=self.translator.text(
+                "reader.status.cleaned_html"
+            ),
+            markdown_status=self.translator.text("reader.status.markdown"),
+            fallback_unavailable=self.translator.text(
+                "reader.status.fallback_unavailable"
+            ),
+            fallback_error=self.translator.text("reader.status.fallback_error"),
+        )
 
         self.tags_dock.setWindowTitle(self.translator.text("tags.title"))
         self.tags_title_label.setText(self.translator.text("tags.title"))

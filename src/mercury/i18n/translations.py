@@ -35,6 +35,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "article_reader.local_note": (
             "本视图展示本地缓存内容；摘要、翻译和标签建议需要用户主动配置后再调用 Provider。"
         ),
+        "reader.view.raw": "原始内容",
+        "reader.view.cleaned_html": "Cleaned HTML",
+        "reader.view.markdown": "Markdown",
+        "reader.status.raw": "正在显示原始内容",
+        "reader.status.cleaned_html": "正在显示 Cleaned HTML",
+        "reader.status.markdown": "正在显示 Cleaned Markdown",
+        "reader.status.fallback_unavailable": "{view} 暂不可用，已显示原始内容。",
+        "reader.status.fallback_error": "清洗失败：{error}。已显示原始内容。",
         "feed.add_dialog.title": "添加 Feed",
         "feed.add_dialog.label": "Feed URL：",
         "opml.import_dialog.title": "导入 OPML",
@@ -97,6 +105,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "article_reader.local_note": (
             "This view renders local cached content; summary, translation, and tag suggestions "
             "will call a Provider only after the user configures and starts them."
+        ),
+        "reader.view.raw": "Original",
+        "reader.view.cleaned_html": "Cleaned HTML",
+        "reader.view.markdown": "Markdown",
+        "reader.status.raw": "Showing original content",
+        "reader.status.cleaned_html": "Showing cleaned HTML",
+        "reader.status.markdown": "Showing cleaned Markdown",
+        "reader.status.fallback_unavailable": (
+            "{view} is unavailable; showing original content."
+        ),
+        "reader.status.fallback_error": (
+            "Cleaning failed: {error}. Showing original content."
         ),
         "feed.add_dialog.title": "Add Feed",
         "feed.add_dialog.label": "Feed URL:",
