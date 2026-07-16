@@ -22,7 +22,7 @@ jobs:
             # Nuitka 在 Mac 下会生成 .app 或 .dmg 目录
             artifact_name: dist/main.dmg
             release_name: RSS-Reader-macOS.dmg
-          - os: ubuntu-20.04  # 使用较低版本的 Ubuntu 保证更好的 Linux 兼容性
+          - os: ubuntu-latest  # 使用较低版本的 Ubuntu 保证更好的 Linux 兼容性
             platform: linux
             artifact_name: dist/main.bin
             release_name: RSS-Reader-Linux-x64
