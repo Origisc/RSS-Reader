@@ -1,0 +1,71 @@
+name: Cross-Platform Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当你推送以 v 开头的 tag (如 v1.0.0) 时自动触发
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            artifact_name: dist/main.exe
+            release_name: RSS-Reader-Windows-x64.exe
+          - os: macos-latest
+            platform: macos
+            # Nuitka 在 Mac 下会生成 .app 或 .dmg 目录
+            artifact_name: dist/main.dmg
+            release_name: RSS-Reader-macOS.dmg
+          - os: ubuntu-20.04  # 使用较低版本的 Ubuntu 保证更好的 Linux 兼容性
+            platform: linux
+            artifact_name: dist/main.bin
+            release_name: RSS-Reader-Linux-x64
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PySide6 pyinstaller Beautifulsoup4 requests  # 替换/补齐你的依赖
+
+      # 使用 PyInstaller 针对各平台进行打包
+      - name: Build with PyInstaller (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --name="RSS-Reader" main.py
+          mv dist/RSS-Reader.exe dist/main.exe
+
+      - name: Build with PyInstaller (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --name="RSS-Reader" main.py
+          mv dist/RSS-Reader dist/main.bin
+
+      - name: Build with PyInstaller (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --name="RSS-Reader" main.py
+          # 在 Mac 上将生成的 app 打包成 dmg 方便用户下载后直接拖拽
+          hdiutil create -format UDZO -srcfolder dist/RSS-Reader.app dist/main.dmg
+
+      # 自动重命名并上传到 GitHub Release
+      - name: Rename and Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
