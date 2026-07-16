@@ -50,12 +50,17 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.title": "设置",
         "settings.language": "界面语言：",
         "settings.theme": "界面主题：",
+        "settings.reader_font_size": "正文字号：",
+        "settings.reader_line_height": "正文行高：",
+        "settings.reader_content_width": "正文宽度：",
         "settings.ok": "确定",
         "settings.cancel": "取消",
         "theme.system": "跟随系统",
         "theme.light": "浅色",
         "theme.dark": "深色",
-        "status.settings_applied": "已选择语言：{language}，主题：{theme}",
+        "status.settings_applied": (
+            "已应用语言：{language}，主题：{theme}，正文字号：{font_size}px"
+        ),
         "status.add_feed_started": "正在添加 Feed...",
         "status.import_opml_started": "正在导入 OPML...",
         "status.refresh_started": "正在刷新订阅源...",
@@ -125,12 +130,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.title": "Settings",
         "settings.language": "Interface language:",
         "settings.theme": "Interface theme:",
+        "settings.reader_font_size": "Reader font size:",
+        "settings.reader_line_height": "Reader line height:",
+        "settings.reader_content_width": "Reader content width:",
         "settings.ok": "OK",
         "settings.cancel": "Cancel",
         "theme.system": "Use system setting",
         "theme.light": "Light",
         "theme.dark": "Dark",
-        "status.settings_applied": "Selected language: {language}; theme: {theme}",
+        "status.settings_applied": (
+            "Applied language: {language}; theme: {theme}; "
+            "reader font: {font_size}px"
+        ),
         "status.add_feed_started": "Adding feed...",
         "status.import_opml_started": "Importing OPML...",
         "status.refresh_started": "Refreshing feeds...",

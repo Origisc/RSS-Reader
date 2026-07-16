@@ -22,6 +22,10 @@ from mercury.i18n.translations import SUPPORTED_LANGUAGES
 from mercury.services.article_service import ArticleService
 from mercury.ui.article_list import ArticleList
 from mercury.ui.article_reader import ArticleReader
+from mercury.ui.reader_style import (
+    InMemoryReaderStyleStore,
+    ReaderStyleStore,
+)
 from mercury.ui.settings_dialog import SettingsDialog
 from mercury.ui.sidebar import Sidebar
 from mercury.ui.theme import stylesheet_for_theme
@@ -30,19 +34,28 @@ from mercury.ui.theme import stylesheet_for_theme
 class MainWindow(QMainWindow):
     """Mercury 主窗口。"""
 
-    def __init__(self, article_service: ArticleService) -> None:
+    def __init__(
+        self,
+        article_service: ArticleService,
+        reader_style_store: ReaderStyleStore | None = None,
+    ) -> None:
         super().__init__()
 
         self.setObjectName("MercuryWindow")
         self.article_service = article_service
         self.translator = Translator()
         self._theme = "dark"
+        self._reader_style_store = (
+            reader_style_store or InMemoryReaderStyleStore()
+        )
+        self._reader_style = self._reader_style_store.load().normalized()
 
         self.resize(1320, 820)
 
         self.sidebar = Sidebar()
         self.article_list = ArticleList()
         self.article_reader = ArticleReader()
+        self.article_reader.set_reader_style(self._reader_style)
 
         self._setup_actions()
         self._setup_ui()
@@ -307,12 +320,16 @@ class MainWindow(QMainWindow):
             self.translator,
             self.translator.language,
             self._theme,
-            self,
+            current_reader_style=self._reader_style,
+            parent=self,
         )
 
         if dialog.exec():
             self.translator.set_language(dialog.selected_language())
             self._theme = dialog.selected_theme()
+            self._reader_style = dialog.selected_reader_style()
+            self._reader_style_store.save(self._reader_style)
+            self.article_reader.set_reader_style(self._reader_style)
             self._translate_ui()
             self._load_initial_data()
             self._apply_theme()
@@ -321,6 +338,7 @@ class MainWindow(QMainWindow):
                 self.translator.text("status.settings_applied").format(
                     language=SUPPORTED_LANGUAGES[self.translator.language],
                     theme=self.translator.text(f"theme.{self._theme}"),
+                    font_size=self._reader_style.font_size,
                 ),
                 5000,
             )

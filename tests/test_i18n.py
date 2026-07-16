@@ -47,3 +47,14 @@ class TranslatorTest(unittest.TestCase):
                 "{error}",
                 translator.text("reader.status.fallback_error"),
             )
+
+    def test_reader_style_settings_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "settings.reader_font_size",
+                "settings.reader_line_height",
+                "settings.reader_content_width",
+            ):
+                self.assertNotEqual(translator.text(key), key)

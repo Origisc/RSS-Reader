@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication
 from mercury.models.article import Article
 from mercury.ui.article_reader import ArticleReader
 from mercury.ui.reader_document import ReaderDocument, ReaderView
+from mercury.ui.reader_style import ReaderStyle
 
 
 class ArticleReaderTest(unittest.TestCase):
@@ -97,6 +98,23 @@ class ArticleReaderTest(unittest.TestCase):
 
         self.assertIn("First-stage original", self.reader.content.toPlainText())
         self.assertIn("unavailable", self.reader.view_status_label.text())
+
+    def test_reader_style_is_applied_without_changing_article(self) -> None:
+        self.reader.show_article(self.article)
+        style = ReaderStyle(
+            font_size=24,
+            line_height=2.0,
+            content_width=640,
+        )
+
+        self.reader.set_reader_style(style)
+        rendered_html = self.reader._wrap_html("<p>Styled content</p>")
+
+        self.assertEqual(self.reader.reader_style, style)
+        self.assertEqual(self.reader.current_article_id, "article-1")
+        self.assertIn("font-size: 24px", rendered_html)
+        self.assertIn("line-height: 2.0", rendered_html)
+        self.assertIn("max-width: 640px", rendered_html)
 
 
 if __name__ == "__main__":

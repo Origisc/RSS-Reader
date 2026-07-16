@@ -17,6 +17,7 @@ from mercury.ui.reader_document import (
     ReaderDocument,
     ReaderView,
 )
+from mercury.ui.reader_style import ReaderStyle
 
 
 class ArticleReader(QWidget):
@@ -33,6 +34,7 @@ class ArticleReader(QWidget):
         self._reader_note = ""
         self._current_document: ReaderDocument | None = None
         self._current_view = ReaderView.RAW
+        self._reader_style = ReaderStyle()
         self._view_labels = {
             ReaderView.RAW: "Original",
             ReaderView.CLEANED_HTML: "Cleaned HTML",
@@ -109,6 +111,10 @@ class ArticleReader(QWidget):
 
         return self._current_article.id
 
+    @property
+    def reader_style(self) -> ReaderStyle:
+        return self._reader_style
+
     def show_welcome(self) -> None:
         self._current_article = None
         self._current_document = None
@@ -137,6 +143,15 @@ class ArticleReader(QWidget):
 
         if self._current_article is not None:
             self._render_current_view()
+
+    def set_reader_style(self, style: ReaderStyle) -> None:
+        self._reader_style = style.normalized()
+
+        if self._current_article is None:
+            self.show_welcome()
+            return
+
+        self._render_current_view()
 
     def set_view_texts(
         self,
@@ -242,7 +257,10 @@ class ArticleReader(QWidget):
         )
         self.content.document().setDefaultStyleSheet(
             "body { color: #d7e3ed; font-family: Georgia, serif; "
-            "font-size: 18px; line-height: 1.62; } "
+            f"font-size: {self._reader_style.font_size}px; "
+            f"line-height: {self._reader_style.line_height}; "
+            f"max-width: {self._reader_style.content_width}px; "
+            "margin: 32px auto 72px; } "
             "a { color: #69aefc; } pre, code { background: #0f2a3d; }"
         )
         self.content.setMarkdown(document)
@@ -265,7 +283,7 @@ class ArticleReader(QWidget):
             self.show_welcome()
             return
 
-        self.show_article(self._current_article)
+        self._render_current_view()
 
     def _wrap_html(self, body: str) -> str:
         return f"""
@@ -277,10 +295,15 @@ class ArticleReader(QWidget):
                     background: #082435;
                     color: #d7e3ed;
                     font-family: Georgia, "Times New Roman", serif;
-                    font-size: 18px;
-                    line-height: 1.62;
+                    font-size: {self._reader_style.font_size}px;
+                    line-height: {self._reader_style.line_height};
                     margin: 0;
-                    padding: 32px 64px 72px;
+                    padding: 0;
+                }}
+                .reader-page {{
+                    margin: 0 auto;
+                    max-width: {self._reader_style.content_width}px;
+                    padding: 32px 40px 72px;
                 }}
                 h1 {{
                     color: #dbe8f5;
@@ -295,7 +318,7 @@ class ArticleReader(QWidget):
                 }}
                 .lede {{
                     color: #afc2d2;
-                    font-size: 18px;
+                    font-size: {self._reader_style.font_size}px;
                 }}
                 .reader-card,
                 .reader-note,
@@ -361,6 +384,6 @@ class ArticleReader(QWidget):
                 }}
             </style>
         </head>
-        <body>{body}</body>
+        <body><main class="reader-page">{body}</main></body>
         </html>
         """

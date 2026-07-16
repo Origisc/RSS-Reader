@@ -58,6 +58,89 @@ QStatusBar {
     background: #eeeeea;
 }
 
+QDialog QLabel {
+    background: transparent;
+    color: #1f2933;
+}
+
+QDialog QComboBox,
+QDialog QSpinBox,
+QDialog QDoubleSpinBox {
+    background: #ffffff;
+    border: 1px solid #c9ced4;
+    border-radius: 4px;
+    color: #1f2933;
+    padding: 4px 32px 4px 6px;
+}
+
+QDialog QComboBox::drop-down {
+    border-left: 1px solid #c9ced4;
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 28px;
+}
+
+QDialog QComboBox QAbstractItemView {
+    background: #ffffff;
+    border: 1px solid #bfc6cd;
+    color: #1f2933;
+    outline: 0;
+    selection-background-color: #d9e8ff;
+    selection-color: #0f172a;
+}
+
+QDialog QSpinBox::up-button,
+QDialog QDoubleSpinBox::up-button {
+    background: #eef1f4;
+    border-bottom: 1px solid #c9ced4;
+    border-left: 1px solid #c9ced4;
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 28px;
+}
+
+QDialog QSpinBox::down-button,
+QDialog QDoubleSpinBox::down-button {
+    background: #eef1f4;
+    border-left: 1px solid #c9ced4;
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 28px;
+}
+
+QDialog QSpinBox::up-button:hover,
+QDialog QSpinBox::down-button:hover,
+QDialog QDoubleSpinBox::up-button:hover,
+QDialog QDoubleSpinBox::down-button:hover {
+    background: #d9e8ff;
+}
+
+QDialog QSpinBox::up-button:pressed,
+QDialog QSpinBox::down-button:pressed,
+QDialog QDoubleSpinBox::up-button:pressed,
+QDialog QDoubleSpinBox::down-button:pressed {
+    background: #c3d8f5;
+}
+
+QDialog QPushButton {
+    background: #ffffff;
+    border: 1px solid #bfc6cd;
+    border-radius: 4px;
+    color: #1f2933;
+    min-width: 72px;
+    padding: 5px 12px;
+}
+
+QDialog QPushButton:hover {
+    background: #e7ebef;
+}
+
+QDialog QPushButton:default {
+    background: #d9e8ff;
+    border-color: #6b9de3;
+    color: #0f3d73;
+}
+
 QFrame#ReaderToolbar {
     background: #f1f3f5;
     border-bottom: 1px solid #d5d8dc;
@@ -88,6 +171,92 @@ QMainWindow#MercuryWindow,
 QDialog {
     background: #0c1118;
     color: #d9e2ec;
+}
+
+QDialog QLabel {
+    background: transparent;
+    color: #e5edf5;
+}
+
+QDialog QComboBox,
+QDialog QSpinBox,
+QDialog QDoubleSpinBox {
+    background: #202833;
+    border: 1px solid #465363;
+    border-radius: 4px;
+    color: #f3f6f9;
+    padding: 4px 32px 4px 6px;
+    selection-background-color: #0f68d8;
+    selection-color: #ffffff;
+}
+
+QDialog QComboBox::drop-down {
+    border-left: 1px solid #465363;
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 28px;
+}
+
+QDialog QComboBox QAbstractItemView {
+    background: #202833;
+    border: 1px solid #526174;
+    color: #f3f6f9;
+    outline: 0;
+    selection-background-color: #0f68d8;
+    selection-color: #ffffff;
+}
+
+QDialog QSpinBox::up-button,
+QDialog QDoubleSpinBox::up-button {
+    background: #293442;
+    border-bottom: 1px solid #465363;
+    border-left: 1px solid #465363;
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 28px;
+}
+
+QDialog QSpinBox::down-button,
+QDialog QDoubleSpinBox::down-button {
+    background: #293442;
+    border-left: 1px solid #465363;
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 28px;
+}
+
+QDialog QSpinBox::up-button:hover,
+QDialog QSpinBox::down-button:hover,
+QDialog QDoubleSpinBox::up-button:hover,
+QDialog QDoubleSpinBox::down-button:hover {
+    background: #3b4a5c;
+}
+
+QDialog QSpinBox::up-button:pressed,
+QDialog QSpinBox::down-button:pressed,
+QDialog QDoubleSpinBox::up-button:pressed,
+QDialog QDoubleSpinBox::down-button:pressed {
+    background: #0f68d8;
+}
+
+QDialog QPushButton {
+    background: #2a323d;
+    border: 1px solid #465363;
+    border-radius: 4px;
+    color: #e5edf5;
+    min-width: 72px;
+    padding: 5px 12px;
+}
+
+QDialog QPushButton:hover {
+    background: #354150;
+    border-color: #607084;
+}
+
+QDialog QPushButton:default {
+    background: #0f68d8;
+    border-color: #2487ff;
+    color: #ffffff;
 }
 
 QMenuBar,
