@@ -1,13 +1,16 @@
 from collections.abc import Collection
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QRect, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFontMetrics
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QListView,
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QVBoxLayout,
     QWidget,
 )
@@ -17,6 +20,44 @@ from mercury.models.article import Article
 
 ARTICLE_ID_ROLE = Qt.ItemDataRole.UserRole
 READ_STATE_ROLE = Qt.ItemDataRole.UserRole + 1
+
+
+class WrappingArticleDelegate(QStyledItemDelegate):
+    """Measure entry text against the current viewport width."""
+
+    def __init__(self, article_list: QListWidget) -> None:
+        super().__init__(article_list)
+        self._article_list = article_list
+
+    def sizeHint(
+        self,
+        option: QStyleOptionViewItem,
+        index,
+    ) -> QSize:
+        wrapped_option = QStyleOptionViewItem(option)
+        self.initStyleOption(wrapped_option, index)
+
+        horizontal_padding = 24
+        available_width = max(
+            self._article_list.viewport().width() - horizontal_padding,
+            80,
+        )
+        text_flags = int(
+            Qt.AlignmentFlag.AlignLeft
+            | Qt.AlignmentFlag.AlignTop
+            | Qt.TextFlag.TextWordWrap
+        )
+        text_bounds = QFontMetrics(wrapped_option.font).boundingRect(
+            QRect(0, 0, available_width, 100_000),
+            text_flags,
+            wrapped_option.text,
+        )
+        default_size = super().sizeHint(wrapped_option, index)
+
+        return QSize(
+            available_width + horizontal_padding,
+            max(default_size.height(), text_bounds.height() + 16),
+        )
 
 
 class ArticleList(QWidget):
@@ -45,6 +86,16 @@ class ArticleList(QWidget):
 
         self.list_widget = QListWidget()
         self.list_widget.setObjectName("EntryList")
+        self.list_widget.setWordWrap(True)
+        self.list_widget.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.list_widget.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.list_widget.setUniformItemSizes(False)
+        self.list_widget.setResizeMode(QListView.ResizeMode.Adjust)
+        self.list_widget.setItemDelegate(
+            WrappingArticleDelegate(self.list_widget)
+        )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -74,6 +125,8 @@ class ArticleList(QWidget):
             self._apply_read_style(item)
             self.list_widget.addItem(item)
 
+        self.list_widget.doItemsLayout()
+
     def set_read_state(self, article_id: str, is_read: bool) -> None:
         for index in range(self.list_widget.count()):
             item = self.list_widget.item(index)
@@ -83,6 +136,7 @@ class ArticleList(QWidget):
 
             item.setData(READ_STATE_ROLE, is_read)
             self._apply_read_style(item)
+            self.list_widget.doItemsLayout()
             return
 
     def set_color_scheme(self, theme: str) -> None:
