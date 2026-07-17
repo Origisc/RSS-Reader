@@ -456,9 +456,6 @@ class MainWindow(QMainWindow):
         self.article_list.set_title(
             self.translator.text("article_list.title")
         )
-        self.article_list.set_filter_text(
-            self.translator.text("article_list.filter.unread")
-        )
         self.article_list.set_entry_meta_text(
             self.translator.text("article_list.entry_meta")
         )

@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QListView,
     QListWidget,
     QListWidgetItem,
-    QPushButton,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QVBoxLayout,
@@ -74,15 +73,11 @@ class ArticleList(QWidget):
 
         self.title_label = QLabel()
         self.title_label.setObjectName("PanelTitle")
-        self.filter_button = QPushButton()
-        self.filter_button.setObjectName("CompactFilterButton")
-        self.filter_button.setEnabled(False)
 
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(12, 10, 12, 6)
         header_layout.addWidget(self.title_label)
         header_layout.addStretch(1)
-        header_layout.addWidget(self.filter_button)
 
         self.list_widget = QListWidget()
         self.list_widget.setObjectName("EntryList")
@@ -147,9 +142,6 @@ class ArticleList(QWidget):
 
     def set_title(self, title: str) -> None:
         self.title_label.setText(title)
-
-    def set_filter_text(self, text: str) -> None:
-        self.filter_button.setText(text)
 
     def set_entry_meta_text(self, text: str) -> None:
         self._entry_meta_text = text

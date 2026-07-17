@@ -407,7 +407,6 @@ QLabel#SummaryLabel {
 
 QPushButton#PrimarySegment,
 QPushButton#SecondarySegment,
-QPushButton#CompactFilterButton,
 QPushButton#TagAddButton {
     background: #22242a;
     border: 1px solid #303640;
