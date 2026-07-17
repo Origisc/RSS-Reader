@@ -68,6 +68,15 @@ class ArticleListTest(unittest.TestCase):
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
         )
 
+    def test_meta_translation_preserves_selection(self) -> None:
+        self.panel.list_widget.setCurrentRow(0)
+        selected_item = self.panel.list_widget.currentItem()
+
+        self.panel.set_entry_meta_text("Local cached entry")
+
+        self.assertIs(self.panel.list_widget.currentItem(), selected_item)
+        self.assertIn("Local cached entry", selected_item.text())
+
 
 if __name__ == "__main__":
     unittest.main()

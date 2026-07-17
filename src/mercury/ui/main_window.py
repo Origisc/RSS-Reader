@@ -26,6 +26,7 @@ from mercury.ui.article_reader import ArticleReader
 from mercury.ui.read_state import InMemoryReadStateStore, ReadStateStore
 from mercury.ui.reader_style import (
     InMemoryReaderStyleStore,
+    ReaderStyle,
     ReaderStyleStore,
 )
 from mercury.ui.settings_dialog import SettingsDialog
@@ -384,14 +385,11 @@ class MainWindow(QMainWindow):
         )
 
         if dialog.exec():
-            self.translator.set_language(dialog.selected_language())
-            self._theme = dialog.selected_theme()
-            self._reader_style = dialog.selected_reader_style()
-            self._reader_style_store.save(self._reader_style)
-            self.article_reader.set_reader_style(self._reader_style)
-            self._translate_ui()
-            self._load_initial_data()
-            self._apply_theme()
+            self._apply_settings(
+                dialog.selected_language(),
+                dialog.selected_theme(),
+                dialog.selected_reader_style(),
+            )
 
             self.statusBar().showMessage(
                 self.translator.text("status.settings_applied").format(
@@ -401,6 +399,21 @@ class MainWindow(QMainWindow):
                 ),
                 5000,
             )
+
+    def _apply_settings(
+        self,
+        language: str,
+        theme: str,
+        reader_style: ReaderStyle,
+    ) -> None:
+        """Apply presentation settings without replacing UI data or selection."""
+        self.translator.set_language(language)
+        self._theme = theme
+        self._reader_style = reader_style.normalized()
+        self._reader_style_store.save(self._reader_style)
+        self.article_reader.set_reader_style(self._reader_style)
+        self._translate_ui()
+        self._apply_theme()
 
     def _show_about(self) -> None:
         """显示关于窗口。"""

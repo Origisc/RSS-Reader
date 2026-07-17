@@ -19,6 +19,8 @@ from mercury.models.article import Article
 
 ARTICLE_ID_ROLE = Qt.ItemDataRole.UserRole
 READ_STATE_ROLE = Qt.ItemDataRole.UserRole + 1
+ARTICLE_TITLE_ROLE = Qt.ItemDataRole.UserRole + 2
+ARTICLE_SOURCE_ROLE = Qt.ItemDataRole.UserRole + 3
 
 
 class WrappingArticleDelegate(QStyledItemDelegate):
@@ -111,12 +113,13 @@ class ArticleList(QWidget):
         read_ids = set(read_article_ids or set())
 
         for article in articles:
-            item = QListWidgetItem(
-                f"• {article.title}\n{article.source_title}\n{self._entry_meta_text}"
-            )
+            item = QListWidgetItem()
             item.setData(ARTICLE_ID_ROLE, article.id)
             item.setData(READ_STATE_ROLE, article.id in read_ids)
+            item.setData(ARTICLE_TITLE_ROLE, article.title)
+            item.setData(ARTICLE_SOURCE_ROLE, article.source_title)
             item.setToolTip(article.title)
+            self._update_item_text(item)
             self._apply_read_style(item)
             self.list_widget.addItem(item)
 
@@ -146,6 +149,11 @@ class ArticleList(QWidget):
     def set_entry_meta_text(self, text: str) -> None:
         self._entry_meta_text = text
 
+        for index in range(self.list_widget.count()):
+            self._update_item_text(self.list_widget.item(index))
+
+        self.list_widget.doItemsLayout()
+
     def _on_current_item_changed(self, current, previous) -> None:
         del previous
 
@@ -167,3 +175,10 @@ class ArticleList(QWidget):
             color = "#778391" if is_read else "#e5edf5"
 
         item.setForeground(QColor(color))
+
+    def _update_item_text(self, item: QListWidgetItem) -> None:
+        title = item.data(ARTICLE_TITLE_ROLE) or ""
+        source_title = item.data(ARTICLE_SOURCE_ROLE) or ""
+        item.setText(
+            f"• {title}\n{source_title}\n{self._entry_meta_text}"
+        )
