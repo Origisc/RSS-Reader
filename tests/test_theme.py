@@ -25,6 +25,8 @@ class ThemeTest(unittest.TestCase):
 
         self.assertIn("QToolBar QToolButton", stylesheet)
         self.assertIn("color: #1f2933", stylesheet)
+        self.assertIn("QToolButton#FeedAddButton", stylesheet)
+        self.assertIn("QToolButton#FeedMenuButton", stylesheet)
 
     def test_dark_settings_dialog_uses_readable_label_and_input_colors(
         self,

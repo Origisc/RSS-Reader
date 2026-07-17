@@ -1,12 +1,15 @@
 from collections.abc import Mapping
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QPushButton,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -23,6 +26,9 @@ class Sidebar(QWidget):
     """左侧订阅源区域。"""
 
     feed_selected = Signal(str)
+    add_feed_requested = Signal()
+    import_opml_requested = Signal()
+    refresh_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -48,14 +54,49 @@ class Sidebar(QWidget):
 
         self.title_label = QLabel()
         self.title_label.setObjectName("PanelTitle")
-        self.add_label = QLabel("+  ⌄")
-        self.add_label.setObjectName("PanelActionHint")
+
+        self.menu_add_feed_action = QAction(self)
+        self.menu_add_feed_action.triggered.connect(self.add_feed_requested)
+        self.menu_import_opml_action = QAction(self)
+        self.menu_import_opml_action.triggered.connect(
+            self.import_opml_requested
+        )
+        self.menu_refresh_action = QAction(self)
+        self.menu_refresh_action.triggered.connect(self.refresh_requested)
+
+        self.feed_actions_menu = QMenu(self)
+        self.feed_actions_menu.addAction(self.menu_add_feed_action)
+        self.feed_actions_menu.addAction(self.menu_import_opml_action)
+        self.feed_actions_menu.addSeparator()
+        self.feed_actions_menu.addAction(self.menu_refresh_action)
+
+        self.add_feed_button = QToolButton()
+        self.add_feed_button.setObjectName("FeedAddButton")
+        self.add_feed_button.setText("+")
+        self.add_feed_button.setAutoRaise(True)
+        self.add_feed_button.clicked.connect(self.add_feed_requested)
+
+        self.feed_menu_button = QToolButton()
+        self.feed_menu_button.setObjectName("FeedMenuButton")
+        self.feed_menu_button.setArrowType(Qt.ArrowType.DownArrow)
+        self.feed_menu_button.setAutoRaise(True)
+        self.feed_menu_button.setMenu(self.feed_actions_menu)
+        self.feed_menu_button.setPopupMode(
+            QToolButton.ToolButtonPopupMode.InstantPopup
+        )
+
+        feed_actions_widget = QWidget()
+        feed_actions_layout = QHBoxLayout(feed_actions_widget)
+        feed_actions_layout.setContentsMargins(0, 0, 0, 0)
+        feed_actions_layout.setSpacing(0)
+        feed_actions_layout.addWidget(self.add_feed_button)
+        feed_actions_layout.addWidget(self.feed_menu_button)
 
         title_layout = QHBoxLayout()
         title_layout.setContentsMargins(12, 4, 12, 2)
         title_layout.addWidget(self.title_label)
         title_layout.addStretch(1)
-        title_layout.addWidget(self.add_label)
+        title_layout.addWidget(feed_actions_widget)
 
         self.feed_list = QListWidget()
         self.feed_list.setObjectName("FeedList")
@@ -112,6 +153,21 @@ class Sidebar(QWidget):
     def set_tabs(self, feeds_text: str, tags_text: str) -> None:
         self.feeds_tab.setText(feeds_text)
         self.tags_tab.setText(tags_text)
+
+    def set_action_texts(
+        self,
+        *,
+        add_feed: str,
+        import_opml: str,
+        refresh: str,
+    ) -> None:
+        self.add_feed_button.setToolTip(add_feed)
+        self.add_feed_button.setAccessibleName(add_feed)
+        self.feed_menu_button.setToolTip(import_opml)
+        self.feed_menu_button.setAccessibleName(import_opml)
+        self.menu_add_feed_action.setText(add_feed)
+        self.menu_import_opml_action.setText(import_opml)
+        self.menu_refresh_action.setText(refresh)
 
     def set_footer(self, footer_text: str) -> None:
         self.footer_label.setText(footer_text)

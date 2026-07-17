@@ -233,6 +233,9 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self) -> None:
         self.sidebar.feed_selected.connect(self._show_feed_articles)
+        self.sidebar.add_feed_requested.connect(self._add_feed)
+        self.sidebar.import_opml_requested.connect(self._import_opml)
+        self.sidebar.refresh_requested.connect(self._refresh_feeds)
         self.article_list.article_selected.connect(self._show_article)
         self.article_reader.read_state_change_requested.connect(
             self._set_read_state
@@ -440,6 +443,11 @@ class MainWindow(QMainWindow):
         self.sidebar.set_tabs(
             self.translator.text("sidebar.tab.feeds"),
             self.translator.text("sidebar.tab.tags"),
+        )
+        self.sidebar.set_action_texts(
+            add_feed=self.translator.text("action.add_feed"),
+            import_opml=self.translator.text("action.import_opml"),
+            refresh=self.translator.text("action.refresh"),
         )
         self.sidebar.set_footer(self.translator.text("sidebar.footer"))
         self.sidebar.set_feed_detail_text(

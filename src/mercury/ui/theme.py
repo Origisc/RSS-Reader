@@ -54,6 +54,36 @@ QToolBar QToolButton:disabled {
     color: #8a949e;
 }
 
+QToolButton#FeedAddButton,
+QToolButton#FeedMenuButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #34404b;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 1px 6px;
+}
+
+QToolButton#FeedAddButton {
+    border-bottom-right-radius: 0;
+    border-top-right-radius: 0;
+}
+
+QToolButton#FeedMenuButton {
+    border-bottom-left-radius: 0;
+    border-left: 0;
+    border-top-left-radius: 0;
+}
+
+QToolButton#FeedAddButton:hover,
+QToolButton#FeedAddButton:pressed,
+QToolButton#FeedMenuButton:hover,
+QToolButton#FeedMenuButton:pressed {
+    background: #dde2e6;
+    border-color: #c7cdd3;
+}
+
 QStatusBar {
     background: #eeeeea;
 }
@@ -305,6 +335,36 @@ QToolBar#AppToolbar QToolButton:checked {
 
 QToolBar#AppToolbar QToolButton:disabled {
     color: #707b87;
+}
+
+QToolButton#FeedAddButton,
+QToolButton#FeedMenuButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #b7c5d3;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 1px 6px;
+}
+
+QToolButton#FeedAddButton {
+    border-bottom-right-radius: 0;
+    border-top-right-radius: 0;
+}
+
+QToolButton#FeedMenuButton {
+    border-bottom-left-radius: 0;
+    border-left: 0;
+    border-top-left-radius: 0;
+}
+
+QToolButton#FeedAddButton:hover,
+QToolButton#FeedAddButton:pressed,
+QToolButton#FeedMenuButton:hover,
+QToolButton#FeedMenuButton:pressed {
+    background: #2a323d;
+    border-color: #3b4653;
 }
 
 QToolBar#AppToolbar::separator {
