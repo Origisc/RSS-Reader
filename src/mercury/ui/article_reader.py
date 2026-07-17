@@ -1,5 +1,6 @@
 from html import escape
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -23,6 +24,8 @@ from mercury.ui.reader_style import ReaderStyle
 class ArticleReader(QWidget):
     """右侧文章阅读区域。"""
 
+    read_state_change_requested = Signal(str, bool)
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -35,6 +38,9 @@ class ArticleReader(QWidget):
         self._current_document: ReaderDocument | None = None
         self._current_view = ReaderView.RAW
         self._reader_style = ReaderStyle()
+        self._is_read = False
+        self._mark_read_text = "Mark read"
+        self._mark_unread_text = "Mark unread"
         self._view_labels = {
             ReaderView.RAW: "Original",
             ReaderView.CLEANED_HTML: "Cleaned HTML",
@@ -87,6 +93,13 @@ class ArticleReader(QWidget):
         self.view_status_label.setWordWrap(True)
         toolbar_layout.addWidget(self.view_status_label)
 
+        self.read_state_button = QPushButton()
+        self.read_state_button.setObjectName("ReaderViewButton")
+        self.read_state_button.clicked.connect(
+            self._request_read_state_change
+        )
+        toolbar_layout.addWidget(self.read_state_button)
+
         self.content = QTextBrowser()
         self.content.setObjectName("ReaderContent")
         self.content.setOpenExternalLinks(True)
@@ -118,6 +131,7 @@ class ArticleReader(QWidget):
     def show_welcome(self) -> None:
         self._current_article = None
         self._current_document = None
+        self._is_read = False
         self.view_toolbar.hide()
         self.view_status_label.clear()
         body = (
@@ -153,6 +167,20 @@ class ArticleReader(QWidget):
 
         self._render_current_view()
 
+    def set_read_state(self, is_read: bool) -> None:
+        self._is_read = is_read
+        self._update_read_state_button()
+
+    def set_read_state_texts(
+        self,
+        *,
+        mark_read: str,
+        mark_unread: str,
+    ) -> None:
+        self._mark_read_text = mark_read
+        self._mark_unread_text = mark_unread
+        self._update_read_state_button()
+
     def set_view_texts(
         self,
         *,
@@ -187,6 +215,22 @@ class ArticleReader(QWidget):
     def _select_view(self, view: ReaderView, checked: bool) -> None:
         if checked:
             self.set_view(view)
+
+    def _request_read_state_change(self) -> None:
+        if self._current_article is None:
+            return
+
+        self.read_state_change_requested.emit(
+            self._current_article.id,
+            not self._is_read,
+        )
+
+    def _update_read_state_button(self) -> None:
+        if self._is_read:
+            self.read_state_button.setText(self._mark_unread_text)
+            return
+
+        self.read_state_button.setText(self._mark_read_text)
 
     def _render_current_view(self) -> None:
         if self._current_article is None or self._current_document is None:

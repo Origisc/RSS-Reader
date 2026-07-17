@@ -58,3 +58,16 @@ class TranslatorTest(unittest.TestCase):
                 "settings.reader_content_width",
             ):
                 self.assertNotEqual(translator.text(key), key)
+
+    def test_read_state_actions_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            self.assertNotEqual(
+                translator.text("action.mark_read"),
+                "action.mark_read",
+            )
+            self.assertNotEqual(
+                translator.text("action.mark_unread"),
+                "action.mark_unread",
+            )

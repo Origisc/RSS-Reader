@@ -1,4 +1,6 @@
-from PySide6.QtCore import Signal
+from collections.abc import Mapping
+
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -10,6 +12,11 @@ from PySide6.QtWidgets import (
 )
 
 from mercury.models.article import Feed
+
+
+FEED_ID_ROLE = Qt.ItemDataRole.UserRole
+FEED_TITLE_ROLE = Qt.ItemDataRole.UserRole + 1
+UNREAD_COUNT_ROLE = Qt.ItemDataRole.UserRole + 2
 
 
 class Sidebar(QWidget):
@@ -70,16 +77,34 @@ class Sidebar(QWidget):
             self._on_current_item_changed
         )
 
-    def set_feeds(self, feeds: list[Feed]) -> None:
+    def set_feeds(
+        self,
+        feeds: list[Feed],
+        unread_counts: Mapping[str, int] | None = None,
+    ) -> None:
         self.feed_list.clear()
+        counts = unread_counts or {}
 
-        for index, feed in enumerate(feeds, start=1):
-            item = QListWidgetItem(
-                f"{feed.title}\n  {self._feed_detail_text.format(count=index)}"
-            )
-            item.setData(256, feed.id)
+        for feed in feeds:
+            unread_count = max(int(counts.get(feed.id, 0)), 0)
+            item = QListWidgetItem()
+            item.setData(FEED_ID_ROLE, feed.id)
+            item.setData(FEED_TITLE_ROLE, feed.title)
+            item.setData(UNREAD_COUNT_ROLE, unread_count)
             item.setToolTip(feed.title)
+            self._update_feed_item_text(item)
             self.feed_list.addItem(item)
+
+    def update_unread_count(self, feed_id: str, unread_count: int) -> None:
+        for index in range(self.feed_list.count()):
+            item = self.feed_list.item(index)
+
+            if item.data(FEED_ID_ROLE) != feed_id:
+                continue
+
+            item.setData(UNREAD_COUNT_ROLE, max(unread_count, 0))
+            self._update_feed_item_text(item)
+            return
 
     def set_title(self, title: str) -> None:
         self.title_label.setText(title)
@@ -94,11 +119,20 @@ class Sidebar(QWidget):
     def set_feed_detail_text(self, detail_text: str) -> None:
         self._feed_detail_text = detail_text
 
+        for index in range(self.feed_list.count()):
+            self._update_feed_item_text(self.feed_list.item(index))
+
     def _on_current_item_changed(self, current, previous) -> None:
         del previous
 
         if current is None:
             return
 
-        feed_id = current.data(256)
+        feed_id = current.data(FEED_ID_ROLE)
         self.feed_selected.emit(feed_id)
+
+    def _update_feed_item_text(self, item: QListWidgetItem) -> None:
+        title = str(item.data(FEED_TITLE_ROLE) or "")
+        unread_count = int(item.data(UNREAD_COUNT_ROLE) or 0)
+        detail = self._feed_detail_text.format(count=unread_count)
+        item.setText(f"{title}\n  {detail}")

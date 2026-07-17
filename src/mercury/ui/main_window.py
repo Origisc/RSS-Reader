@@ -19,9 +19,11 @@ from PySide6.QtWidgets import (
 
 from mercury.i18n import Translator
 from mercury.i18n.translations import SUPPORTED_LANGUAGES
+from mercury.models.article import Article, Feed
 from mercury.services.article_service import ArticleService
 from mercury.ui.article_list import ArticleList
 from mercury.ui.article_reader import ArticleReader
+from mercury.ui.read_state import InMemoryReadStateStore, ReadStateStore
 from mercury.ui.reader_style import (
     InMemoryReaderStyleStore,
     ReaderStyleStore,
@@ -38,6 +40,7 @@ class MainWindow(QMainWindow):
         self,
         article_service: ArticleService,
         reader_style_store: ReaderStyleStore | None = None,
+        read_state_store: ReadStateStore | None = None,
     ) -> None:
         super().__init__()
 
@@ -49,6 +52,7 @@ class MainWindow(QMainWindow):
             reader_style_store or InMemoryReaderStyleStore()
         )
         self._reader_style = self._reader_style_store.load().normalized()
+        self._read_state_store = read_state_store or InMemoryReadStateStore()
 
         self.resize(1320, 820)
 
@@ -230,20 +234,28 @@ class MainWindow(QMainWindow):
     def _connect_signals(self) -> None:
         self.sidebar.feed_selected.connect(self._show_feed_articles)
         self.article_list.article_selected.connect(self._show_article)
+        self.article_reader.read_state_change_requested.connect(
+            self._set_read_state
+        )
 
     def _load_initial_data(self) -> None:
         feeds = self.article_service.list_feeds()
         articles = self.article_service.list_articles()
+        read_article_ids = self._read_article_ids(articles)
+        unread_counts = self._unread_counts(feeds, articles)
 
-        self.sidebar.set_feeds(feeds)
-        self.article_list.set_articles(articles)
+        self.sidebar.set_feeds(feeds, unread_counts)
+        self.article_list.set_articles(articles, read_article_ids)
 
         if not articles:
             self.article_reader.show_welcome()
 
     def _show_feed_articles(self, feed_id: str) -> None:
         articles = self.article_service.list_articles(feed_id)
-        self.article_list.set_articles(articles)
+        self.article_list.set_articles(
+            articles,
+            self._read_article_ids(articles),
+        )
         self.article_reader.show_welcome()
 
     def _show_article(self, article_id: str) -> None:
@@ -254,6 +266,50 @@ class MainWindow(QMainWindow):
             return
 
         self.article_reader.show_article(article)
+        self._set_read_state(article.id, True, article)
+
+    def _set_read_state(
+        self,
+        article_id: str,
+        is_read: bool,
+        article: Article | None = None,
+    ) -> None:
+        article = article or self.article_service.get_article(article_id)
+
+        if article is None:
+            return
+
+        self._read_state_store.set_read(article_id, is_read)
+        self.article_list.set_read_state(article_id, is_read)
+
+        if self.article_reader.current_article_id == article_id:
+            self.article_reader.set_read_state(is_read)
+
+        unread_count = sum(
+            not self._read_state_store.is_read(current.id)
+            for current in self.article_service.list_articles(article.feed_id)
+        )
+        self.sidebar.update_unread_count(article.feed_id, unread_count)
+
+    def _read_article_ids(self, articles: list[Article]) -> set[str]:
+        return {
+            article.id
+            for article in articles
+            if self._read_state_store.is_read(article.id)
+        }
+
+    def _unread_counts(
+        self,
+        feeds: list[Feed],
+        articles: list[Article],
+    ) -> dict[str, int]:
+        counts = {feed.id: 0 for feed in feeds}
+
+        for article in articles:
+            if not self._read_state_store.is_read(article.id):
+                counts[article.feed_id] = counts.get(article.feed_id, 0) + 1
+
+        return counts
 
     def _add_feed(self) -> None:
         xml_url, accepted = QInputDialog.getText(
@@ -421,6 +477,10 @@ class MainWindow(QMainWindow):
             ),
             fallback_error=self.translator.text("reader.status.fallback_error"),
         )
+        self.article_reader.set_read_state_texts(
+            mark_read=self.translator.text("action.mark_read"),
+            mark_unread=self.translator.text("action.mark_unread"),
+        )
 
         self.tags_dock.setWindowTitle(self.translator.text("tags.title"))
         self.tags_title_label.setText(self.translator.text("tags.title"))
@@ -444,3 +504,4 @@ class MainWindow(QMainWindow):
             return
 
         app.setStyleSheet(stylesheet_for_theme(self._theme))
+        self.article_list.set_color_scheme(self._theme)

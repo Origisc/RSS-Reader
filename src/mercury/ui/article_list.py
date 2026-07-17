@@ -1,3 +1,7 @@
+from collections.abc import Collection
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -7,9 +11,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtCore import Signal
 
 from mercury.models.article import Article
+
+
+ARTICLE_ID_ROLE = Qt.ItemDataRole.UserRole
+READ_STATE_ROLE = Qt.ItemDataRole.UserRole + 1
 
 
 class ArticleList(QWidget):
@@ -22,6 +29,7 @@ class ArticleList(QWidget):
 
         self.setObjectName("ArticleListPanel")
         self._entry_meta_text = "Mock entry"
+        self._color_scheme = "dark"
 
         self.title_label = QLabel()
         self.title_label.setObjectName("PanelTitle")
@@ -48,16 +56,40 @@ class ArticleList(QWidget):
             self._on_current_item_changed
         )
 
-    def set_articles(self, articles: list[Article]) -> None:
+    def set_articles(
+        self,
+        articles: list[Article],
+        read_article_ids: Collection[str] | None = None,
+    ) -> None:
         self.list_widget.clear()
+        read_ids = set(read_article_ids or set())
 
         for article in articles:
             item = QListWidgetItem(
                 f"• {article.title}\n{article.source_title}\n{self._entry_meta_text}"
             )
-            item.setData(256, article.id)
+            item.setData(ARTICLE_ID_ROLE, article.id)
+            item.setData(READ_STATE_ROLE, article.id in read_ids)
             item.setToolTip(article.title)
+            self._apply_read_style(item)
             self.list_widget.addItem(item)
+
+    def set_read_state(self, article_id: str, is_read: bool) -> None:
+        for index in range(self.list_widget.count()):
+            item = self.list_widget.item(index)
+
+            if item.data(ARTICLE_ID_ROLE) != article_id:
+                continue
+
+            item.setData(READ_STATE_ROLE, is_read)
+            self._apply_read_style(item)
+            return
+
+    def set_color_scheme(self, theme: str) -> None:
+        self._color_scheme = "light" if theme == "light" else "dark"
+
+        for index in range(self.list_widget.count()):
+            self._apply_read_style(self.list_widget.item(index))
 
     def set_title(self, title: str) -> None:
         self.title_label.setText(title)
@@ -74,5 +106,18 @@ class ArticleList(QWidget):
         if current is None:
             return
 
-        article_id = current.data(256)
+        article_id = current.data(ARTICLE_ID_ROLE)
         self.article_selected.emit(article_id)
+
+    def _apply_read_style(self, item: QListWidgetItem) -> None:
+        is_read = bool(item.data(READ_STATE_ROLE))
+        font = item.font()
+        font.setBold(not is_read)
+        item.setFont(font)
+
+        if self._color_scheme == "light":
+            color = "#8a949e" if is_read else "#1f2933"
+        else:
+            color = "#778391" if is_read else "#e5edf5"
+
+        item.setForeground(QColor(color))
