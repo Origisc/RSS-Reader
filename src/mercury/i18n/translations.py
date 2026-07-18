@@ -47,6 +47,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "reader.status.markdown": "正在显示 Cleaned Markdown",
         "reader.status.fallback_unavailable": "{view} 暂不可用，已显示原始内容。",
         "reader.status.fallback_error": "清洗失败：{error}。已显示原始内容。",
+        "reader.summary_toggle": "摘要",
+        "reader.summary_toggle_tooltip": (
+            "显示或隐藏摘要面板（Ctrl+Shift+S）"
+        ),
         "feed.add_dialog.title": "添加 Feed",
         "feed.add_dialog.label": "Feed URL：",
         "feed.delete_dialog.title": "删除 Feed",
@@ -110,6 +114,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "tags.existing": "Existing",
         "tags.empty": "No tags yet",
         "summary.title": "Summary",
+        "summary.close_panel": "关闭摘要面板",
         "summary.collapsed": "⌃ Summary",
         "summary.language": "摘要语言：",
         "summary.language.same": "与原文相同",
@@ -188,6 +193,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "reader.status.fallback_error": (
             "Cleaning failed: {error}. Showing original content."
         ),
+        "reader.summary_toggle": "Summary",
+        "reader.summary_toggle_tooltip": (
+            "Show or hide the Summary panel (Ctrl+Shift+S)"
+        ),
         "feed.add_dialog.title": "Add Feed",
         "feed.add_dialog.label": "Feed URL:",
         "feed.delete_dialog.title": "Delete Feed",
@@ -259,6 +268,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "tags.existing": "Existing",
         "tags.empty": "No tags yet",
         "summary.title": "Summary",
+        "summary.close_panel": "Close Summary panel",
         "summary.collapsed": "⌃ Summary",
         "summary.language": "Summary language:",
         "summary.language.same": "Same as article",

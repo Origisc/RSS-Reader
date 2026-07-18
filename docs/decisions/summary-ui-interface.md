@@ -26,3 +26,7 @@ Known `SummaryErrorCode` values map to localized UI messages. Unexpected worker 
 Summary controls also set explicit text, placeholder, base, and popup-list colors. This avoids native Windows/Linux/macOS widget palettes falling back to unreadable black text in dark mode.
 
 Closing the Summary dock only hides it. A checkable **View → Summary Panel** action tracks dock visibility and restores the same panel instance, including its in-session results and controls.
+
+The Reader toolbar exposes the same visibility state as a prominent checkable Summary button with `Ctrl+Shift+S`. Hiding the dock removes both its content and title bar, does not cancel an active background request, and does not discard in-session results.
+
+The Summary dock close control uses a programmatically drawn, theme-aware high-contrast icon instead of the native platform icon. The dark theme uses a red background with a thick white cross, while the light theme uses a pale red background with a dark red cross. This keeps the control visible across Qt platform styles.

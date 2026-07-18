@@ -25,6 +25,7 @@ class ArticleReader(QWidget):
     """右侧文章阅读区域。"""
 
     read_state_change_requested = Signal(str, bool)
+    summary_panel_visibility_requested = Signal(bool)
 
     def __init__(self) -> None:
         super().__init__()
@@ -92,6 +93,17 @@ class ArticleReader(QWidget):
         self.view_status_label.setObjectName("ReaderViewStatus")
         self.view_status_label.setWordWrap(True)
         toolbar_layout.addWidget(self.view_status_label)
+
+        self.summary_toggle_button = QPushButton()
+        self.summary_toggle_button.setObjectName("ReaderViewButton")
+        self.summary_toggle_button.setCheckable(True)
+        self.summary_toggle_button.setChecked(True)
+        self.summary_toggle_button.clicked.connect(
+            lambda checked: self.summary_panel_visibility_requested.emit(
+                checked
+            )
+        )
+        toolbar_layout.addWidget(self.summary_toggle_button)
 
         self.read_state_button = QPushButton()
         self.read_state_button.setObjectName("ReaderViewButton")
@@ -170,6 +182,13 @@ class ArticleReader(QWidget):
     def set_read_state(self, is_read: bool) -> None:
         self._is_read = is_read
         self._update_read_state_button()
+
+    def set_summary_panel_visible(self, is_visible: bool) -> None:
+        self.summary_toggle_button.setChecked(is_visible)
+
+    def set_summary_toggle_texts(self, text: str, tooltip: str) -> None:
+        self.summary_toggle_button.setText(text)
+        self.summary_toggle_button.setToolTip(tooltip)
 
     def set_read_state_texts(
         self,

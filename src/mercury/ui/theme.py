@@ -561,7 +561,6 @@ QDockWidget#TagsDock,
 QDockWidget#SummaryDock {
     background: #111a23;
     color: #d9e2ec;
-    titlebar-close-icon: none;
 }
 
 QDockWidget#TagsDock::title,

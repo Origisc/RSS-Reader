@@ -1,6 +1,7 @@
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QRectF, QSize, Qt
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QApplication,
     QDockWidget,
     QFileDialog,
@@ -146,6 +147,7 @@ class MainWindow(QMainWindow):
         self.toggle_summary_action = QAction(self)
         self.toggle_summary_action.setCheckable(True)
         self.toggle_summary_action.setChecked(True)
+        self.toggle_summary_action.setShortcut("Ctrl+Shift+S")
 
         self.about_action = QAction(self)
         self.about_action.triggered.connect(self._show_about)
@@ -246,8 +248,19 @@ class MainWindow(QMainWindow):
         self.summary_dock.setObjectName("SummaryDock")
         self.summary_dock.setMinimumHeight(210)
         self.summary_dock.setWidget(self.summary_panel)
+        self.summary_close_button = self.summary_dock.findChild(
+            QAbstractButton,
+            "qt_dockwidget_closebutton",
+        )
+        if self.summary_close_button is not None:
+            self.summary_close_button.setObjectName("SummaryDockCloseButton")
+            self.summary_close_button.setIconSize(QSize(22, 22))
+            self.summary_close_button.setFixedSize(30, 26)
         self.summary_dock.visibilityChanged.connect(
             self.toggle_summary_action.setChecked
+        )
+        self.summary_dock.visibilityChanged.connect(
+            self.article_reader.set_summary_panel_visible
         )
         self.toggle_summary_action.toggled.connect(
             self.summary_dock.setVisible
@@ -279,6 +292,9 @@ class MainWindow(QMainWindow):
         self.article_list.article_selected.connect(self._show_article)
         self.article_reader.read_state_change_requested.connect(
             self._set_read_state
+        )
+        self.article_reader.summary_panel_visibility_requested.connect(
+            self.toggle_summary_action.setChecked
         )
         self.summary_panel.settings_requested.connect(
             self._open_ai_settings
@@ -654,6 +670,10 @@ class MainWindow(QMainWindow):
             mark_read=self.translator.text("action.mark_read"),
             mark_unread=self.translator.text("action.mark_unread"),
         )
+        self.article_reader.set_summary_toggle_texts(
+            text=self.translator.text("reader.summary_toggle"),
+            tooltip=self.translator.text("reader.summary_toggle_tooltip"),
+        )
 
         self.tags_dock.setWindowTitle(self.translator.text("tags.title"))
         self.tags_title_label.setText(self.translator.text("tags.title"))
@@ -668,6 +688,9 @@ class MainWindow(QMainWindow):
         self.summary_dock.setWindowTitle(
             self.translator.text("summary.title")
         )
+        if self.summary_close_button is not None:
+            close_text = self.translator.text("summary.close_panel")
+            self.summary_close_button.setToolTip(close_text)
         self.summary_panel.set_translator(self.translator)
 
     def _apply_theme(self) -> None:
@@ -677,5 +700,39 @@ class MainWindow(QMainWindow):
             return
 
         app.setStyleSheet(stylesheet_for_theme(self._theme))
+        if self.summary_close_button is not None:
+            if self._theme == "light":
+                icon_colors = ("#9f1239", "#ffe4e6", "#e11d48")
+            else:
+                icon_colors = ("#ffffff", "#b42332", "#ff7b88")
+            self.summary_close_button.setIcon(
+                self._summary_close_icon(*icon_colors)
+            )
         self.article_list.set_color_scheme(self._theme)
         self.summary_panel.set_color_scheme(self._theme)
+
+    @staticmethod
+    def _summary_close_icon(
+        foreground: str,
+        background: str,
+        border: str,
+    ) -> QIcon:
+        """Create a theme-aware close icon instead of the low-contrast native one."""
+
+        pixmap = QPixmap(22, 22)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QColor(background))
+        painter.setPen(QPen(QColor(border), 1.2))
+        painter.drawRoundedRect(QRectF(1, 1, 20, 20), 4, 4)
+
+        pen = QPen(QColor(foreground), 2.6)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.drawLine(6, 6, 16, 16)
+        painter.drawLine(16, 6, 6, 16)
+        painter.end()
+
+        return QIcon(pixmap)

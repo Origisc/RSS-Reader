@@ -145,6 +145,18 @@ class TranslatorTest(unittest.TestCase):
                 translator.text("action.toggle_summary_panel"),
                 "action.toggle_summary_panel",
             )
+            self.assertNotEqual(
+                translator.text("reader.summary_toggle"),
+                "reader.summary_toggle",
+            )
+            self.assertNotEqual(
+                translator.text("summary.close_panel"),
+                "summary.close_panel",
+            )
+            self.assertIn(
+                "Ctrl+Shift+S",
+                translator.text("reader.summary_toggle_tooltip"),
+            )
 
             self.assertIn(
                 "{time}",

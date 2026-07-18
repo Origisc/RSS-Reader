@@ -394,6 +394,15 @@ class MainWindowSummaryIntegrationTest(unittest.TestCase):
         window.show()
         self.app.processEvents()
 
+        self.assertIsNotNone(window.summary_close_button)
+        self.assertFalse(window.summary_close_button.icon().isNull())
+        self.assertEqual(window.summary_close_button.iconSize().width(), 22)
+        self.assertGreaterEqual(window.summary_close_button.width(), 30)
+        self.assertEqual(
+            window.summary_close_button.toolTip(),
+            window.translator.text("summary.close_panel"),
+        )
+
         window.summary_dock.close()
         self.app.processEvents()
 
@@ -405,6 +414,81 @@ class MainWindowSummaryIntegrationTest(unittest.TestCase):
 
         self.assertTrue(window.summary_dock.isVisible())
         self.assertTrue(window.toggle_summary_action.isChecked())
+        window.close()
+        window.deleteLater()
+
+    def test_reader_toolbar_hides_entire_dock_and_preserves_state(self) -> None:
+        window = MainWindow(MockArticleService())
+        window.show()
+        window._show_article("mercury-start")
+        window.summary_panel.summary_content.setPlainText(
+            "Session summary remains available."
+        )
+        self.app.processEvents()
+
+        self.assertTrue(window.article_reader.summary_toggle_button.isVisible())
+        self.assertEqual(
+            window.toggle_summary_action.shortcut().toString(),
+            "Ctrl+Shift+S",
+        )
+
+        window.article_reader.summary_toggle_button.click()
+        self.app.processEvents()
+
+        self.assertFalse(window.summary_dock.isVisible())
+        self.assertFalse(window.toggle_summary_action.isChecked())
+        self.assertFalse(
+            window.article_reader.summary_toggle_button.isChecked()
+        )
+
+        window.article_reader.summary_toggle_button.click()
+        self.app.processEvents()
+
+        self.assertTrue(window.summary_dock.isVisible())
+        self.assertTrue(window.toggle_summary_action.isChecked())
+        self.assertEqual(
+            window.summary_panel.summary_content.toPlainText(),
+            "Session summary remains available.",
+        )
+        window.close()
+        window.deleteLater()
+
+    def test_hiding_dock_does_not_cancel_background_generation(self) -> None:
+        started = threading.Event()
+        release = threading.Event()
+        agent = SummaryAgent(
+            configured_provider(response_text="Completed while hidden")
+        )
+
+        def delayed_generator(source, options):
+            started.set()
+            release.wait(2)
+            return agent.summarize(source, options)
+
+        window = MainWindow(
+            MockArticleService(),
+            summary_generator=delayed_generator,
+        )
+        window.show()
+        window._show_article("mercury-start")
+        spy = QSignalSpy(window.summary_panel.generation_completed)
+
+        window.summary_panel.generate_button.click()
+        self.assertTrue(started.wait(1))
+        window.article_reader.summary_toggle_button.click()
+        self.assertFalse(window.summary_dock.isVisible())
+
+        release.set()
+        self.assertTrue(wait_for_signal(self.app, spy))
+        self.assertEqual(
+            window.summary_panel.summary_content.toPlainText(),
+            "Completed while hidden",
+        )
+
+        window.article_reader.summary_toggle_button.click()
+        self.app.processEvents()
+        self.assertTrue(window.summary_dock.isVisible())
+        window.summary_panel._thread_pool.waitForDone(2000)
         window.close()
         window.deleteLater()
 
