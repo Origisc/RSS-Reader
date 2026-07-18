@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from mercury.agents import SummarySource
 from mercury.i18n import Translator
 from mercury.i18n.translations import SUPPORTED_LANGUAGES
 from mercury.llm import InMemoryProviderConfigStore, ProviderConfigStore
@@ -27,6 +28,7 @@ from mercury.ui.article_list import ArticleList
 from mercury.ui.article_reader import ArticleReader
 from mercury.ui.feed_deletion import FeedDeletionService
 from mercury.ui.read_state import InMemoryReadStateStore, ReadStateStore
+from mercury.ui.reader_document import ReaderDocument
 from mercury.ui.reader_style import (
     InMemoryReaderStyleStore,
     ReaderStyle,
@@ -34,6 +36,11 @@ from mercury.ui.reader_style import (
 )
 from mercury.ui.settings_dialog import SettingsDialog
 from mercury.ui.sidebar import Sidebar
+from mercury.ui.summary_panel import (
+    SummaryGenerator,
+    SummaryPanel,
+    SummaryResultLoader,
+)
 from mercury.ui.theme import stylesheet_for_theme
 
 
@@ -48,6 +55,8 @@ class MainWindow(QMainWindow):
         feed_deletion_service: FeedDeletionService | None = None,
         provider_config_store: ProviderConfigStore | None = None,
         provider_connection_tester: ConnectionTester | None = None,
+        summary_generator: SummaryGenerator | None = None,
+        summary_result_loader: SummaryResultLoader | None = None,
     ) -> None:
         super().__init__()
 
@@ -67,6 +76,8 @@ class MainWindow(QMainWindow):
             else InMemoryProviderConfigStore()
         )
         self._provider_connection_tester = provider_connection_tester
+        self._summary_generator = summary_generator
+        self._summary_result_loader = summary_result_loader
 
         self.resize(1320, 820)
 
@@ -220,19 +231,16 @@ class MainWindow(QMainWindow):
         )
 
     def _setup_summary_bar(self) -> None:
-        summary_panel = QFrame()
-        summary_panel.setObjectName("SummaryPanel")
-        self.summary_label = QLabel()
-        self.summary_label.setObjectName("SummaryLabel")
-
-        layout = QHBoxLayout(summary_panel)
-        layout.setContentsMargins(12, 6, 12, 6)
-        layout.addWidget(self.summary_label)
-        layout.addStretch(1)
+        self.summary_panel = SummaryPanel(
+            self.translator,
+            generator=self._summary_generator,
+            result_loader=self._summary_result_loader,
+        )
 
         self.summary_dock = QDockWidget(self)
         self.summary_dock.setObjectName("SummaryDock")
-        self.summary_dock.setWidget(summary_panel)
+        self.summary_dock.setMinimumHeight(210)
+        self.summary_dock.setWidget(self.summary_panel)
         self.addDockWidget(
             Qt.DockWidgetArea.BottomDockWidgetArea,
             self.summary_dock,
@@ -261,6 +269,9 @@ class MainWindow(QMainWindow):
         self.article_reader.read_state_change_requested.connect(
             self._set_read_state
         )
+        self.summary_panel.settings_requested.connect(
+            self._open_ai_settings
+        )
 
     def _load_initial_data(self) -> None:
         feeds = self.article_service.list_feeds()
@@ -273,6 +284,7 @@ class MainWindow(QMainWindow):
 
         if not articles:
             self.article_reader.show_welcome()
+            self.summary_panel.clear_article()
 
     def _show_feed_articles(self, feed_id: str) -> None:
         articles = self.article_service.list_articles(feed_id)
@@ -281,15 +293,27 @@ class MainWindow(QMainWindow):
             self._read_article_ids(articles),
         )
         self.article_reader.show_welcome()
+        self.summary_panel.clear_article()
 
     def _show_article(self, article_id: str) -> None:
         article = self.article_service.get_article(article_id)
 
         if article is None:
             self.article_reader.show_welcome()
+            self.summary_panel.clear_article()
             return
 
-        self.article_reader.show_article(article)
+        document = ReaderDocument.from_article(article)
+        self.article_reader.show_article(article, document)
+        self.summary_panel.set_article(
+            SummarySource(
+                article_id=article.id,
+                title=article.title,
+                raw_html=document.raw_html,
+                cleaned_markdown=document.cleaned_markdown,
+                cleaned_html=document.cleaned_html,
+            )
+        )
         self._set_read_state(article.id, True, article)
 
     def _set_read_state(
@@ -420,6 +444,7 @@ class MainWindow(QMainWindow):
 
         self._load_initial_data()
         self.article_reader.show_welcome()
+        self.summary_panel.clear_article()
         self.statusBar().showMessage(
             self.translator.text("status.delete_feed_finished").format(
                 title=feed.title,
@@ -629,7 +654,7 @@ class MainWindow(QMainWindow):
         self.summary_dock.setWindowTitle(
             self.translator.text("summary.title")
         )
-        self.summary_label.setText(self.translator.text("summary.collapsed"))
+        self.summary_panel.set_translator(self.translator)
 
     def _apply_theme(self) -> None:
         app = QApplication.instance()

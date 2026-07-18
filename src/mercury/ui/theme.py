@@ -204,6 +204,57 @@ QLabel#ReaderViewStatus {
     color: #5d6975;
     font-size: 11px;
 }
+
+QFrame#SummaryPanel {
+    background: #f7f7f5;
+    border-top: 1px solid #d5d8dc;
+}
+
+QLabel#SummaryFieldLabel,
+QLabel#SummaryStatus,
+QLabel#SummaryTimestamp {
+    background: transparent;
+    color: #34404b;
+}
+
+QLabel#SummaryStatus,
+QLabel#SummaryTimestamp {
+    color: #5d6975;
+    font-size: 11px;
+}
+
+QComboBox#SummaryControl,
+QPlainTextEdit#SummaryPrompt,
+QPlainTextEdit#SummaryContent {
+    background: #ffffff;
+    border: 1px solid #c9ced4;
+    border-radius: 4px;
+    color: #1f2933;
+    padding: 4px 6px;
+    selection-background-color: #d9e8ff;
+    selection-color: #0f172a;
+}
+
+QPushButton#SummaryActionButton,
+QPushButton#SummarySecondaryButton {
+    background: #ffffff;
+    border: 1px solid #bfc6cd;
+    border-radius: 4px;
+    color: #1f2933;
+    padding: 5px 12px;
+}
+
+QPushButton#SummaryActionButton {
+    background: #d9e8ff;
+    border-color: #6b9de3;
+    color: #0f3d73;
+}
+
+QPushButton#SummaryActionButton:disabled {
+    background: #e7eaed;
+    border-color: #cdd2d7;
+    color: #89939c;
+}
 """
 
 DARK_STYLESHEET = """
@@ -534,6 +585,52 @@ QLabel[chip="true"] {
 QFrame#SummaryPanel {
     background: #18181c;
     border-top: 1px solid #30333a;
+}
+
+QLabel#SummaryFieldLabel,
+QLabel#SummaryStatus,
+QLabel#SummaryTimestamp {
+    background: transparent;
+    color: #d9e2ec;
+}
+
+QLabel#SummaryStatus,
+QLabel#SummaryTimestamp {
+    color: #9ba8b5;
+    font-size: 11px;
+}
+
+QComboBox#SummaryControl,
+QPlainTextEdit#SummaryPrompt,
+QPlainTextEdit#SummaryContent {
+    background: #202833;
+    border: 1px solid #465363;
+    border-radius: 4px;
+    color: #f3f6f9;
+    padding: 4px 6px;
+    selection-background-color: #0f68d8;
+    selection-color: #ffffff;
+}
+
+QPushButton#SummaryActionButton,
+QPushButton#SummarySecondaryButton {
+    background: #2a323d;
+    border: 1px solid #465363;
+    border-radius: 4px;
+    color: #e5edf5;
+    padding: 5px 12px;
+}
+
+QPushButton#SummaryActionButton {
+    background: #0f68d8;
+    border-color: #2487ff;
+    color: #ffffff;
+}
+
+QPushButton#SummaryActionButton:disabled {
+    background: #27313b;
+    border-color: #3b4653;
+    color: #6f7c89;
 }
 """
 

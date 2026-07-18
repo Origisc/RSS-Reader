@@ -23,5 +23,8 @@ Member B provides the repository protocol and deterministic in-memory implementa
 
 ## Deferred Work
 
-- Task 3.2.2 owns the asynchronous Summary UI, regeneration action, timestamps, and localized error presentation.
 - Cross-process persistence remains with the local storage adapter owned by Member A.
+
+## Completed Follow-up
+
+Task 3.2.2 added the asynchronous Summary UI, regeneration action, generated timestamp, article-switch isolation, and localized error presentation. The UI consumes this result contract without importing a concrete Provider.

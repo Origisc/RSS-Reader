@@ -110,6 +110,33 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "tags.empty": "No tags yet",
         "summary.title": "Summary",
         "summary.collapsed": "⌃ Summary",
+        "summary.language": "摘要语言：",
+        "summary.language.same": "与原文相同",
+        "summary.language.zh_cn": "简体中文",
+        "summary.language.en_us": "英文",
+        "summary.detail": "详细程度：",
+        "summary.detail.brief": "简略",
+        "summary.detail.standard": "标准",
+        "summary.detail.detailed": "详细",
+        "summary.custom_prompt": "自定义 Prompt：",
+        "summary.custom_prompt_placeholder": "可选；留空时使用默认摘要 Prompt",
+        "summary.content_placeholder": "生成的摘要会显示在这里。",
+        "summary.generate": "生成摘要",
+        "summary.regenerate": "重新生成",
+        "summary.configure_ai": "AI 设置",
+        "summary.generated_at": "生成时间：{time}",
+        "summary.status.no_article": "选择一篇文章后可以生成摘要。",
+        "summary.status.unavailable": "摘要服务尚不可用，请检查 AI Provider 设置。",
+        "summary.status.ready": "摘要会在你主动点击生成后发送文章内容。",
+        "summary.status.running": "正在后台生成摘要，正文仍可阅读……",
+        "summary.status.generated": "摘要已生成。",
+        "summary.status.storage_warning": "摘要已生成，但未能保存到本地。",
+        "summary.error.invalid_input": "当前文章没有可用于摘要的正文。",
+        "summary.error.provider_not_configured": "请先配置 AI Provider。",
+        "summary.error.provider_failure": "摘要生成失败，文章正文仍可正常阅读。",
+        "summary.error.empty_response": "Provider 没有返回摘要内容。",
+        "summary.error.load_failed": "本地摘要读取失败，可以重新生成。",
+        "summary.error.unexpected": "摘要操作失败，文章正文未受影响。",
     },
     "en_US": {
         "app.title": "Mercury",
@@ -228,6 +255,55 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "tags.empty": "No tags yet",
         "summary.title": "Summary",
         "summary.collapsed": "⌃ Summary",
+        "summary.language": "Summary language:",
+        "summary.language.same": "Same as article",
+        "summary.language.zh_cn": "Simplified Chinese",
+        "summary.language.en_us": "English",
+        "summary.detail": "Detail level:",
+        "summary.detail.brief": "Brief",
+        "summary.detail.standard": "Standard",
+        "summary.detail.detailed": "Detailed",
+        "summary.custom_prompt": "Custom prompt:",
+        "summary.custom_prompt_placeholder": (
+            "Optional; leave empty to use the default summary prompt"
+        ),
+        "summary.content_placeholder": "The generated summary appears here.",
+        "summary.generate": "Generate Summary",
+        "summary.regenerate": "Regenerate",
+        "summary.configure_ai": "AI Settings",
+        "summary.generated_at": "Generated: {time}",
+        "summary.status.no_article": "Select an article to generate a summary.",
+        "summary.status.unavailable": (
+            "The summary service is unavailable; check AI Provider settings."
+        ),
+        "summary.status.ready": (
+            "Article content is sent only after you start summary generation."
+        ),
+        "summary.status.running": (
+            "Generating in the background; the article remains readable…"
+        ),
+        "summary.status.generated": "Summary generated.",
+        "summary.status.storage_warning": (
+            "Summary generated but could not be saved locally."
+        ),
+        "summary.error.invalid_input": (
+            "This article has no readable content to summarize."
+        ),
+        "summary.error.provider_not_configured": (
+            "Configure an AI Provider first."
+        ),
+        "summary.error.provider_failure": (
+            "Summary generation failed; the article remains readable."
+        ),
+        "summary.error.empty_response": (
+            "The Provider returned no summary content."
+        ),
+        "summary.error.load_failed": (
+            "The local summary could not be loaded; you can regenerate it."
+        ),
+        "summary.error.unexpected": (
+            "The summary action failed; the article was not affected."
+        ),
     },
 }
 

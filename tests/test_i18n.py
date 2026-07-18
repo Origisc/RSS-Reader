@@ -111,3 +111,34 @@ class TranslatorTest(unittest.TestCase):
                 "status.ai_settings_saved",
             ):
                 self.assertNotEqual(translator.text(key), key)
+
+    def test_summary_panel_messages_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "summary.language",
+                "summary.language.same",
+                "summary.detail",
+                "summary.detail.brief",
+                "summary.detail.standard",
+                "summary.detail.detailed",
+                "summary.custom_prompt",
+                "summary.generate",
+                "summary.regenerate",
+                "summary.configure_ai",
+                "summary.generated_at",
+                "summary.status.no_article",
+                "summary.status.unavailable",
+                "summary.status.running",
+                "summary.status.storage_warning",
+                "summary.error.provider_not_configured",
+                "summary.error.provider_failure",
+                "summary.error.unexpected",
+            ):
+                self.assertNotEqual(translator.text(key), key)
+
+            self.assertIn(
+                "{time}",
+                translator.text("summary.generated_at"),
+            )

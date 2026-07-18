@@ -54,5 +54,14 @@ class ThemeTest(unittest.TestCase):
     def test_system_theme_uses_default_dark_reader_style(self) -> None:
         self.assertIn("QTextBrowser#ReaderContent", stylesheet_for_theme("system"))
 
+    def test_summary_panel_controls_are_readable_in_both_themes(self) -> None:
+        for theme in ("light", "dark"):
+            stylesheet = stylesheet_for_theme(theme)
+
+            self.assertIn("QFrame#SummaryPanel", stylesheet)
+            self.assertIn("QPlainTextEdit#SummaryContent", stylesheet)
+            self.assertIn("QPushButton#SummaryActionButton", stylesheet)
+            self.assertIn("QComboBox#SummaryControl", stylesheet)
+
     def test_unknown_theme_returns_empty_stylesheet(self) -> None:
         self.assertEqual(stylesheet_for_theme("unknown"), "")
