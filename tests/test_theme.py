@@ -62,6 +62,10 @@ class ThemeTest(unittest.TestCase):
             self.assertIn("QPlainTextEdit#SummaryContent", stylesheet)
             self.assertIn("QPushButton#SummaryActionButton", stylesheet)
             self.assertIn("QComboBox#SummaryControl", stylesheet)
+            self.assertIn(
+                "QComboBox#SummaryControl QAbstractItemView",
+                stylesheet,
+            )
 
     def test_unknown_theme_returns_empty_stylesheet(self) -> None:
         self.assertEqual(stylesheet_for_theme("unknown"), "")

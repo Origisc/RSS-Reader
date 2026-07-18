@@ -14,6 +14,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPalette
 from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWidgets import QApplication
 
@@ -98,8 +99,38 @@ class SummaryPanelTest(unittest.TestCase):
 
         panel.set_article(summary_source())
 
-        self.assertFalse(panel.generate_button.isEnabled())
+        self.assertTrue(panel.generate_button.isEnabled())
         self.assertIn("unavailable", panel.status_label.text())
+        self.assertEqual(
+            panel.generate_button.toolTip(),
+            "Open AI settings.",
+        )
+
+        settings_spy = QSignalSpy(panel.settings_requested)
+        panel.generate_button.click()
+        self.assertEqual(settings_spy.count(), 1)
+
+    def test_dark_color_scheme_uses_light_text_and_placeholder_roles(
+        self,
+    ) -> None:
+        panel = self._panel(Translator("zh_CN"))
+
+        panel.set_color_scheme("dark")
+
+        prompt_palette = panel.prompt_edit.palette()
+        combo_palette = panel.language_combo.palette()
+        self.assertEqual(
+            prompt_palette.color(QPalette.ColorRole.Text).name(),
+            "#f3f6f9",
+        )
+        self.assertEqual(
+            prompt_palette.color(QPalette.ColorRole.PlaceholderText).name(),
+            "#b6c3cf",
+        )
+        self.assertEqual(
+            combo_palette.color(QPalette.ColorRole.ButtonText).name(),
+            "#f3f6f9",
+        )
 
     def test_ai_settings_button_emits_request(self) -> None:
         panel = self._panel(Translator("zh_CN"))
@@ -355,6 +386,25 @@ class MainWindowSummaryIntegrationTest(unittest.TestCase):
             window.summary_panel.status_label.text(),
         )
         window.summary_panel._thread_pool.waitForDone(2000)
+        window.close()
+        window.deleteLater()
+
+    def test_closed_summary_dock_can_be_reopened_from_view_action(self) -> None:
+        window = MainWindow(MockArticleService())
+        window.show()
+        self.app.processEvents()
+
+        window.summary_dock.close()
+        self.app.processEvents()
+
+        self.assertFalse(window.summary_dock.isVisible())
+        self.assertFalse(window.toggle_summary_action.isChecked())
+
+        window.toggle_summary_action.trigger()
+        self.app.processEvents()
+
+        self.assertTrue(window.summary_dock.isVisible())
+        self.assertTrue(window.toggle_summary_action.isChecked())
         window.close()
         window.deleteLater()
 

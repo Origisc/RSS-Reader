@@ -15,10 +15,14 @@ Accepted for Task 3.2.2 Member B development.
 
 ## Integration Boundary
 
-The production application currently has no concrete online Provider adapter, so the default panel reports that the summary service is unavailable and links to AI settings. Tests inject `SummaryAgent.summarize` backed by `MockLLMProvider`. A future composition root can create the configured Provider and pass the same callable without modifying UI code.
+The production application currently has no concrete online Provider adapter, so the default panel reports that the summary service is unavailable. After an article is selected, the Generate button remains visible and clicking it opens AI settings instead of silently doing nothing. Tests inject `SummaryAgent.summarize` backed by `MockLLMProvider`. A future composition root can create the configured Provider and pass the same callable without modifying UI code.
 
 The current `ArticleService` exposes raw HTML only. `SummaryPanel` already accepts Cleaned Markdown and Cleaned HTML through `SummarySource`; once the Reader/cleaning service provides those representations, the composition layer can pass them through while preserving the existing priority contract.
 
 ## Failure Contract
 
 Known `SummaryErrorCode` values map to localized UI messages. Unexpected worker or loader exceptions are replaced with a generic localized message, so backend details and credentials do not enter the interface.
+
+Summary controls also set explicit text, placeholder, base, and popup-list colors. This avoids native Windows/Linux/macOS widget palettes falling back to unreadable black text in dark mode.
+
+Closing the Summary dock only hides it. A checkable **View → Summary Panel** action tracks dock visibility and restores the same panel instance, including its in-session results and controls.

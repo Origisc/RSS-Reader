@@ -126,6 +126,9 @@ class TranslatorTest(unittest.TestCase):
                 "summary.custom_prompt",
                 "summary.generate",
                 "summary.regenerate",
+                "summary.generate_tooltip.no_article",
+                "summary.generate_tooltip.configure",
+                "summary.generate_tooltip.ready",
                 "summary.configure_ai",
                 "summary.generated_at",
                 "summary.status.no_article",
@@ -137,6 +140,11 @@ class TranslatorTest(unittest.TestCase):
                 "summary.error.unexpected",
             ):
                 self.assertNotEqual(translator.text(key), key)
+
+            self.assertNotEqual(
+                translator.text("action.toggle_summary_panel"),
+                "action.toggle_summary_panel",
+            )
 
             self.assertIn(
                 "{time}",

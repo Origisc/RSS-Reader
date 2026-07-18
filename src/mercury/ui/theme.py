@@ -214,12 +214,12 @@ QLabel#SummaryFieldLabel,
 QLabel#SummaryStatus,
 QLabel#SummaryTimestamp {
     background: transparent;
-    color: #34404b;
+    color: #25313c;
 }
 
 QLabel#SummaryStatus,
 QLabel#SummaryTimestamp {
-    color: #5d6975;
+    color: #4f5d69;
     font-size: 11px;
 }
 
@@ -231,6 +231,15 @@ QPlainTextEdit#SummaryContent {
     border-radius: 4px;
     color: #1f2933;
     padding: 4px 6px;
+    selection-background-color: #d9e8ff;
+    selection-color: #0f172a;
+}
+
+QComboBox#SummaryControl QAbstractItemView {
+    background: #ffffff;
+    border: 1px solid #bfc6cd;
+    color: #1f2933;
+    outline: 0;
     selection-background-color: #d9e8ff;
     selection-color: #0f172a;
 }
@@ -251,9 +260,9 @@ QPushButton#SummaryActionButton {
 }
 
 QPushButton#SummaryActionButton:disabled {
-    background: #e7eaed;
-    border-color: #cdd2d7;
-    color: #89939c;
+    background: #e0e5e9;
+    border-color: #b8c1c9;
+    color: #56636f;
 }
 """
 
@@ -591,12 +600,12 @@ QLabel#SummaryFieldLabel,
 QLabel#SummaryStatus,
 QLabel#SummaryTimestamp {
     background: transparent;
-    color: #d9e2ec;
+    color: #f3f6f9;
 }
 
 QLabel#SummaryStatus,
 QLabel#SummaryTimestamp {
-    color: #9ba8b5;
+    color: #c1ccd6;
     font-size: 11px;
 }
 
@@ -608,6 +617,15 @@ QPlainTextEdit#SummaryContent {
     border-radius: 4px;
     color: #f3f6f9;
     padding: 4px 6px;
+    selection-background-color: #0f68d8;
+    selection-color: #ffffff;
+}
+
+QComboBox#SummaryControl QAbstractItemView {
+    background: #202833;
+    border: 1px solid #526174;
+    color: #f3f6f9;
+    outline: 0;
     selection-background-color: #0f68d8;
     selection-color: #ffffff;
 }
@@ -628,9 +646,9 @@ QPushButton#SummaryActionButton {
 }
 
 QPushButton#SummaryActionButton:disabled {
-    background: #27313b;
-    border-color: #3b4653;
-    color: #6f7c89;
+    background: #35414d;
+    border-color: #596878;
+    color: #d2dbe3;
 }
 """
 

@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -256,13 +257,41 @@ class SummaryPanel(QFrame):
         )
         self._render_state()
 
+    def set_color_scheme(self, theme: str) -> None:
+        """Set explicit text roles that native platform styles may inherit."""
+        is_light = theme == "light"
+        text_color = QColor("#1f2933" if is_light else "#f3f6f9")
+        placeholder_color = QColor(
+            "#66717c" if is_light else "#b6c3cf"
+        )
+        base_color = QColor("#ffffff" if is_light else "#202833")
+
+        for editor in (self.prompt_edit, self.summary_content):
+            palette = editor.palette()
+            palette.setColor(QPalette.ColorRole.Text, text_color)
+            palette.setColor(
+                QPalette.ColorRole.PlaceholderText,
+                placeholder_color,
+            )
+            palette.setColor(QPalette.ColorRole.Base, base_color)
+            editor.setPalette(palette)
+
+        for combo in (self.language_combo, self.detail_combo):
+            palette = combo.palette()
+            palette.setColor(QPalette.ColorRole.Text, text_color)
+            palette.setColor(QPalette.ColorRole.ButtonText, text_color)
+            palette.setColor(QPalette.ColorRole.Base, base_color)
+            combo.setPalette(palette)
+
     @Slot()
     def generate_summary(self) -> None:
-        if (
-            self._current_source is None
-            or self._generator is None
-            or self._is_running
-        ):
+        if self._current_source is None or self._is_running:
+            return
+
+        if self._generator is None:
+            self._state = "unavailable"
+            self._render_state()
+            self.settings_requested.emit()
             return
 
         options = SummaryOptions(
@@ -375,8 +404,16 @@ class SummaryPanel(QFrame):
         )
         self.generate_button.setEnabled(
             self._current_source is not None
-            and self._generator is not None
             and not self._is_running
+        )
+        if self._current_source is None:
+            tooltip_key = "summary.generate_tooltip.no_article"
+        elif self._generator is None:
+            tooltip_key = "summary.generate_tooltip.configure"
+        else:
+            tooltip_key = "summary.generate_tooltip.ready"
+        self.generate_button.setToolTip(
+            self._translator.text(tooltip_key)
         )
 
         if self._displayed_result is None:

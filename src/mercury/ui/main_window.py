@@ -143,6 +143,10 @@ class MainWindow(QMainWindow):
         self.toggle_tags_action.setCheckable(True)
         self.toggle_tags_action.setChecked(True)
 
+        self.toggle_summary_action = QAction(self)
+        self.toggle_summary_action.setCheckable(True)
+        self.toggle_summary_action.setChecked(True)
+
         self.about_action = QAction(self)
         self.about_action.triggered.connect(self._show_about)
 
@@ -161,6 +165,7 @@ class MainWindow(QMainWindow):
         self.settings_menu.addAction(self.open_settings_action)
         self.settings_menu.addAction(self.open_ai_settings_action)
         self.view_menu.addAction(self.toggle_tags_action)
+        self.view_menu.addAction(self.toggle_summary_action)
         self.help_menu.addAction(self.about_action)
 
     def _setup_tool_bar(self) -> None:
@@ -241,6 +246,12 @@ class MainWindow(QMainWindow):
         self.summary_dock.setObjectName("SummaryDock")
         self.summary_dock.setMinimumHeight(210)
         self.summary_dock.setWidget(self.summary_panel)
+        self.summary_dock.visibilityChanged.connect(
+            self.toggle_summary_action.setChecked
+        )
+        self.toggle_summary_action.toggled.connect(
+            self.summary_dock.setVisible
+        )
         self.addDockWidget(
             Qt.DockWidgetArea.BottomDockWidgetArea,
             self.summary_dock,
@@ -587,6 +598,9 @@ class MainWindow(QMainWindow):
         self.toggle_tags_action.setText(
             self.translator.text("action.toggle_tags_panel")
         )
+        self.toggle_summary_action.setText(
+            self.translator.text("action.toggle_summary_panel")
+        )
         self.about_action.setText(self.translator.text("action.about"))
         self.main_toolbar.setWindowTitle(
             self.translator.text("toolbar.main")
@@ -664,3 +678,4 @@ class MainWindow(QMainWindow):
 
         app.setStyleSheet(stylesheet_for_theme(self._theme))
         self.article_list.set_color_scheme(self._theme)
+        self.summary_panel.set_color_scheme(self._theme)
