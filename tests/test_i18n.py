@@ -80,6 +80,7 @@ class TranslatorTest(unittest.TestCase):
                 "action.delete_feed",
                 "feed.delete_dialog.title",
                 "feed.delete_unavailable",
+                "feed.delete_failed",
                 "status.delete_feed_started",
                 "status.delete_feed_finished",
             ):

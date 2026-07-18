@@ -53,8 +53,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "确定删除订阅源“{title}”及其本地缓存文章吗？此操作不可撤销。"
         ),
         "feed.delete_unavailable": (
-            "删除接口尚未由成员 A 接入；当前不会修改本地订阅或文章。"
+            "删除服务未配置；当前不会修改本地订阅或文章。"
         ),
+        "feed.delete_failed": "删除失败：订阅源不存在或本地数据库操作失败。",
         "opml.import_dialog.title": "导入 OPML",
         "opml.import_dialog.filter": "OPML 文件 (*.opml *.xml);;所有文件 (*)",
         "settings.title": "设置",
@@ -163,8 +164,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "This action cannot be undone."
         ),
         "feed.delete_unavailable": (
-            "The deletion interface has not been connected by member A. "
+            "The deletion service is not configured. "
             "No local feeds or articles were changed."
+        ),
+        "feed.delete_failed": (
+            "Deletion failed because the feed was not found or the local database operation failed."
         ),
         "opml.import_dialog.title": "Import OPML",
         "opml.import_dialog.filter": "OPML files (*.opml *.xml);;All files (*)",

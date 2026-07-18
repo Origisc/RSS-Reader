@@ -406,13 +406,14 @@ class MainWindow(QMainWindow):
 
         try:
             self._feed_deletion_service.delete_feed(feed_id)
-        except Exception as exc:
+        except Exception:
+            message = self.translator.text("feed.delete_failed")
             QMessageBox.warning(
                 self,
                 self.translator.text("dialog.feature_failed.title"),
-                str(exc),
+                message,
             )
-            self.statusBar().showMessage(str(exc), 8000)
+            self.statusBar().showMessage(message, 8000)
             return
         finally:
             QApplication.restoreOverrideCursor()

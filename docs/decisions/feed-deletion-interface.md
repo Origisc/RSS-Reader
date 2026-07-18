@@ -19,7 +19,7 @@ class FeedDeletionService(Protocol):
 - The confirmation names the selected feed and states that its locally cached
   articles will also be removed and that the action cannot be undone.
 - The cancel path is safe and performs no service call.
-- Member A's adapter must delete the subscription and its cached articles in
+- The backend adapter must delete the subscription and its cached articles in
   one local transaction. It must either complete fully or leave both intact.
 - After success, the UI reloads feeds and entries through `ArticleService`.
 - If no deletion adapter is injected, the UI displays a clear integration
@@ -27,6 +27,7 @@ class FeedDeletionService(Protocol):
 
 ## Consequences
 
-Member B can independently verify the complete interaction with an in-memory
-fake. Persistent deletion remains an explicit member A integration task and
-does not leak database responsibilities into `ui/`.
+Member A's `DBManager.delete_feed()` and `FeedUseCase.remove_feed_by_id()` are
+connected through Member B's `BackendArticleService.delete_feed()` adapter.
+The production entry point injects that adapter into `MainWindow`; database
+responsibilities remain outside `ui/`.

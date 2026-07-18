@@ -85,6 +85,11 @@ class FakeFeedDeletionService:
         ]
 
 
+class FailingFeedDeletionService:
+    def delete_feed(self, feed_id: str) -> None:
+        raise RuntimeError("backend detail should not leak")
+
+
 class FeedDeletionTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -171,7 +176,31 @@ class FeedDeletionTest(unittest.TestCase):
             self.window._delete_feed("feed-1")
 
         information.assert_called_once()
-        self.assertIn("成员 A", information.call_args.args[2])
+        self.assertIn("删除服务未配置", information.call_args.args[2])
+        self.assertEqual(len(self.article_service.list_feeds()), 2)
+        self.assertEqual(len(self.article_service.list_articles()), 2)
+
+    def test_adapter_failure_is_translated_and_keeps_current_data(self) -> None:
+        self.window.close()
+        self.window.deleteLater()
+        self.window = MainWindow(
+            self.article_service,
+            feed_deletion_service=FailingFeedDeletionService(),
+        )
+
+        with (
+            patch.object(
+                self.window,
+                "_confirm_feed_deletion",
+                return_value=True,
+            ),
+            patch.object(QMessageBox, "warning") as warning,
+        ):
+            self.window._delete_feed("feed-1")
+
+        warning.assert_called_once()
+        self.assertIn("删除失败", warning.call_args.args[2])
+        self.assertNotIn("backend detail", warning.call_args.args[2])
         self.assertEqual(len(self.article_service.list_feeds()), 2)
         self.assertEqual(len(self.article_service.list_articles()), 2)
 
