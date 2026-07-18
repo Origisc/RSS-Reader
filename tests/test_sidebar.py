@@ -2,6 +2,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -11,7 +12,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QApplication, QToolButton
 
 from mercury.ui.sidebar import Sidebar
@@ -94,6 +95,44 @@ class SidebarTest(unittest.TestCase):
             self.sidebar.menu_delete_feed_action.text(),
             "Delete selected Feed",
         )
+
+    def test_context_menu_delete_targets_the_clicked_feed(self) -> None:
+        from mercury.models.article import Feed
+
+        requests: list[str] = []
+        self.sidebar.delete_feed_requested.connect(requests.append)
+        self.sidebar.set_feeds(
+            [
+                Feed(id="feed-1", title="First"),
+                Feed(id="feed-2", title="Second"),
+            ]
+        )
+
+        menu = self.sidebar._build_feed_context_menu(
+            self.sidebar.feed_list.item(1)
+        )
+        delete_action = menu.actions()[0]
+        delete_action.trigger()
+
+        self.assertEqual(requests, ["feed-2"])
+        self.assertEqual(delete_action.text(), "Delete selected Feed")
+        self.assertEqual(
+            delete_action.objectName(),
+            "ContextDeleteFeedAction",
+        )
+        self.assertEqual(
+            self.sidebar.feed_list.contextMenuPolicy(),
+            Qt.ContextMenuPolicy.CustomContextMenu,
+        )
+
+    def test_context_menu_is_not_built_for_blank_space(self) -> None:
+        with patch.object(
+            self.sidebar,
+            "_build_feed_context_menu",
+        ) as build_menu:
+            self.sidebar._show_feed_context_menu(QPoint(-1, -1))
+
+        build_menu.assert_not_called()
 
 
 if __name__ == "__main__":

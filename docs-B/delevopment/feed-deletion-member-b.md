@@ -20,6 +20,7 @@ The tests do not access the network or the user's database.
 1. Start Mercury normally; the production entry point injects the backend adapter.
 2. Select a feed and open the feed actions dropdown.
 3. Choose **Delete selected Feed**.
+   You can also right-click a specific Feed and choose the same delete action.
 4. Cancel the warning and confirm that the feed remains.
 5. Repeat and confirm deletion. Confirm that the feed and its entries disappear
    and the reader returns to the welcome view.

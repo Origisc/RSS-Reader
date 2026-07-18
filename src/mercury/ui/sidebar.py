@@ -109,6 +109,9 @@ class Sidebar(QWidget):
         self.feed_list = QListWidget()
         self.feed_list.setObjectName("FeedList")
         self.feed_list.setAlternatingRowColors(False)
+        self.feed_list.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
 
         self.footer_label = QLabel()
         self.footer_label.setObjectName("PanelFooter")
@@ -124,6 +127,9 @@ class Sidebar(QWidget):
 
         self.feed_list.currentItemChanged.connect(
             self._on_current_item_changed
+        )
+        self.feed_list.customContextMenuRequested.connect(
+            self._show_feed_context_menu
         )
 
     def set_feeds(
@@ -207,6 +213,27 @@ class Sidebar(QWidget):
             return
 
         self.delete_feed_requested.emit(str(current.data(FEED_ID_ROLE)))
+
+    def _show_feed_context_menu(self, position) -> None:
+        item = self.feed_list.itemAt(position)
+
+        if item is None:
+            return
+
+        menu = self._build_feed_context_menu(item)
+        menu.exec(self.feed_list.viewport().mapToGlobal(position))
+
+    def _build_feed_context_menu(self, item: QListWidgetItem) -> QMenu:
+        feed_id = str(item.data(FEED_ID_ROLE))
+        menu = QMenu(self)
+        delete_action = menu.addAction(
+            self.menu_delete_feed_action.text()
+        )
+        delete_action.setObjectName("ContextDeleteFeedAction")
+        delete_action.triggered.connect(
+            lambda checked=False: self.delete_feed_requested.emit(feed_id)
+        )
+        return menu
 
     def _update_feed_item_text(self, item: QListWidgetItem) -> None:
         title = str(item.data(FEED_TITLE_ROLE) or "")
