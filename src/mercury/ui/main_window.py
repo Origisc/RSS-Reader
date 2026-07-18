@@ -23,6 +23,7 @@ from mercury.models.article import Article, Feed
 from mercury.services.article_service import ArticleService
 from mercury.ui.article_list import ArticleList
 from mercury.ui.article_reader import ArticleReader
+from mercury.ui.feed_deletion import FeedDeletionService
 from mercury.ui.read_state import InMemoryReadStateStore, ReadStateStore
 from mercury.ui.reader_style import (
     InMemoryReaderStyleStore,
@@ -42,6 +43,7 @@ class MainWindow(QMainWindow):
         article_service: ArticleService,
         reader_style_store: ReaderStyleStore | None = None,
         read_state_store: ReadStateStore | None = None,
+        feed_deletion_service: FeedDeletionService | None = None,
     ) -> None:
         super().__init__()
 
@@ -54,6 +56,7 @@ class MainWindow(QMainWindow):
         )
         self._reader_style = self._reader_style_store.load().normalized()
         self._read_state_store = read_state_store or InMemoryReadStateStore()
+        self._feed_deletion_service = feed_deletion_service
 
         self.resize(1320, 820)
 
@@ -237,6 +240,7 @@ class MainWindow(QMainWindow):
         self.sidebar.add_feed_requested.connect(self._add_feed)
         self.sidebar.import_opml_requested.connect(self._import_opml)
         self.sidebar.refresh_requested.connect(self._refresh_feeds)
+        self.sidebar.delete_feed_requested.connect(self._delete_feed)
         self.article_list.article_selected.connect(self._show_article)
         self.article_reader.read_state_change_requested.connect(
             self._set_read_state
@@ -354,6 +358,82 @@ class MainWindow(QMainWindow):
             self.translator.text("status.refresh_started"),
         )
 
+    def _delete_feed(self, feed_id: str) -> None:
+        feed = next(
+            (
+                current
+                for current in self.article_service.list_feeds()
+                if current.id == feed_id
+            ),
+            None,
+        )
+
+        if feed is None:
+            return
+
+        if self._feed_deletion_service is None:
+            QMessageBox.information(
+                self,
+                self.translator.text("dialog.feature_pending.title"),
+                self.translator.text("feed.delete_unavailable"),
+            )
+            return
+
+        if not self._confirm_feed_deletion(feed.title):
+            return
+
+        self.statusBar().showMessage(
+            self.translator.text("status.delete_feed_started"),
+            5000,
+        )
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+
+        try:
+            self._feed_deletion_service.delete_feed(feed_id)
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                self.translator.text("dialog.feature_failed.title"),
+                str(exc),
+            )
+            self.statusBar().showMessage(str(exc), 8000)
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        self._load_initial_data()
+        self.article_reader.show_welcome()
+        self.statusBar().showMessage(
+            self.translator.text("status.delete_feed_finished").format(
+                title=feed.title,
+            ),
+            8000,
+        )
+
+    def _confirm_feed_deletion(self, feed_title: str) -> bool:
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Icon.Warning)
+        dialog.setWindowTitle(
+            self.translator.text("feed.delete_dialog.title")
+        )
+        dialog.setText(
+            self.translator.text("feed.delete_dialog.body").format(
+                title=feed_title,
+            )
+        )
+        delete_button = dialog.addButton(
+            self.translator.text("action.delete_feed"),
+            QMessageBox.ButtonRole.DestructiveRole,
+        )
+        cancel_button = dialog.addButton(
+            self.translator.text("settings.cancel"),
+            QMessageBox.ButtonRole.RejectRole,
+        )
+        dialog.setDefaultButton(cancel_button)
+        dialog.setEscapeButton(cancel_button)
+        dialog.exec()
+        return dialog.clickedButton() is delete_button
+
     def _run_service_action(self, action, started_message: str) -> None:
         self.statusBar().showMessage(started_message, 5000)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
@@ -461,6 +541,7 @@ class MainWindow(QMainWindow):
             add_feed=self.translator.text("action.add_feed"),
             import_opml=self.translator.text("action.import_opml"),
             refresh=self.translator.text("action.refresh"),
+            delete_feed=self.translator.text("action.delete_feed"),
         )
         self.sidebar.set_footer(self.translator.text("sidebar.footer"))
         self.sidebar.set_feed_detail_text(

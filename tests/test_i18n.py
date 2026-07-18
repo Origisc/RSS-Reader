@@ -71,3 +71,21 @@ class TranslatorTest(unittest.TestCase):
                 translator.text("action.mark_unread"),
                 "action.mark_unread",
             )
+
+    def test_feed_deletion_messages_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "action.delete_feed",
+                "feed.delete_dialog.title",
+                "feed.delete_unavailable",
+                "status.delete_feed_started",
+                "status.delete_feed_finished",
+            ):
+                self.assertNotEqual(translator.text(key), key)
+
+            self.assertIn(
+                "{title}",
+                translator.text("feed.delete_dialog.body"),
+            )

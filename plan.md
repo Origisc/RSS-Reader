@@ -31,7 +31,7 @@
 
 ## Completion Definition
 
-本阶段完成后，即使没有 Reader 清洗、AI、导出和标签功能，用户也可以完成“添加订阅源 → 刷新 → 浏览文章列表 → 打开文章详情 → 关闭并重启应用后数据仍存在”的完整流程。
+本阶段完成后，即使没有 Reader 清洗、AI、导出和标签功能，用户也可以完成“添加订阅源 → 刷新 → 浏览文章列表 → 打开文章详情 → 安全删除不再需要的订阅源 → 关闭并重启应用后数据状态正确”的完整流程。
 
 ## Sub-phases
 
@@ -182,7 +182,34 @@
   - 添加本地测试 Feed 后能显示文章列表。
   - 点击文章后能显示文章原始详情。
 
-#### Task 1.4.2 第一阶段人工验收脚本
+#### Task 1.4.2 安全删除 Feed
+
+- **Overall Goal**：允许用户删除不再需要的订阅源及其本地缓存文章，同时避免误删。
+- **Task Detail**：
+  - 在 Feeds 栏为当前选中的订阅源提供删除入口。
+  - 删除前显示明确确认对话框，包含 Feed 名称、影响范围和不可撤销提示。
+  - 取消、关闭对话框或按 `Esc` 时不得调用删除服务。
+  - 删除成功后刷新 Feeds、Entries 和 Reader 状态。
+  - 后端删除接口未接入时显示清晰提示，不得伪造成功结果。
+- **Affected Files**：
+  - `src/mercury/ui/sidebar.py`
+  - `src/mercury/ui/main_window.py`
+  - `src/mercury/ui/feed_deletion.py`
+  - `src/mercury/services/backend_article_service.py`
+  - `core/database.py`
+  - `tests/test_feed_deletion.py`
+  - `docs/decisions/feed-deletion-interface.md`
+- **Key Design**：
+  - UI 只能调用 `FeedDeletionService.delete_feed(feed_id)`，不得直接执行 SQL。
+  - 成员 A 的持久化实现必须在同一事务中删除 Feed 及其本地缓存文章；失败时全部回滚。
+  - “取消”必须是确认框的默认按钮和 `Esc` 操作，删除按钮使用破坏性操作角色。
+  - 中英文按钮、警告、失败信息和状态栏消息均可运行时翻译。
+- **Verification**：
+  - 使用 Mock Service 可独立验证取消、确认删除和后端未接入三条路径。
+  - 取消后 Feed 和文章数量不变；确认后对应 Feed 和缓存文章均消失。
+  - 真实适配器接入后，重启应用确认被删除数据不会重新出现。
+
+#### Task 1.4.3 第一阶段人工验收脚本
 
 - **Overall Goal**：让任何开发者都能独立验证第一阶段是否完成。
 - **Task Detail**：
@@ -195,14 +222,15 @@
   - 验收流程不依赖真实网络。
   - 可选提供真实 Feed URL 作为补充人工测试。
 - **Verification**：
-  - 按文档执行后，可完成导入、刷新、列表、详情、本地持久化验证。
+  - 按文档执行后，可完成导入、刷新、列表、详情、安全删除、本地持久化验证。
 
 ## Stage 1 Verification Gate
 
 - `uv run pytest tests/test_feed_parser.py tests/test_opml_parser.py tests/test_storage.py tests/test_article_deduplication.py`
+- `uv run python -m unittest tests.test_feed_deletion -v`
 - `uv run mercury` 可启动。
 - 无账号、无 LLM 配置、无云服务时，基础阅读闭环可用。
-- 应用重启后订阅源和文章仍存在。
+- 应用重启后保留的订阅源和文章仍存在，已确认删除的 Feed 及其缓存文章不会恢复。
 
 ---
 
@@ -754,10 +782,10 @@ mercury/
 
 ### 第一阶段：基础阅读器原型
 
-- 成员 A：项目骨架、领域模型、Feed / OPML 解析、本地数据库、同步与去重、基础 service。
-- 成员 B：PySide6 主窗口、订阅源列表、文章列表、详情页、添加/刷新交互；在 A 的真实 service 未完成前使用 Mock Service。
-- 集成点：`FeedService`、`SyncService`、`ArticleReadService` 接口稳定后联调。
-- 阶段验收：A 用自动测试验证解析、存储、去重；B 用人工脚本验证 UI 闭环。
+- 成员 A：项目骨架、领域模型、Feed / OPML 解析、本地数据库、同步与去重、基础 service，以及 Feed 与缓存文章的事务删除实现。
+- 成员 B：PySide6 主窗口、订阅源列表、文章列表、详情页、添加/刷新/删除交互和防误删确认；在 A 的真实 service 未完成前使用 Mock Service。
+- 集成点：`FeedService`、`SyncService`、`ArticleReadService`、`FeedDeletionService` 接口稳定后联调。
+- 阶段验收：A 用自动测试验证解析、存储、去重和事务删除；B 用 Mock 自动测试与人工脚本验证删除确认及 UI 闭环。
 
 ### 第二阶段：阅读体验增强
 

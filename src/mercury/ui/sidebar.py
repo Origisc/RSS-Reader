@@ -29,6 +29,7 @@ class Sidebar(QWidget):
     add_feed_requested = Signal()
     import_opml_requested = Signal()
     refresh_requested = Signal()
+    delete_feed_requested = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
@@ -63,12 +64,19 @@ class Sidebar(QWidget):
         )
         self.menu_refresh_action = QAction(self)
         self.menu_refresh_action.triggered.connect(self.refresh_requested)
+        self.menu_delete_feed_action = QAction(self)
+        self.menu_delete_feed_action.setEnabled(False)
+        self.menu_delete_feed_action.triggered.connect(
+            self._request_current_feed_deletion
+        )
 
         self.feed_actions_menu = QMenu(self)
         self.feed_actions_menu.addAction(self.menu_add_feed_action)
         self.feed_actions_menu.addAction(self.menu_import_opml_action)
         self.feed_actions_menu.addSeparator()
         self.feed_actions_menu.addAction(self.menu_refresh_action)
+        self.feed_actions_menu.addSeparator()
+        self.feed_actions_menu.addAction(self.menu_delete_feed_action)
 
         self.add_feed_button = QToolButton()
         self.add_feed_button.setObjectName("FeedAddButton")
@@ -124,6 +132,7 @@ class Sidebar(QWidget):
         unread_counts: Mapping[str, int] | None = None,
     ) -> None:
         self.feed_list.clear()
+        self.menu_delete_feed_action.setEnabled(False)
         counts = unread_counts or {}
 
         for feed in feeds:
@@ -160,6 +169,7 @@ class Sidebar(QWidget):
         add_feed: str,
         import_opml: str,
         refresh: str,
+        delete_feed: str,
     ) -> None:
         self.add_feed_button.setToolTip(add_feed)
         self.add_feed_button.setAccessibleName(add_feed)
@@ -168,6 +178,7 @@ class Sidebar(QWidget):
         self.menu_add_feed_action.setText(add_feed)
         self.menu_import_opml_action.setText(import_opml)
         self.menu_refresh_action.setText(refresh)
+        self.menu_delete_feed_action.setText(delete_feed)
 
     def set_footer(self, footer_text: str) -> None:
         self.footer_label.setText(footer_text)
@@ -181,11 +192,21 @@ class Sidebar(QWidget):
     def _on_current_item_changed(self, current, previous) -> None:
         del previous
 
+        self.menu_delete_feed_action.setEnabled(current is not None)
+
         if current is None:
             return
 
         feed_id = current.data(FEED_ID_ROLE)
         self.feed_selected.emit(feed_id)
+
+    def _request_current_feed_deletion(self) -> None:
+        current = self.feed_list.currentItem()
+
+        if current is None:
+            return
+
+        self.delete_feed_requested.emit(str(current.data(FEED_ID_ROLE)))
 
     def _update_feed_item_text(self, item: QListWidgetItem) -> None:
         title = str(item.data(FEED_TITLE_ROLE) or "")

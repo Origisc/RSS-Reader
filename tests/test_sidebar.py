@@ -28,6 +28,7 @@ class SidebarTest(unittest.TestCase):
             add_feed="Add Feed",
             import_opml="Import OPML",
             refresh="Refresh",
+            delete_feed="Delete selected Feed",
         )
 
     def tearDown(self) -> None:
@@ -73,6 +74,25 @@ class SidebarTest(unittest.TestCase):
         self.assertEqual(
             self.sidebar.menu_import_opml_action.text(),
             "Import OPML",
+        )
+
+    def test_delete_action_requires_and_emits_selected_feed(self) -> None:
+        from mercury.models.article import Feed
+
+        requests: list[str] = []
+        self.sidebar.delete_feed_requested.connect(requests.append)
+        self.sidebar.set_feeds([Feed(id="feed-1", title="Example")])
+
+        self.assertFalse(self.sidebar.menu_delete_feed_action.isEnabled())
+
+        self.sidebar.feed_list.setCurrentRow(0)
+        self.sidebar.menu_delete_feed_action.trigger()
+
+        self.assertTrue(self.sidebar.menu_delete_feed_action.isEnabled())
+        self.assertEqual(requests, ["feed-1"])
+        self.assertEqual(
+            self.sidebar.menu_delete_feed_action.text(),
+            "Delete selected Feed",
         )
 
 
