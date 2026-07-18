@@ -23,6 +23,9 @@ Provider failures use `LLMProviderError` with a user-readable message. Summary a
 
 ## Deferred Work
 
-- Provider settings UI and connection-test interaction belong to Task 3.1.2.
 - Real standard-API adapters are user-configured integrations and must not be required by automated tests.
 - Local persistence belongs to the storage integration point owned by Member A.
+
+## Completed Follow-up
+
+Task 3.1.2 added the Provider-neutral settings UI and injectable connection-test interaction. Without a real adapter, the application explicitly reports that no network request was made.
