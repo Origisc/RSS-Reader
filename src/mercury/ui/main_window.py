@@ -19,8 +19,10 @@ from PySide6.QtWidgets import (
 
 from mercury.i18n import Translator
 from mercury.i18n.translations import SUPPORTED_LANGUAGES
+from mercury.llm import InMemoryProviderConfigStore, ProviderConfigStore
 from mercury.models.article import Article, Feed
 from mercury.services.article_service import ArticleService
+from mercury.ui.ai_settings import AISettingsDialog, ConnectionTester
 from mercury.ui.article_list import ArticleList
 from mercury.ui.article_reader import ArticleReader
 from mercury.ui.feed_deletion import FeedDeletionService
@@ -44,6 +46,8 @@ class MainWindow(QMainWindow):
         reader_style_store: ReaderStyleStore | None = None,
         read_state_store: ReadStateStore | None = None,
         feed_deletion_service: FeedDeletionService | None = None,
+        provider_config_store: ProviderConfigStore | None = None,
+        provider_connection_tester: ConnectionTester | None = None,
     ) -> None:
         super().__init__()
 
@@ -57,6 +61,12 @@ class MainWindow(QMainWindow):
         self._reader_style = self._reader_style_store.load().normalized()
         self._read_state_store = read_state_store or InMemoryReadStateStore()
         self._feed_deletion_service = feed_deletion_service
+        self._provider_config_store = (
+            provider_config_store
+            if provider_config_store is not None
+            else InMemoryProviderConfigStore()
+        )
+        self._provider_connection_tester = provider_connection_tester
 
         self.resize(1320, 820)
 
@@ -113,6 +123,11 @@ class MainWindow(QMainWindow):
         self.open_settings_action.setShortcut("Ctrl+,")
         self.open_settings_action.triggered.connect(self._open_settings)
 
+        self.open_ai_settings_action = QAction(self)
+        self.open_ai_settings_action.triggered.connect(
+            self._open_ai_settings
+        )
+
         self.toggle_tags_action = QAction(self)
         self.toggle_tags_action.setCheckable(True)
         self.toggle_tags_action.setChecked(True)
@@ -133,6 +148,7 @@ class MainWindow(QMainWindow):
         self.file_menu.addSeparator()
         self.file_menu.addAction(self.exit_action)
         self.settings_menu.addAction(self.open_settings_action)
+        self.settings_menu.addAction(self.open_ai_settings_action)
         self.view_menu.addAction(self.toggle_tags_action)
         self.help_menu.addAction(self.about_action)
 
@@ -480,6 +496,21 @@ class MainWindow(QMainWindow):
                 5000,
             )
 
+    def _open_ai_settings(self) -> None:
+        dialog = AISettingsDialog(
+            self.translator,
+            current_config=self._provider_config_store.load(),
+            connection_tester=self._provider_connection_tester,
+            parent=self,
+        )
+
+        if dialog.exec():
+            self._provider_config_store.save(dialog.selected_config())
+            self.statusBar().showMessage(
+                self.translator.text("status.ai_settings_saved"),
+                5000,
+            )
+
     def _apply_settings(
         self,
         language: str,
@@ -523,6 +554,9 @@ class MainWindow(QMainWindow):
         self.exit_action.setText(self.translator.text("action.exit"))
         self.open_settings_action.setText(
             self.translator.text("action.preferences")
+        )
+        self.open_ai_settings_action.setText(
+            self.translator.text("action.ai_settings")
         )
         self.toggle_tags_action.setText(
             self.translator.text("action.toggle_tags_panel")

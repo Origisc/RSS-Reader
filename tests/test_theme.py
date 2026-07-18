@@ -36,6 +36,7 @@ class ThemeTest(unittest.TestCase):
         self.assertIn("QDialog QLabel", stylesheet)
         self.assertIn("color: #e5edf5", stylesheet)
         self.assertIn("QDialog QDoubleSpinBox", stylesheet)
+        self.assertIn("QDialog QLineEdit", stylesheet)
         self.assertIn("background: #202833", stylesheet)
         self.assertIn("QDialog QComboBox QAbstractItemView", stylesheet)
         self.assertIn("selection-color: #ffffff", stylesheet)
@@ -48,6 +49,7 @@ class ThemeTest(unittest.TestCase):
 
         self.assertIn("QDialog QLabel", stylesheet)
         self.assertIn("color: #1f2933", stylesheet)
+        self.assertIn("QDialog QLineEdit", stylesheet)
 
     def test_system_theme_uses_default_dark_reader_style(self) -> None:
         self.assertIn("QTextBrowser#ReaderContent", stylesheet_for_theme("system"))

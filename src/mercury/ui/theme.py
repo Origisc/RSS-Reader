@@ -103,6 +103,16 @@ QDialog QDoubleSpinBox {
     padding: 4px 32px 4px 6px;
 }
 
+QDialog QLineEdit {
+    background: #ffffff;
+    border: 1px solid #c9ced4;
+    border-radius: 4px;
+    color: #1f2933;
+    padding: 4px 6px;
+    selection-background-color: #d9e8ff;
+    selection-color: #0f172a;
+}
+
 QDialog QComboBox::drop-down {
     border-left: 1px solid #c9ced4;
     subcontrol-origin: border;
@@ -216,6 +226,16 @@ QDialog QDoubleSpinBox {
     border-radius: 4px;
     color: #f3f6f9;
     padding: 4px 32px 4px 6px;
+    selection-background-color: #0f68d8;
+    selection-color: #ffffff;
+}
+
+QDialog QLineEdit {
+    background: #202833;
+    border: 1px solid #465363;
+    border-radius: 4px;
+    color: #f3f6f9;
+    padding: 4px 6px;
     selection-background-color: #0f68d8;
     selection-color: #ffffff;
 }

@@ -89,3 +89,24 @@ class TranslatorTest(unittest.TestCase):
                 "{title}",
                 translator.text("feed.delete_dialog.body"),
             )
+
+    def test_ai_settings_messages_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "action.ai_settings",
+                "ai_settings.title",
+                "ai_settings.base_url",
+                "ai_settings.model",
+                "ai_settings.api_key",
+                "ai_settings.timeout",
+                "ai_settings.privacy_notice",
+                "ai_settings.test_connection",
+                "ai_settings.invalid_config",
+                "ai_settings.connection_unavailable",
+                "ai_settings.connection_success",
+                "ai_settings.connection_failed",
+                "status.ai_settings_saved",
+            ):
+                self.assertNotEqual(translator.text(key), key)

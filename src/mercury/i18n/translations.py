@@ -19,6 +19,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.mark_read": "标记为已读",
         "action.mark_unread": "标记为未读",
         "action.preferences": "首选项",
+        "action.ai_settings": "AI 设置",
         "action.toggle_tags_panel": "标签面板",
         "action.exit": "退出",
         "action.about": "关于 Mercury",
@@ -64,12 +65,29 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.reader_content_width": "正文宽度：",
         "settings.ok": "确定",
         "settings.cancel": "取消",
+        "ai_settings.title": "AI Provider 设置",
+        "ai_settings.base_url": "Base URL：",
+        "ai_settings.model": "模型：",
+        "ai_settings.api_key": "API Key（可选）：",
+        "ai_settings.timeout": "超时时间：",
+        "ai_settings.privacy_notice": (
+            "文章内容只会在你主动触发摘要、翻译等 AI 功能时发送给已配置的 Provider；"
+            "未配置 AI 也不会影响基础阅读。"
+        ),
+        "ai_settings.test_connection": "测试连接",
+        "ai_settings.invalid_config": "请填写有效的 Base URL、模型和超时时间。",
+        "ai_settings.connection_unavailable": (
+            "当前未接入 Provider 连接适配器；配置尚未发送到网络。"
+        ),
+        "ai_settings.connection_success": "连接测试成功。",
+        "ai_settings.connection_failed": "连接测试失败。",
         "theme.system": "跟随系统",
         "theme.light": "浅色",
         "theme.dark": "深色",
         "status.settings_applied": (
             "已应用语言：{language}，主题：{theme}，正文字号：{font_size}px"
         ),
+        "status.ai_settings_saved": "AI Provider 配置已在本次运行中保存。",
         "status.add_feed_started": "正在添加 Feed...",
         "status.import_opml_started": "正在导入 OPML...",
         "status.refresh_started": "正在刷新订阅源...",
@@ -105,6 +123,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.mark_read": "Mark as read",
         "action.mark_unread": "Mark as unread",
         "action.preferences": "Preferences",
+        "action.ai_settings": "AI Settings",
         "action.toggle_tags_panel": "Tags Panel",
         "action.exit": "Exit",
         "action.about": "About Mercury",
@@ -157,6 +176,25 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.reader_content_width": "Reader content width:",
         "settings.ok": "OK",
         "settings.cancel": "Cancel",
+        "ai_settings.title": "AI Provider Settings",
+        "ai_settings.base_url": "Base URL:",
+        "ai_settings.model": "Model:",
+        "ai_settings.api_key": "API Key (optional):",
+        "ai_settings.timeout": "Timeout:",
+        "ai_settings.privacy_notice": (
+            "Article content is sent to the configured Provider only when you explicitly "
+            "start an AI action such as summary or translation. Basic reading works without AI."
+        ),
+        "ai_settings.test_connection": "Test Connection",
+        "ai_settings.invalid_config": (
+            "Enter a valid Base URL, model, and timeout."
+        ),
+        "ai_settings.connection_unavailable": (
+            "No Provider connection adapter is available; the configuration was not sent "
+            "over the network."
+        ),
+        "ai_settings.connection_success": "Connection test succeeded.",
+        "ai_settings.connection_failed": "Connection test failed.",
         "theme.system": "Use system setting",
         "theme.light": "Light",
         "theme.dark": "Dark",
@@ -164,6 +202,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Applied language: {language}; theme: {theme}; "
             "reader font: {font_size}px"
         ),
+        "status.ai_settings_saved": "AI Provider settings saved for this session.",
         "status.add_feed_started": "Adding feed...",
         "status.import_opml_started": "Importing OPML...",
         "status.refresh_started": "Refreshing feeds...",
