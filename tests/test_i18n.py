@@ -157,6 +157,18 @@ class TranslatorTest(unittest.TestCase):
                 translator.text("summary.hide_panel_tooltip"),
                 "summary.hide_panel_tooltip",
             )
+            self.assertNotEqual(
+                translator.text("action.shortcuts"),
+                "action.shortcuts",
+            )
+            self.assertNotEqual(
+                translator.text("shortcuts.title"),
+                "shortcuts.title",
+            )
+            self.assertNotEqual(
+                translator.text("shortcuts.toggle_summary"),
+                "shortcuts.toggle_summary",
+            )
             self.assertIn(
                 "Ctrl+Shift+S",
                 translator.text("reader.summary_toggle_tooltip"),

@@ -181,6 +181,29 @@ QDialog QPushButton:default {
     color: #0f3d73;
 }
 
+QDialog#ShortcutHelpDialog QLabel#ShortcutHelpIntro {
+    background: transparent;
+    color: #34404b;
+}
+
+QTableWidget#ShortcutTable {
+    background: #ffffff;
+    alternate-background-color: #f3f5f7;
+    border: 1px solid #c9ced4;
+    color: #1f2933;
+    gridline-color: #d5d8dc;
+}
+
+QTableWidget#ShortcutTable QHeaderView::section {
+    background: #e7ebef;
+    border: 0;
+    border-bottom: 1px solid #bfc6cd;
+    border-right: 1px solid #bfc6cd;
+    color: #1f2933;
+    font-weight: 700;
+    padding: 6px 8px;
+}
+
 QFrame#ReaderToolbar {
     background: #f1f3f5;
     border-bottom: 1px solid #d5d8dc;
@@ -393,6 +416,29 @@ QDialog QPushButton:default {
     background: #0f68d8;
     border-color: #2487ff;
     color: #ffffff;
+}
+
+QDialog#ShortcutHelpDialog QLabel#ShortcutHelpIntro {
+    background: transparent;
+    color: #c1ccd6;
+}
+
+QTableWidget#ShortcutTable {
+    background: #202833;
+    alternate-background-color: #26313d;
+    border: 1px solid #465363;
+    color: #f3f6f9;
+    gridline-color: #465363;
+}
+
+QTableWidget#ShortcutTable QHeaderView::section {
+    background: #2a323d;
+    border: 0;
+    border-bottom: 1px solid #596878;
+    border-right: 1px solid #596878;
+    color: #f3f6f9;
+    font-weight: 700;
+    padding: 6px 8px;
 }
 
 QMenuBar,

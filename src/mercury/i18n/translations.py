@@ -22,6 +22,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.ai_settings": "AI 设置",
         "action.toggle_tags_panel": "标签面板",
         "action.toggle_summary_panel": "摘要面板",
+        "action.shortcuts": "快捷键",
         "action.exit": "退出",
         "action.about": "关于 Mercury",
         "toolbar.main": "主工具栏",
@@ -107,6 +108,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "<p>一款本地优先、跨平台的 RSS 阅读器。</p>"
             "<p>当前版本：成员 B UI 原型</p>"
         ),
+        "shortcuts.title": "键盘快捷键",
+        "shortcuts.description": "当前页面可用的快捷键及其功能。",
+        "shortcuts.key_header": "快捷键",
+        "shortcuts.function_header": "功能",
+        "shortcuts.show_help": "打开快捷键说明",
+        "shortcuts.open_settings": "打开首选项",
+        "shortcuts.toggle_summary": "显示或隐藏摘要面板",
+        "shortcuts.exit": "退出 Mercury",
+        "shortcuts.close": "关闭",
         "tags.title": "Tags",
         "tags.input_placeholder": "输入标签，逗号分隔",
         "tags.add": "添加",
@@ -166,6 +176,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.ai_settings": "AI Settings",
         "action.toggle_tags_panel": "Tags Panel",
         "action.toggle_summary_panel": "Summary Panel",
+        "action.shortcuts": "Shortcuts",
         "action.exit": "Exit",
         "action.about": "About Mercury",
         "toolbar.main": "Main Toolbar",
@@ -264,6 +275,17 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "<p>A local-first, cross-platform RSS reader.</p>"
             "<p>Current version: Member B UI prototype</p>"
         ),
+        "shortcuts.title": "Keyboard Shortcuts",
+        "shortcuts.description": (
+            "Keyboard shortcuts available on the current page and what they do."
+        ),
+        "shortcuts.key_header": "Shortcut",
+        "shortcuts.function_header": "Function",
+        "shortcuts.show_help": "Open this shortcut reference",
+        "shortcuts.open_settings": "Open Preferences",
+        "shortcuts.toggle_summary": "Show or hide the Summary panel",
+        "shortcuts.exit": "Exit Mercury",
+        "shortcuts.close": "Close",
         "tags.title": "Tags",
         "tags.input_placeholder": "Type tags (comma-separated)",
         "tags.add": "Add",

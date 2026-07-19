@@ -35,6 +35,7 @@ from mercury.ui.reader_style import (
     ReaderStyleStore,
 )
 from mercury.ui.settings_dialog import SettingsDialog
+from mercury.ui.shortcut_help import ShortcutEntry, ShortcutHelpDialog
 from mercury.ui.sidebar import Sidebar
 from mercury.ui.summary_panel import (
     SummaryGenerator,
@@ -148,6 +149,12 @@ class MainWindow(QMainWindow):
         self.toggle_summary_action.setChecked(True)
         self.toggle_summary_action.setShortcut("Ctrl+Shift+S")
 
+        self.shortcut_help_action = QAction(self)
+        self.shortcut_help_action.setShortcut("F1")
+        self.shortcut_help_action.triggered.connect(
+            self._show_shortcut_help
+        )
+
         self.about_action = QAction(self)
         self.about_action.triggered.connect(self._show_about)
 
@@ -167,6 +174,8 @@ class MainWindow(QMainWindow):
         self.settings_menu.addAction(self.open_ai_settings_action)
         self.view_menu.addAction(self.toggle_tags_action)
         self.view_menu.addAction(self.toggle_summary_action)
+        self.help_menu.addAction(self.shortcut_help_action)
+        self.help_menu.addSeparator()
         self.help_menu.addAction(self.about_action)
 
     def _setup_tool_bar(self) -> None:
@@ -179,6 +188,8 @@ class MainWindow(QMainWindow):
         self.main_toolbar.addAction(self.refresh_action)
         self.main_toolbar.addSeparator()
         self.main_toolbar.addAction(self.toggle_tags_action)
+        self.main_toolbar.addSeparator()
+        self.main_toolbar.addAction(self.shortcut_help_action)
 
     def _setup_tag_panel(self) -> None:
         panel = QFrame()
@@ -599,6 +610,28 @@ class MainWindow(QMainWindow):
             self.translator.text("dialog.about.body"),
         )
 
+    def _show_shortcut_help(self) -> None:
+        dialog = ShortcutHelpDialog(
+            self.translator,
+            self._shortcut_entries(),
+            self,
+        )
+        dialog.exec()
+
+    def _shortcut_entries(self) -> tuple[ShortcutEntry, ...]:
+        shortcut_actions = (
+            action
+            for action in self.findChildren(QAction)
+            if not action.shortcut().isEmpty()
+        )
+        return tuple(
+            ShortcutEntry(
+                action.shortcut().toString(),
+                action.statusTip() or action.text(),
+            )
+            for action in shortcut_actions
+        )
+
     def _translate_ui(self) -> None:
         self.setWindowTitle(self.translator.text("app.title"))
 
@@ -629,7 +662,31 @@ class MainWindow(QMainWindow):
         self.toggle_summary_action.setText(
             self.translator.text("action.toggle_summary_panel")
         )
+        self.shortcut_help_action.setText(
+            self.translator.text("action.shortcuts")
+        )
         self.about_action.setText(self.translator.text("action.about"))
+        shortcut_descriptions = (
+            (
+                self.shortcut_help_action,
+                self.translator.text("shortcuts.show_help"),
+            ),
+            (
+                self.open_settings_action,
+                self.translator.text("shortcuts.open_settings"),
+            ),
+            (
+                self.toggle_summary_action,
+                self.translator.text("shortcuts.toggle_summary"),
+            ),
+            (
+                self.exit_action,
+                self.translator.text("shortcuts.exit"),
+            ),
+        )
+        for action, description in shortcut_descriptions:
+            action.setStatusTip(description)
+            action.setToolTip(description)
         self.main_toolbar.setWindowTitle(
             self.translator.text("toolbar.main")
         )
