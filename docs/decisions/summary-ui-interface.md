@@ -29,4 +29,4 @@ Closing the Summary dock only hides it. A checkable **View → Summary Panel** a
 
 The Reader toolbar exposes the same visibility state as a prominent checkable Summary button with `Ctrl+Shift+S`. Hiding the dock removes both its content and title bar, does not cancel an active background request, and does not discard in-session results.
 
-The Summary dock close control uses a programmatically drawn, theme-aware high-contrast icon instead of the native platform icon. The dark theme uses a red background with a thick white cross, while the light theme uses a pale red background with a dark red cross. This keeps the control visible across Qt platform styles.
+The Summary dock uses a custom fixed title bar instead of native float/close controls, because Windows and Qt platform styles can repaint those icons with unreadable colors. A high-contrast localized **Hide** button replaces both ambiguous icons. The Reader toolbar, View menu, and `Ctrl+Shift+S` remain the recovery paths.

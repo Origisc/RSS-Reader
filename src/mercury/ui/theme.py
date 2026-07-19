@@ -210,6 +210,32 @@ QFrame#SummaryPanel {
     border-top: 1px solid #d5d8dc;
 }
 
+QFrame#SummaryDockTitleBar {
+    background: #eeeeea;
+    border-bottom: 1px solid #c9ced4;
+}
+
+QLabel#SummaryDockTitle {
+    background: transparent;
+    color: #1f2933;
+    font-weight: 700;
+}
+
+QPushButton#SummaryDockHideButton {
+    background: #d9e8ff;
+    border: 1px solid #6b9de3;
+    border-radius: 4px;
+    color: #0f3d73;
+    font-weight: 700;
+    min-width: 52px;
+    padding: 3px 12px;
+}
+
+QPushButton#SummaryDockHideButton:hover {
+    background: #c3d8f5;
+    border-color: #3978cf;
+}
+
 QLabel#SummaryFieldLabel,
 QLabel#SummaryStatus,
 QLabel#SummaryTimestamp {
@@ -593,6 +619,32 @@ QLabel[chip="true"] {
 QFrame#SummaryPanel {
     background: #18181c;
     border-top: 1px solid #30333a;
+}
+
+QFrame#SummaryDockTitleBar {
+    background: #18181c;
+    border-bottom: 1px solid #30333a;
+}
+
+QLabel#SummaryDockTitle {
+    background: transparent;
+    color: #f3f6f9;
+    font-weight: 700;
+}
+
+QPushButton#SummaryDockHideButton {
+    background: #0f68d8;
+    border: 1px solid #62a7ff;
+    border-radius: 4px;
+    color: #ffffff;
+    font-weight: 700;
+    min-width: 52px;
+    padding: 3px 12px;
+}
+
+QPushButton#SummaryDockHideButton:hover {
+    background: #2487ff;
+    border-color: #9dcbff;
 }
 
 QLabel#SummaryFieldLabel,

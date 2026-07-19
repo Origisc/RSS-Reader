@@ -150,8 +150,12 @@ class TranslatorTest(unittest.TestCase):
                 "reader.summary_toggle",
             )
             self.assertNotEqual(
-                translator.text("summary.close_panel"),
-                "summary.close_panel",
+                translator.text("summary.hide_panel"),
+                "summary.hide_panel",
+            )
+            self.assertNotEqual(
+                translator.text("summary.hide_panel_tooltip"),
+                "summary.hide_panel_tooltip",
             )
             self.assertIn(
                 "Ctrl+Shift+S",

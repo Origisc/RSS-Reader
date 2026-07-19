@@ -114,7 +114,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "tags.existing": "Existing",
         "tags.empty": "No tags yet",
         "summary.title": "Summary",
-        "summary.close_panel": "关闭摘要面板",
+        "summary.hide_panel": "隐藏",
+        "summary.hide_panel_tooltip": (
+            "隐藏摘要面板；可通过 Reader 工具栏或 Ctrl+Shift+S 恢复"
+        ),
         "summary.collapsed": "⌃ Summary",
         "summary.language": "摘要语言：",
         "summary.language.same": "与原文相同",
@@ -268,7 +271,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "tags.existing": "Existing",
         "tags.empty": "No tags yet",
         "summary.title": "Summary",
-        "summary.close_panel": "Close Summary panel",
+        "summary.hide_panel": "Hide",
+        "summary.hide_panel_tooltip": (
+            "Hide the Summary panel; restore it from the Reader toolbar "
+            "or with Ctrl+Shift+S"
+        ),
         "summary.collapsed": "⌃ Summary",
         "summary.language": "Summary language:",
         "summary.language.same": "Same as article",

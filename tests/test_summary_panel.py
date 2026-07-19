@@ -389,21 +389,22 @@ class MainWindowSummaryIntegrationTest(unittest.TestCase):
         window.close()
         window.deleteLater()
 
-    def test_closed_summary_dock_can_be_reopened_from_view_action(self) -> None:
+    def test_summary_hide_button_can_be_reopened_from_view_action(self) -> None:
         window = MainWindow(MockArticleService())
         window.show()
         self.app.processEvents()
 
-        self.assertIsNotNone(window.summary_close_button)
-        self.assertFalse(window.summary_close_button.icon().isNull())
-        self.assertEqual(window.summary_close_button.iconSize().width(), 22)
-        self.assertGreaterEqual(window.summary_close_button.width(), 30)
+        self.assertTrue(window.summary_hide_button.isVisible())
         self.assertEqual(
-            window.summary_close_button.toolTip(),
-            window.translator.text("summary.close_panel"),
+            window.summary_hide_button.text(),
+            window.translator.text("summary.hide_panel"),
+        )
+        self.assertEqual(
+            window.summary_hide_button.toolTip(),
+            window.translator.text("summary.hide_panel_tooltip"),
         )
 
-        window.summary_dock.close()
+        window.summary_hide_button.click()
         self.app.processEvents()
 
         self.assertFalse(window.summary_dock.isVisible())
