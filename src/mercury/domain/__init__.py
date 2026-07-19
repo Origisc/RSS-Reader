@@ -5,6 +5,14 @@ from mercury.domain.ai_result import (
     SummarySourceFormat,
     SummaryStatus,
 )
+from mercury.domain.translation import (
+    TranslationErrorCode,
+    TranslationParagraph,
+    TranslationParagraphStatus,
+    TranslationResult,
+    TranslationSourceFormat,
+    TranslationStatus,
+)
 
 __all__ = [
     "SummaryDetail",
@@ -12,4 +20,10 @@ __all__ = [
     "SummaryResult",
     "SummarySourceFormat",
     "SummaryStatus",
+    "TranslationErrorCode",
+    "TranslationParagraph",
+    "TranslationParagraphStatus",
+    "TranslationResult",
+    "TranslationSourceFormat",
+    "TranslationStatus",
 ]
