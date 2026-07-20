@@ -14,13 +14,19 @@ if str(SRC_DIR) not in sys.path:
 
 from core.database import DBManager
 from domain.feed.use_cases import FeedUseCase
-from mercury.services.backend_article_service import BackendArticleService
+from mercury.services.backend_article_service import (
+    BackendArticleService,
+    FeedDeletionError,
+)
 
 
 class BackendArticleServiceTest(unittest.TestCase):
     def setUp(self) -> None:
         self.db = DBManager(":memory:")
         self.service = BackendArticleService(self.db, FeedUseCase(self.db))
+
+    def tearDown(self) -> None:
+        self.db.conn.close()
 
     def test_lists_feeds_from_backend_database(self) -> None:
         self.db.add_feed("Example", "https://example.com/rss")
@@ -69,6 +75,35 @@ class BackendArticleServiceTest(unittest.TestCase):
         feeds = self.service.list_feeds()
         self.assertIn("1 new feeds", message)
         self.assertEqual(feeds[0].title, "Example Feed")
+
+    def test_deletes_feed_and_its_cached_articles(self) -> None:
+        feed_id = self.db.add_feed("Example", "https://example.com/rss")
+        self.db.save_articles(
+            feed_id,
+            [
+                {
+                    "title": "Cached article",
+                    "link": "https://example.com/cached",
+                    "summary": "Cached content",
+                }
+            ],
+        )
+
+        self.service.delete_feed(str(feed_id))
+
+        self.assertEqual(self.db.get_all_feeds(), [])
+        self.assertEqual(self.db.get_articles_by_feed(feed_id), [])
+
+    def test_missing_feed_returns_adapter_error(self) -> None:
+        with self.assertRaises(FeedDeletionError):
+            self.service.delete_feed("999")
+
+    def test_invalid_feed_id_never_reaches_database(self) -> None:
+        with self.assertRaisesRegex(
+            FeedDeletionError,
+            "Invalid feed identifier",
+        ):
+            self.service.delete_feed("not-an-integer")
 
 
 if __name__ == "__main__":

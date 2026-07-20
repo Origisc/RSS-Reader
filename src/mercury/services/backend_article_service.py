@@ -10,6 +10,10 @@ from domain.feed.use_cases import FeedUseCase
 from mercury.models.article import Article, Feed
 
 
+class FeedDeletionError(RuntimeError):
+    """A deletion failure that the UI can present without database details."""
+
+
 class BackendArticleService:
     """Adapter from Member A's backend use cases to Member B's UI service."""
 
@@ -71,6 +75,21 @@ class BackendArticleService:
     def refresh_all(self) -> str:
         self._feed_use_case.refresh_all()
         return "All feeds refreshed."
+
+    def delete_feed(self, feed_id: str) -> None:
+        try:
+            feed_id_int = int(feed_id)
+        except (TypeError, ValueError) as exc:
+            raise FeedDeletionError("Invalid feed identifier.") from exc
+
+        result = self._feed_use_case.remove_feed_by_id(feed_id_int)
+
+        if result.get("success"):
+            return
+
+        raise FeedDeletionError(
+            str(result.get("message") or "Feed deletion failed.")
+        )
 
     def _list_articles_for_feed(
         self,

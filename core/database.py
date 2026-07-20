@@ -76,3 +76,22 @@ class DBManager:
             "SELECT title, description, link FROM articles WHERE id = ?", (article_id,)
         )
         return cursor.fetchone()
+    def delete_feed(self, feed_id: int) -> bool:
+        """
+        根据 feed_id 从数据库中彻底删除某个订阅源。
+        由于设置了外键级联删除 (ON DELETE CASCADE)，对应的文章会自动被清理。
+        """
+        try:
+            with self.conn:
+                # 显式开启外键约束支持（SQLite 默认可能关闭外键级联，这行能确保级联生效）
+                self.conn.execute("PRAGMA foreign_keys = ON")
+
+                cursor = self.conn.execute(
+                    "DELETE FROM feeds WHERE id = ?",
+                    (feed_id,),
+                )
+                # rowcount 表示受影响的行数，如果大于 0 说明成功删除了记录
+                return cursor.rowcount > 0
+        except Exception as e:
+            print(f"数据库删除 Feed 失败: {e}")
+            return False

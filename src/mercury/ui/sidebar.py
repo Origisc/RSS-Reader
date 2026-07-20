@@ -1,10 +1,15 @@
-from PySide6.QtCore import Signal
+from collections.abc import Mapping
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QPushButton,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -12,10 +17,19 @@ from PySide6.QtWidgets import (
 from mercury.models.article import Feed
 
 
+FEED_ID_ROLE = Qt.ItemDataRole.UserRole
+FEED_TITLE_ROLE = Qt.ItemDataRole.UserRole + 1
+UNREAD_COUNT_ROLE = Qt.ItemDataRole.UserRole + 2
+
+
 class Sidebar(QWidget):
     """左侧订阅源区域。"""
 
     feed_selected = Signal(str)
+    add_feed_requested = Signal()
+    import_opml_requested = Signal()
+    refresh_requested = Signal()
+    delete_feed_requested = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
@@ -41,18 +55,63 @@ class Sidebar(QWidget):
 
         self.title_label = QLabel()
         self.title_label.setObjectName("PanelTitle")
-        self.add_label = QLabel("+  ⌄")
-        self.add_label.setObjectName("PanelActionHint")
+
+        self.menu_add_feed_action = QAction(self)
+        self.menu_add_feed_action.triggered.connect(self.add_feed_requested)
+        self.menu_import_opml_action = QAction(self)
+        self.menu_import_opml_action.triggered.connect(
+            self.import_opml_requested
+        )
+        self.menu_refresh_action = QAction(self)
+        self.menu_refresh_action.triggered.connect(self.refresh_requested)
+        self.menu_delete_feed_action = QAction(self)
+        self.menu_delete_feed_action.setEnabled(False)
+        self.menu_delete_feed_action.triggered.connect(
+            self._request_current_feed_deletion
+        )
+
+        self.feed_actions_menu = QMenu(self)
+        self.feed_actions_menu.addAction(self.menu_add_feed_action)
+        self.feed_actions_menu.addAction(self.menu_import_opml_action)
+        self.feed_actions_menu.addSeparator()
+        self.feed_actions_menu.addAction(self.menu_refresh_action)
+        self.feed_actions_menu.addSeparator()
+        self.feed_actions_menu.addAction(self.menu_delete_feed_action)
+
+        self.add_feed_button = QToolButton()
+        self.add_feed_button.setObjectName("FeedAddButton")
+        self.add_feed_button.setText("+")
+        self.add_feed_button.setAutoRaise(True)
+        self.add_feed_button.clicked.connect(self.add_feed_requested)
+
+        self.feed_menu_button = QToolButton()
+        self.feed_menu_button.setObjectName("FeedMenuButton")
+        self.feed_menu_button.setArrowType(Qt.ArrowType.DownArrow)
+        self.feed_menu_button.setAutoRaise(True)
+        self.feed_menu_button.setMenu(self.feed_actions_menu)
+        self.feed_menu_button.setPopupMode(
+            QToolButton.ToolButtonPopupMode.InstantPopup
+        )
+
+        feed_actions_widget = QWidget()
+        feed_actions_layout = QHBoxLayout(feed_actions_widget)
+        feed_actions_layout.setContentsMargins(0, 0, 0, 0)
+        feed_actions_layout.setSpacing(0)
+        feed_actions_layout.addWidget(self.add_feed_button)
+        feed_actions_layout.addWidget(self.feed_menu_button)
 
         title_layout = QHBoxLayout()
         title_layout.setContentsMargins(12, 4, 12, 2)
         title_layout.addWidget(self.title_label)
         title_layout.addStretch(1)
-        title_layout.addWidget(self.add_label)
+        title_layout.addWidget(feed_actions_widget)
 
         self.feed_list = QListWidget()
         self.feed_list.setObjectName("FeedList")
         self.feed_list.setAlternatingRowColors(False)
+        self.feed_list.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
 
         self.footer_label = QLabel()
         self.footer_label.setObjectName("PanelFooter")
@@ -69,17 +128,39 @@ class Sidebar(QWidget):
         self.feed_list.currentItemChanged.connect(
             self._on_current_item_changed
         )
+        self.feed_list.customContextMenuRequested.connect(
+            self._show_feed_context_menu
+        )
 
-    def set_feeds(self, feeds: list[Feed]) -> None:
+    def set_feeds(
+        self,
+        feeds: list[Feed],
+        unread_counts: Mapping[str, int] | None = None,
+    ) -> None:
         self.feed_list.clear()
+        self.menu_delete_feed_action.setEnabled(False)
+        counts = unread_counts or {}
 
-        for index, feed in enumerate(feeds, start=1):
-            item = QListWidgetItem(
-                f"{feed.title}\n  {self._feed_detail_text.format(count=index)}"
-            )
-            item.setData(256, feed.id)
+        for feed in feeds:
+            unread_count = max(int(counts.get(feed.id, 0)), 0)
+            item = QListWidgetItem()
+            item.setData(FEED_ID_ROLE, feed.id)
+            item.setData(FEED_TITLE_ROLE, feed.title)
+            item.setData(UNREAD_COUNT_ROLE, unread_count)
             item.setToolTip(feed.title)
+            self._update_feed_item_text(item)
             self.feed_list.addItem(item)
+
+    def update_unread_count(self, feed_id: str, unread_count: int) -> None:
+        for index in range(self.feed_list.count()):
+            item = self.feed_list.item(index)
+
+            if item.data(FEED_ID_ROLE) != feed_id:
+                continue
+
+            item.setData(UNREAD_COUNT_ROLE, max(unread_count, 0))
+            self._update_feed_item_text(item)
+            return
 
     def set_title(self, title: str) -> None:
         self.title_label.setText(title)
@@ -88,17 +169,74 @@ class Sidebar(QWidget):
         self.feeds_tab.setText(feeds_text)
         self.tags_tab.setText(tags_text)
 
+    def set_action_texts(
+        self,
+        *,
+        add_feed: str,
+        import_opml: str,
+        refresh: str,
+        delete_feed: str,
+    ) -> None:
+        self.add_feed_button.setToolTip(add_feed)
+        self.add_feed_button.setAccessibleName(add_feed)
+        self.feed_menu_button.setToolTip(import_opml)
+        self.feed_menu_button.setAccessibleName(import_opml)
+        self.menu_add_feed_action.setText(add_feed)
+        self.menu_import_opml_action.setText(import_opml)
+        self.menu_refresh_action.setText(refresh)
+        self.menu_delete_feed_action.setText(delete_feed)
+
     def set_footer(self, footer_text: str) -> None:
         self.footer_label.setText(footer_text)
 
     def set_feed_detail_text(self, detail_text: str) -> None:
         self._feed_detail_text = detail_text
 
+        for index in range(self.feed_list.count()):
+            self._update_feed_item_text(self.feed_list.item(index))
+
     def _on_current_item_changed(self, current, previous) -> None:
         del previous
+
+        self.menu_delete_feed_action.setEnabled(current is not None)
 
         if current is None:
             return
 
-        feed_id = current.data(256)
+        feed_id = current.data(FEED_ID_ROLE)
         self.feed_selected.emit(feed_id)
+
+    def _request_current_feed_deletion(self) -> None:
+        current = self.feed_list.currentItem()
+
+        if current is None:
+            return
+
+        self.delete_feed_requested.emit(str(current.data(FEED_ID_ROLE)))
+
+    def _show_feed_context_menu(self, position) -> None:
+        item = self.feed_list.itemAt(position)
+
+        if item is None:
+            return
+
+        menu = self._build_feed_context_menu(item)
+        menu.exec(self.feed_list.viewport().mapToGlobal(position))
+
+    def _build_feed_context_menu(self, item: QListWidgetItem) -> QMenu:
+        feed_id = str(item.data(FEED_ID_ROLE))
+        menu = QMenu(self)
+        delete_action = menu.addAction(
+            self.menu_delete_feed_action.text()
+        )
+        delete_action.setObjectName("ContextDeleteFeedAction")
+        delete_action.triggered.connect(
+            lambda checked=False: self.delete_feed_requested.emit(feed_id)
+        )
+        return menu
+
+    def _update_feed_item_text(self, item: QListWidgetItem) -> None:
+        title = str(item.data(FEED_TITLE_ROLE) or "")
+        unread_count = int(item.data(UNREAD_COUNT_ROLE) or 0)
+        detail = self._feed_detail_text.format(count=unread_count)
+        item.setText(f"{title}\n  {detail}")

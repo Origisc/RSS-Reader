@@ -25,7 +25,10 @@ def main() -> int:
     feed_use_case = FeedUseCase(db)
     article_service = BackendArticleService(db, feed_use_case)
 
-    window = MainWindow(article_service)
+    window = MainWindow(
+        article_service,
+        feed_deletion_service=article_service,
+    )
     window.show()
 
     return app.exec()

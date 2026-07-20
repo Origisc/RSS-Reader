@@ -34,3 +34,147 @@ class TranslatorTest(unittest.TestCase):
         translator = Translator("en_US")
 
         self.assertEqual(translator.text("missing.key"), "missing.key")
+
+    def test_reader_view_messages_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            self.assertNotEqual(
+                translator.text("reader.view.cleaned_html"),
+                "reader.view.cleaned_html",
+            )
+            self.assertIn(
+                "{error}",
+                translator.text("reader.status.fallback_error"),
+            )
+
+    def test_reader_style_settings_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "settings.reader_font_size",
+                "settings.reader_line_height",
+                "settings.reader_content_width",
+            ):
+                self.assertNotEqual(translator.text(key), key)
+
+    def test_read_state_actions_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            self.assertNotEqual(
+                translator.text("action.mark_read"),
+                "action.mark_read",
+            )
+            self.assertNotEqual(
+                translator.text("action.mark_unread"),
+                "action.mark_unread",
+            )
+
+    def test_feed_deletion_messages_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "action.delete_feed",
+                "feed.delete_dialog.title",
+                "feed.delete_unavailable",
+                "feed.delete_failed",
+                "status.delete_feed_started",
+                "status.delete_feed_finished",
+            ):
+                self.assertNotEqual(translator.text(key), key)
+
+            self.assertIn(
+                "{title}",
+                translator.text("feed.delete_dialog.body"),
+            )
+
+    def test_ai_settings_messages_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "action.ai_settings",
+                "ai_settings.title",
+                "ai_settings.base_url",
+                "ai_settings.model",
+                "ai_settings.api_key",
+                "ai_settings.timeout",
+                "ai_settings.privacy_notice",
+                "ai_settings.test_connection",
+                "ai_settings.invalid_config",
+                "ai_settings.connection_unavailable",
+                "ai_settings.connection_success",
+                "ai_settings.connection_failed",
+                "status.ai_settings_saved",
+            ):
+                self.assertNotEqual(translator.text(key), key)
+
+    def test_summary_panel_messages_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "summary.language",
+                "summary.language.same",
+                "summary.detail",
+                "summary.detail.brief",
+                "summary.detail.standard",
+                "summary.detail.detailed",
+                "summary.custom_prompt",
+                "summary.generate",
+                "summary.regenerate",
+                "summary.generate_tooltip.no_article",
+                "summary.generate_tooltip.configure",
+                "summary.generate_tooltip.ready",
+                "summary.configure_ai",
+                "summary.generated_at",
+                "summary.status.no_article",
+                "summary.status.unavailable",
+                "summary.status.running",
+                "summary.status.storage_warning",
+                "summary.error.provider_not_configured",
+                "summary.error.provider_failure",
+                "summary.error.unexpected",
+            ):
+                self.assertNotEqual(translator.text(key), key)
+
+            self.assertNotEqual(
+                translator.text("action.toggle_summary_panel"),
+                "action.toggle_summary_panel",
+            )
+            self.assertNotEqual(
+                translator.text("reader.summary_toggle"),
+                "reader.summary_toggle",
+            )
+            self.assertNotEqual(
+                translator.text("summary.hide_panel"),
+                "summary.hide_panel",
+            )
+            self.assertNotEqual(
+                translator.text("summary.hide_panel_tooltip"),
+                "summary.hide_panel_tooltip",
+            )
+            self.assertNotEqual(
+                translator.text("action.shortcuts"),
+                "action.shortcuts",
+            )
+            self.assertNotEqual(
+                translator.text("shortcuts.title"),
+                "shortcuts.title",
+            )
+            self.assertNotEqual(
+                translator.text("shortcuts.toggle_summary"),
+                "shortcuts.toggle_summary",
+            )
+            self.assertIn(
+                "Ctrl+Shift+S",
+                translator.text("reader.summary_toggle_tooltip"),
+            )
+
+            self.assertIn(
+                "{time}",
+                translator.text("summary.generated_at"),
+            )
