@@ -70,6 +70,194 @@ class BackendArticleServiceTest(unittest.TestCase):
         self.assertIn("1 new feeds", message)
         self.assertEqual(feeds[0].title, "Example Feed")
 
+    def test_clean_article_content_success(self) -> None:
+        feed_id = self.db.add_feed("Example", "https://example.com/rss")
+        self.db.save_articles(
+            feed_id,
+            [
+                {
+                    "title": "Test Article",
+                    "link": "https://example.com/article",
+                    "summary": "<p>Summary</p>",
+                    "published": "Today",
+                }
+            ],
+        )
+        articles = self.service.list_articles(str(feed_id))
+        article_id = articles[0].id
+
+        self.db.save_article_html(
+            int(article_id),
+            "<html><body><article><h1>Article Title</h1><p>Content</p></article></body></html>",
+            "2024-01-01T00:00:00",
+            status="success",
+        )
+
+        result = self.service.clean_article_content(article_id)
+
+        self.assertEqual(result, "Article content cleaned successfully.")
+        article = self.service.get_article(article_id)
+        self.assertIsNotNone(article)
+        self.assertEqual(article.clean_status, "success")
+        self.assertIn("<h1>", article.cleaned_html)
+        self.assertIn("Article Title", article.cleaned_html)
+        self.assertIsNotNone(article.cleaned_at)
+
+    def test_clean_article_content_already_cleaned(self) -> None:
+        feed_id = self.db.add_feed("Example", "https://example.com/rss")
+        self.db.save_articles(
+            feed_id,
+            [
+                {
+                    "title": "Test Article",
+                    "link": "https://example.com/article",
+                    "summary": "<p>Summary</p>",
+                    "published": "Today",
+                }
+            ],
+        )
+        articles = self.service.list_articles(str(feed_id))
+        article_id = articles[0].id
+
+        self.db.save_article_html(
+            int(article_id),
+            "<html><body><p>Content</p></body></html>",
+            "2024-01-01T00:00:00",
+            status="success",
+        )
+        self.db.save_article_cleaned(
+            int(article_id),
+            "<p>Cleaned</p>",
+            "",
+            "2024-01-01T00:00:01",
+            status="success",
+        )
+
+        result = self.service.clean_article_content(article_id)
+
+        self.assertEqual(result, "Article content already cleaned.")
+
+    def test_clean_article_content_force_reclean(self) -> None:
+        feed_id = self.db.add_feed("Example", "https://example.com/rss")
+        self.db.save_articles(
+            feed_id,
+            [
+                {
+                    "title": "Test Article",
+                    "link": "https://example.com/article",
+                    "summary": "<p>Summary</p>",
+                    "published": "Today",
+                }
+            ],
+        )
+        articles = self.service.list_articles(str(feed_id))
+        article_id = articles[0].id
+
+        self.db.save_article_html(
+            int(article_id),
+            "<html><body><article><h1>New Title</h1><p>New Content</p></article></body></html>",
+            "2024-01-01T00:00:00",
+            status="success",
+        )
+        self.db.save_article_cleaned(
+            int(article_id),
+            "<p>Old Cleaned</p>",
+            "",
+            "2024-01-01T00:00:01",
+            status="success",
+        )
+
+        result = self.service.clean_article_content(article_id, force=True)
+
+        self.assertEqual(result, "Article content cleaned successfully.")
+        article = self.service.get_article(article_id)
+        self.assertIn("New Title", article.cleaned_html)
+
+    def test_clean_article_content_no_html(self) -> None:
+        feed_id = self.db.add_feed("Example", "https://example.com/rss")
+        self.db.save_articles(
+            feed_id,
+            [
+                {
+                    "title": "Test Article",
+                    "link": "",
+                    "summary": "<p>Summary</p>",
+                    "published": "Today",
+                }
+            ],
+        )
+        articles = self.service.list_articles(str(feed_id))
+        article_id = articles[0].id
+
+        result = self.service.clean_article_content(article_id)
+
+        self.assertEqual(result, "Article has no original HTML content.")
+
+    def test_convert_to_markdown_success(self) -> None:
+        feed_id = self.db.add_feed("Example", "https://example.com/rss")
+        self.db.save_articles(
+            feed_id,
+            [
+                {
+                    "title": "Test Article",
+                    "link": "https://example.com/article",
+                    "summary": "<p>Summary</p>",
+                    "published": "Today",
+                }
+            ],
+        )
+        articles = self.service.list_articles(str(feed_id))
+        article_id = articles[0].id
+
+        self.db.save_article_html(
+            int(article_id),
+            "<html><body><article><h1>Article Title</h1><p>Content</p></article></body></html>",
+            "2024-01-01T00:00:00",
+            status="success",
+        )
+
+        result = self.service.convert_to_markdown(article_id)
+
+        self.assertEqual(result, "Article content converted to Markdown successfully.")
+        article = self.service.get_article(article_id)
+        self.assertIsNotNone(article)
+        self.assertIn("# Article Title", article.cleaned_markdown)
+        self.assertIn("Content", article.cleaned_markdown)
+
+    def test_convert_to_markdown_already_converted(self) -> None:
+        feed_id = self.db.add_feed("Example", "https://example.com/rss")
+        self.db.save_articles(
+            feed_id,
+            [
+                {
+                    "title": "Test Article",
+                    "link": "https://example.com/article",
+                    "summary": "<p>Summary</p>",
+                    "published": "Today",
+                }
+            ],
+        )
+        articles = self.service.list_articles(str(feed_id))
+        article_id = articles[0].id
+
+        self.db.save_article_html(
+            int(article_id),
+            "<html><body><p>Content</p></body></html>",
+            "2024-01-01T00:00:00",
+            status="success",
+        )
+        self.db.save_article_cleaned(
+            int(article_id),
+            "<p>Cleaned</p>",
+            "# Title\nContent",
+            "2024-01-01T00:00:01",
+            status="success",
+        )
+
+        result = self.service.convert_to_markdown(article_id)
+
+        self.assertEqual(result, "Article content already converted to Markdown.")
+
 
 if __name__ == "__main__":
     unittest.main()

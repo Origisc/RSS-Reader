@@ -14,3 +14,12 @@ class Article:
     title: str
     source_title: str
     content_html: str
+    original_html: str = ""
+    fetched_at: str | None = None
+    fetch_status: str = "pending"
+    fetch_error: str | None = None
+    cleaned_html: str = ""
+    cleaned_markdown: str = ""
+    cleaned_at: str | None = None
+    clean_status: str = "pending"
+    clean_error: str | None = None
