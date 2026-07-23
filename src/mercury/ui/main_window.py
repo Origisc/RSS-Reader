@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from mercury.agents import SummarySource
+from mercury.agents import SummarySource, TranslationSource
 from mercury.i18n import Translator
 from mercury.i18n.translations import SUPPORTED_LANGUAGES
 from mercury.llm import InMemoryProviderConfigStore, ProviderConfigStore
@@ -41,6 +41,11 @@ from mercury.ui.summary_panel import (
 )
 from mercury.ui.tag_panel import TagEditorPanel
 from mercury.ui.theme import stylesheet_for_theme
+from mercury.ui.translation_panel import (
+    TranslationGenerator,
+    TranslationPanel,
+    TranslationResultLoader,
+)
 
 
 class MainWindow(QMainWindow):
@@ -56,6 +61,8 @@ class MainWindow(QMainWindow):
         provider_connection_tester: ConnectionTester | None = None,
         summary_generator: SummaryGenerator | None = None,
         summary_result_loader: SummaryResultLoader | None = None,
+        translation_generator: TranslationGenerator | None = None,
+        translation_result_loader: TranslationResultLoader | None = None,
     ) -> None:
         super().__init__()
 
@@ -77,6 +84,8 @@ class MainWindow(QMainWindow):
         self._provider_connection_tester = provider_connection_tester
         self._summary_generator = summary_generator
         self._summary_result_loader = summary_result_loader
+        self._translation_generator = translation_generator
+        self._translation_result_loader = translation_result_loader
 
         self.resize(1320, 820)
 
@@ -90,6 +99,7 @@ class MainWindow(QMainWindow):
         self._setup_menu_bar()
         self._setup_tag_panel()
         self._setup_summary_bar()
+        self._setup_translation_bar()
         self._connect_signals()
         self._translate_ui()
         self._load_initial_data()
@@ -150,6 +160,11 @@ class MainWindow(QMainWindow):
         self.toggle_summary_action.setChecked(False)
         self.toggle_summary_action.setShortcut("Ctrl+Shift+S")
 
+        self.toggle_translation_action = QAction(self)
+        self.toggle_translation_action.setCheckable(True)
+        self.toggle_translation_action.setChecked(False)
+        self.toggle_translation_action.setShortcut("Ctrl+Shift+T")
+
         self.shortcut_help_action = QAction(self)
         self.shortcut_help_action.setShortcut("F1")
         self.shortcut_help_action.triggered.connect(
@@ -175,6 +190,7 @@ class MainWindow(QMainWindow):
         self.settings_menu.addAction(self.open_ai_settings_action)
         self.view_menu.addAction(self.toggle_tags_action)
         self.view_menu.addAction(self.toggle_summary_action)
+        self.view_menu.addAction(self.toggle_translation_action)
         self.help_menu.addAction(self.shortcut_help_action)
         self.help_menu.addSeparator()
         self.help_menu.addAction(self.about_action)
@@ -239,37 +255,15 @@ class MainWindow(QMainWindow):
         self._set_summary_panel_visible(False)
 
     def _set_summary_panel_visible(self, visible: bool) -> None:
-        sizes = self.reader_splitter.sizes()
-        total_height = sum(sizes)
-
-        if not visible and self.summary_panel.isVisible():
-            if len(sizes) > 1 and sizes[1] > 0:
-                self._summary_section_height = sizes[1]
-
-        self.summary_panel.setVisible(visible)
+        self._set_reader_section_visible(
+            visible=visible,
+            section=self.summary_section,
+            title_bar=self.summary_title_bar,
+            panel=self.summary_panel,
+            stored_height_name="_summary_section_height",
+        )
         self.article_reader.set_summary_panel_visible(visible)
         self._update_summary_title()
-
-        if visible:
-            self.summary_section.setMaximumHeight(16_777_215)
-            self.summary_section.setMinimumHeight(180)
-            if total_height > 0:
-                summary_height = min(
-                    self._summary_section_height,
-                    max(180, total_height // 2),
-                )
-                self.reader_splitter.setSizes(
-                    [max(1, total_height - summary_height), summary_height]
-                )
-            return
-
-        self.summary_section.setMinimumHeight(0)
-        collapsed_height = self.summary_title_bar.sizeHint().height()
-        self.summary_section.setMaximumHeight(collapsed_height)
-        if total_height > 0:
-            self.reader_splitter.setSizes(
-                [max(1, total_height - collapsed_height), collapsed_height]
-            )
 
     def _update_summary_title(self) -> None:
         key = (
@@ -278,6 +272,121 @@ class MainWindow(QMainWindow):
             else "summary.expand"
         )
         self.summary_title_button.setText(self.translator.text(key))
+
+    def _setup_translation_bar(self) -> None:
+        self.translation_panel = TranslationPanel(
+            self.translator,
+            generator=self._translation_generator,
+            result_loader=self._translation_result_loader,
+        )
+
+        self.translation_section = QFrame()
+        self.translation_section.setObjectName("TranslationSection")
+
+        self.translation_title_bar = QFrame()
+        self.translation_title_bar.setObjectName(
+            "TranslationSectionTitleBar"
+        )
+        self.translation_title_button = QPushButton()
+        self.translation_title_button.setObjectName(
+            "TranslationSectionToggleButton"
+        )
+        self.translation_title_button.clicked.connect(
+            lambda: self.toggle_translation_action.setChecked(
+                not self.toggle_translation_action.isChecked()
+            )
+        )
+
+        title_layout = QHBoxLayout(self.translation_title_bar)
+        title_layout.setContentsMargins(7, 2, 7, 2)
+        title_layout.setSpacing(0)
+        title_layout.addWidget(self.translation_title_button)
+        title_layout.addStretch(1)
+
+        section_layout = QVBoxLayout(self.translation_section)
+        section_layout.setContentsMargins(0, 0, 0, 0)
+        section_layout.setSpacing(0)
+        section_layout.addWidget(self.translation_title_bar)
+        section_layout.addWidget(self.translation_panel, 1)
+
+        self.reader_splitter.addWidget(self.translation_section)
+        self.reader_splitter.setStretchFactor(2, 0)
+        self.reader_splitter.setCollapsible(2, False)
+        self._translation_section_height = 300
+
+        self.toggle_translation_action.toggled.connect(
+            self._set_translation_panel_visible
+        )
+        self._set_translation_panel_visible(False)
+
+    def _set_translation_panel_visible(self, visible: bool) -> None:
+        self._set_reader_section_visible(
+            visible=visible,
+            section=self.translation_section,
+            title_bar=self.translation_title_bar,
+            panel=self.translation_panel,
+            stored_height_name="_translation_section_height",
+        )
+        self.article_reader.set_translation_panel_visible(visible)
+        self._update_translation_title()
+
+    def _update_translation_title(self) -> None:
+        key = (
+            "translation.collapse"
+            if self.toggle_translation_action.isChecked()
+            else "translation.expand"
+        )
+        self.translation_title_button.setText(self.translator.text(key))
+
+    def _set_reader_section_visible(
+        self,
+        *,
+        visible: bool,
+        section: QFrame,
+        title_bar: QFrame,
+        panel: QFrame,
+        stored_height_name: str,
+    ) -> None:
+        index = self.reader_splitter.indexOf(section)
+        sizes = self.reader_splitter.sizes()
+        if index < 1 or index >= len(sizes):
+            panel.setVisible(visible)
+            return
+
+        if (
+            not visible
+            and not panel.isHidden()
+            and sizes[index] >= 180
+        ):
+            setattr(self, stored_height_name, sizes[index])
+
+        combined_height = sizes[0] + sizes[index]
+        panel.setVisible(visible)
+
+        if visible:
+            section.setMaximumHeight(16_777_215)
+            section.setMinimumHeight(180)
+            if combined_height > 1:
+                preferred_height = int(
+                    getattr(self, stored_height_name)
+                )
+                target_height = min(
+                    preferred_height,
+                    max(180, combined_height // 2),
+                    combined_height - 1,
+                )
+                sizes[0] = max(1, combined_height - target_height)
+                sizes[index] = target_height
+                self.reader_splitter.setSizes(sizes)
+            return
+
+        section.setMinimumHeight(0)
+        collapsed_height = title_bar.sizeHint().height()
+        section.setMaximumHeight(collapsed_height)
+        if combined_height > 0:
+            sizes[0] = max(1, combined_height - collapsed_height)
+            sizes[index] = collapsed_height
+            self.reader_splitter.setSizes(sizes)
 
     def _connect_signals(self) -> None:
         self.sidebar.feed_selected.connect(self._show_feed_articles)
@@ -292,10 +401,16 @@ class MainWindow(QMainWindow):
         self.article_reader.summary_panel_visibility_requested.connect(
             self.toggle_summary_action.setChecked
         )
+        self.article_reader.translation_panel_visibility_requested.connect(
+            self.toggle_translation_action.setChecked
+        )
         self.article_reader.tag_panel_visibility_requested.connect(
             self.toggle_tags_action.setChecked
         )
         self.summary_panel.settings_requested.connect(
+            self._open_ai_settings
+        )
+        self.translation_panel.settings_requested.connect(
             self._open_ai_settings
         )
 
@@ -311,6 +426,7 @@ class MainWindow(QMainWindow):
         if not articles:
             self.article_reader.show_welcome()
             self.summary_panel.clear_article()
+            self.translation_panel.clear_article()
 
     def _show_feed_articles(self, feed_id: str) -> None:
         articles = self.article_service.list_articles(feed_id)
@@ -320,6 +436,7 @@ class MainWindow(QMainWindow):
         )
         self.article_reader.show_welcome()
         self.summary_panel.clear_article()
+        self.translation_panel.clear_article()
 
     def _show_article(self, article_id: str) -> None:
         article = self.article_service.get_article(article_id)
@@ -327,12 +444,22 @@ class MainWindow(QMainWindow):
         if article is None:
             self.article_reader.show_welcome()
             self.summary_panel.clear_article()
+            self.translation_panel.clear_article()
             return
 
         document = ReaderDocument.from_article(article)
         self.article_reader.show_article(article, document)
         self.summary_panel.set_article(
             SummarySource(
+                article_id=article.id,
+                title=article.title,
+                raw_html=document.raw_html,
+                cleaned_markdown=document.cleaned_markdown,
+                cleaned_html=document.cleaned_html,
+            )
+        )
+        self.translation_panel.set_article(
+            TranslationSource(
                 article_id=article.id,
                 title=article.title,
                 raw_html=document.raw_html,
@@ -471,6 +598,7 @@ class MainWindow(QMainWindow):
         self._load_initial_data()
         self.article_reader.show_welcome()
         self.summary_panel.clear_article()
+        self.translation_panel.clear_article()
         self.statusBar().showMessage(
             self.translator.text("status.delete_feed_finished").format(
                 title=feed.title,
@@ -638,6 +766,9 @@ class MainWindow(QMainWindow):
         self.toggle_summary_action.setText(
             self.translator.text("action.toggle_summary_panel")
         )
+        self.toggle_translation_action.setText(
+            self.translator.text("action.toggle_translation_panel")
+        )
         self.shortcut_help_action.setText(
             self.translator.text("action.shortcuts")
         )
@@ -654,6 +785,10 @@ class MainWindow(QMainWindow):
             (
                 self.toggle_summary_action,
                 self.translator.text("shortcuts.toggle_summary"),
+            ),
+            (
+                self.toggle_translation_action,
+                self.translator.text("shortcuts.toggle_translation"),
             ),
             (
                 self.exit_action,
@@ -724,6 +859,12 @@ class MainWindow(QMainWindow):
             text=self.translator.text("reader.summary_toggle"),
             tooltip=self.translator.text("reader.summary_toggle_tooltip"),
         )
+        self.article_reader.set_translation_toggle_texts(
+            text=self.translator.text("reader.translation_toggle"),
+            tooltip=self.translator.text(
+                "reader.translation_toggle_tooltip"
+            ),
+        )
         self.article_reader.set_tag_toggle_texts(
             text=self.translator.text("reader.tags_toggle"),
             tooltip=self.translator.text("reader.tags_toggle_tooltip"),
@@ -744,6 +885,11 @@ class MainWindow(QMainWindow):
             self.translator.text("reader.summary_toggle_tooltip")
         )
         self.summary_panel.set_translator(self.translator)
+        self._update_translation_title()
+        self.translation_title_button.setToolTip(
+            self.translator.text("reader.translation_toggle_tooltip")
+        )
+        self.translation_panel.set_translator(self.translator)
 
     def _apply_theme(self) -> None:
         app = QApplication.instance()
@@ -754,3 +900,4 @@ class MainWindow(QMainWindow):
         app.setStyleSheet(stylesheet_for_theme(self._theme))
         self.article_list.set_color_scheme(self._theme)
         self.summary_panel.set_color_scheme(self._theme)
+        self.translation_panel.set_color_scheme(self._theme)

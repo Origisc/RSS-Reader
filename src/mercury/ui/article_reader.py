@@ -27,6 +27,7 @@ class ArticleReader(QWidget):
 
     read_state_change_requested = Signal(str, bool)
     summary_panel_visibility_requested = Signal(bool)
+    translation_panel_visibility_requested = Signal(bool)
     tag_panel_visibility_requested = Signal(bool)
 
     def __init__(self) -> None:
@@ -116,6 +117,17 @@ class ArticleReader(QWidget):
             )
         )
         toolbar_layout.addWidget(self.summary_toggle_button)
+
+        self.translation_toggle_button = QPushButton()
+        self.translation_toggle_button.setObjectName("ReaderUtilityButton")
+        self.translation_toggle_button.setCheckable(True)
+        self.translation_toggle_button.setChecked(False)
+        self.translation_toggle_button.clicked.connect(
+            lambda checked: self.translation_panel_visibility_requested.emit(
+                checked
+            )
+        )
+        toolbar_layout.addWidget(self.translation_toggle_button)
 
         self.read_state_button = QPushButton()
         self.read_state_button.setObjectName("ReaderUtilityButton")
@@ -208,6 +220,9 @@ class ArticleReader(QWidget):
     def set_summary_panel_visible(self, is_visible: bool) -> None:
         self.summary_toggle_button.setChecked(is_visible)
 
+    def set_translation_panel_visible(self, is_visible: bool) -> None:
+        self.translation_toggle_button.setChecked(is_visible)
+
     def set_tag_panel_visible(self, is_visible: bool) -> None:
         self.tag_toggle_button.setChecked(is_visible)
 
@@ -226,6 +241,14 @@ class ArticleReader(QWidget):
     def set_summary_toggle_texts(self, text: str, tooltip: str) -> None:
         self.summary_toggle_button.setText(text)
         self.summary_toggle_button.setToolTip(tooltip)
+
+    def set_translation_toggle_texts(
+        self,
+        text: str,
+        tooltip: str,
+    ) -> None:
+        self.translation_toggle_button.setText(text)
+        self.translation_toggle_button.setToolTip(tooltip)
 
     def set_read_state_texts(
         self,

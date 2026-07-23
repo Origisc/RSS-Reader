@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted for Task 3.3.1 Member B development; local article persistence is
-integrated.
+Accepted for Task 3.3.1 and Task 3.3.2 Member B development; local article
+persistence is integrated.
 
 ## Decision
 
@@ -31,8 +31,23 @@ injection. It never creates a vendor adapter, selects a model, reads credentials
 or silently substitutes a mock Provider. This keeps both translation paths on
 the shared `LLMProvider.complete(LLMRequest)` contract.
 
+## Task 3.3.2 UI Integration
+
+- `TranslationPanel` receives a `TranslationGenerator` and optional
+  `TranslationResultLoader` through constructor injection. The UI does not
+  access the database, Provider protocol, credentials, or network directly.
+- Translation starts only after an explicit user action and runs on a
+  `QThreadPool`, so the article remains readable while work is in progress.
+- Each `TranslationParagraph` is rendered as one card in result order, with the
+  full-width original above its translation. Failed cards show a localized
+  unavailable marker while retaining `original_text`.
+- Overall and paragraph errors are mapped from `TranslationErrorCode` to
+  runtime-switchable English and Simplified Chinese UI text. Provider backend
+  details are not rendered.
+- The panel is a separately collapsible section below the Reader. Hiding it
+  does not clear the selected article, cached result, or active background work.
+
 ## Deferred Work
 
-- Task 3.3.2 owns asynchronous execution and original/translated paragraph comparison UI.
 - A later adapter may unify `TranslationResultStore` history with the persisted
   article-level translation fields.

@@ -325,7 +325,9 @@ QPushButton#ReaderUtilityButton {
 }
 
 QFrame#SummarySection,
-QFrame#SummaryPanel {
+QFrame#SummaryPanel,
+QFrame#TranslationSection,
+QFrame#TranslationPanel {
     background: #f7f7f5;
     border-top: 1px solid #d5d8dc;
 }
@@ -335,12 +337,14 @@ QSplitter#ReaderSummarySplitter::handle {
     height: 4px;
 }
 
-QFrame#SummarySectionTitleBar {
+QFrame#SummarySectionTitleBar,
+QFrame#TranslationSectionTitleBar {
     background: #eeeeea;
     border-bottom: 1px solid #c9ced4;
 }
 
-QPushButton#SummarySectionToggleButton {
+QPushButton#SummarySectionToggleButton,
+QPushButton#TranslationSectionToggleButton {
     background: transparent;
     border: 0;
     color: #34404b;
@@ -349,26 +353,40 @@ QPushButton#SummarySectionToggleButton {
     text-align: left;
 }
 
-QPushButton#SummarySectionToggleButton:hover {
+QPushButton#SummarySectionToggleButton:hover,
+QPushButton#TranslationSectionToggleButton:hover {
     color: #0f68d8;
 }
 
 QLabel#SummaryFieldLabel,
 QLabel#SummaryStatus,
-QLabel#SummaryTimestamp {
+QLabel#SummaryTimestamp,
+QLabel#TranslationFieldLabel,
+QLabel#TranslationStatus,
+QLabel#TranslationTimestamp,
+QLabel#TranslationOriginalHeader,
+QLabel#TranslationTranslatedHeader,
+QLabel#TranslationOriginalText,
+QLabel#TranslationTranslatedText {
     background: transparent;
     color: #25313c;
 }
 
 QLabel#SummaryStatus,
-QLabel#SummaryTimestamp {
+QLabel#SummaryTimestamp,
+QLabel#TranslationStatus,
+QLabel#TranslationTimestamp,
+QLabel#TranslationParagraphStatus,
+QLabel#TranslationEmpty {
     color: #4f5d69;
     font-size: 11px;
 }
 
 QComboBox#SummaryControl,
 QPlainTextEdit#SummaryPrompt,
-QPlainTextEdit#SummaryContent {
+QPlainTextEdit#SummaryContent,
+QComboBox#TranslationControl,
+QPlainTextEdit#TranslationPrompt {
     background: #ffffff;
     border: 1px solid #c9ced4;
     border-radius: 4px;
@@ -378,7 +396,8 @@ QPlainTextEdit#SummaryContent {
     selection-color: #0f172a;
 }
 
-QComboBox#SummaryControl QAbstractItemView {
+QComboBox#SummaryControl QAbstractItemView,
+QComboBox#TranslationControl QAbstractItemView {
     background: #ffffff;
     border: 1px solid #bfc6cd;
     color: #1f2933;
@@ -388,7 +407,9 @@ QComboBox#SummaryControl QAbstractItemView {
 }
 
 QPushButton#SummaryActionButton,
-QPushButton#SummarySecondaryButton {
+QPushButton#SummarySecondaryButton,
+QPushButton#TranslationActionButton,
+QPushButton#TranslationSecondaryButton {
     background: #ffffff;
     border: 1px solid #bfc6cd;
     border-radius: 4px;
@@ -396,16 +417,47 @@ QPushButton#SummarySecondaryButton {
     padding: 5px 12px;
 }
 
-QPushButton#SummaryActionButton {
+QPushButton#SummaryActionButton,
+QPushButton#TranslationActionButton {
     background: #d9e8ff;
     border-color: #6b9de3;
     color: #0f3d73;
 }
 
-QPushButton#SummaryActionButton:disabled {
+QPushButton#SummaryActionButton:disabled,
+QPushButton#TranslationActionButton:disabled {
     background: #e0e5e9;
     border-color: #b8c1c9;
     color: #56636f;
+}
+
+QScrollArea#TranslationComparisonScroll,
+QWidget#TranslationComparisonContent {
+    background: transparent;
+}
+
+QLabel#TranslationOriginalHeader,
+QLabel#TranslationTranslatedHeader {
+    color: #25313c;
+    font-weight: 700;
+}
+
+QLabel#TranslationTranslatedHeader {
+    color: #0f68d8;
+    padding-top: 6px;
+}
+
+QFrame#TranslationParagraphRow {
+    background: #ffffff;
+    border: 1px solid #d5d8dc;
+    border-radius: 4px;
+}
+
+QLabel#TranslationParagraphStatus,
+QLabel#TranslationEmpty {
+    background: transparent;
+    color: #4f5d69;
+    font-size: 11px;
 }
 """
 
@@ -750,17 +802,21 @@ QLabel[chip="true"] {
 }
 
 QFrame#SummarySection,
-QFrame#SummaryPanel {
+QFrame#SummaryPanel,
+QFrame#TranslationSection,
+QFrame#TranslationPanel {
     background: #18181c;
     border-top: 1px solid #30333a;
 }
 
-QFrame#SummarySectionTitleBar {
+QFrame#SummarySectionTitleBar,
+QFrame#TranslationSectionTitleBar {
     background: #18181c;
     border-bottom: 1px solid #30333a;
 }
 
-QPushButton#SummarySectionToggleButton {
+QPushButton#SummarySectionToggleButton,
+QPushButton#TranslationSectionToggleButton {
     background: transparent;
     border: 0;
     color: #d9e2ec;
@@ -769,26 +825,40 @@ QPushButton#SummarySectionToggleButton {
     text-align: left;
 }
 
-QPushButton#SummarySectionToggleButton:hover {
+QPushButton#SummarySectionToggleButton:hover,
+QPushButton#TranslationSectionToggleButton:hover {
     color: #69aefc;
 }
 
 QLabel#SummaryFieldLabel,
 QLabel#SummaryStatus,
-QLabel#SummaryTimestamp {
+QLabel#SummaryTimestamp,
+QLabel#TranslationFieldLabel,
+QLabel#TranslationStatus,
+QLabel#TranslationTimestamp,
+QLabel#TranslationOriginalHeader,
+QLabel#TranslationTranslatedHeader,
+QLabel#TranslationOriginalText,
+QLabel#TranslationTranslatedText {
     background: transparent;
     color: #f3f6f9;
 }
 
 QLabel#SummaryStatus,
-QLabel#SummaryTimestamp {
+QLabel#SummaryTimestamp,
+QLabel#TranslationStatus,
+QLabel#TranslationTimestamp,
+QLabel#TranslationParagraphStatus,
+QLabel#TranslationEmpty {
     color: #c1ccd6;
     font-size: 11px;
 }
 
 QComboBox#SummaryControl,
 QPlainTextEdit#SummaryPrompt,
-QPlainTextEdit#SummaryContent {
+QPlainTextEdit#SummaryContent,
+QComboBox#TranslationControl,
+QPlainTextEdit#TranslationPrompt {
     background: #202833;
     border: 1px solid #465363;
     border-radius: 4px;
@@ -798,7 +868,8 @@ QPlainTextEdit#SummaryContent {
     selection-color: #ffffff;
 }
 
-QComboBox#SummaryControl QAbstractItemView {
+QComboBox#SummaryControl QAbstractItemView,
+QComboBox#TranslationControl QAbstractItemView {
     background: #202833;
     border: 1px solid #526174;
     color: #f3f6f9;
@@ -808,7 +879,9 @@ QComboBox#SummaryControl QAbstractItemView {
 }
 
 QPushButton#SummaryActionButton,
-QPushButton#SummarySecondaryButton {
+QPushButton#SummarySecondaryButton,
+QPushButton#TranslationActionButton,
+QPushButton#TranslationSecondaryButton {
     background: #2a323d;
     border: 1px solid #465363;
     border-radius: 4px;
@@ -816,16 +889,47 @@ QPushButton#SummarySecondaryButton {
     padding: 5px 12px;
 }
 
-QPushButton#SummaryActionButton {
+QPushButton#SummaryActionButton,
+QPushButton#TranslationActionButton {
     background: #0f68d8;
     border-color: #2487ff;
     color: #ffffff;
 }
 
-QPushButton#SummaryActionButton:disabled {
+QPushButton#SummaryActionButton:disabled,
+QPushButton#TranslationActionButton:disabled {
     background: #35414d;
     border-color: #596878;
     color: #d2dbe3;
+}
+
+QScrollArea#TranslationComparisonScroll,
+QWidget#TranslationComparisonContent {
+    background: transparent;
+}
+
+QLabel#TranslationOriginalHeader,
+QLabel#TranslationTranslatedHeader {
+    color: #f3f6f9;
+    font-weight: 700;
+}
+
+QLabel#TranslationTranslatedHeader {
+    color: #69aefc;
+    padding-top: 6px;
+}
+
+QFrame#TranslationParagraphRow {
+    background: #202833;
+    border: 1px solid #465363;
+    border-radius: 4px;
+}
+
+QLabel#TranslationParagraphStatus,
+QLabel#TranslationEmpty {
+    background: transparent;
+    color: #c1ccd6;
+    font-size: 11px;
 }
 """
 

@@ -60,7 +60,7 @@ class ShortcutHelpDialogTest(unittest.TestCase):
         )
         self.assertEqual(
             {entry.key for entry in window._shortcut_entries()},
-            {"F1", "Ctrl+,", "Ctrl+Shift+S", "Ctrl+Q"},
+            {"F1", "Ctrl+,", "Ctrl+Shift+S", "Ctrl+Shift+T", "Ctrl+Q"},
         )
 
         with patch.object(ShortcutHelpDialog, "exec", return_value=0) as exec_mock:

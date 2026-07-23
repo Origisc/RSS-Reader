@@ -22,6 +22,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.ai_settings": "AI 设置",
         "action.toggle_tags_panel": "标签面板",
         "action.toggle_summary_panel": "摘要面板",
+        "action.toggle_translation_panel": "翻译面板",
         "action.shortcuts": "快捷键",
         "action.exit": "退出",
         "action.about": "关于 Mercury",
@@ -52,6 +53,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "reader.summary_toggle": "摘要",
         "reader.summary_toggle_tooltip": (
             "显示或隐藏摘要面板（Ctrl+Shift+S）"
+        ),
+        "reader.translation_toggle": "翻译",
+        "reader.translation_toggle_tooltip": (
+            "显示或隐藏原文译文对照面板（Ctrl+Shift+T）"
         ),
         "reader.tags_toggle": "标签",
         "reader.tags_toggle_tooltip": "显示或隐藏当前文章的标签编辑器",
@@ -118,6 +123,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "shortcuts.show_help": "打开快捷键说明",
         "shortcuts.open_settings": "打开首选项",
         "shortcuts.toggle_summary": "显示或隐藏摘要面板",
+        "shortcuts.toggle_translation": "显示或隐藏原文译文对照面板",
         "shortcuts.exit": "退出 Mercury",
         "shortcuts.close": "关闭",
         "tags.title": "Tags",
@@ -166,6 +172,73 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "summary.error.empty_response": "Provider 没有返回摘要内容。",
         "summary.error.load_failed": "本地摘要读取失败，可以重新生成。",
         "summary.error.unexpected": "摘要操作失败，文章正文未受影响。",
+        "translation.expand": "⌄ Translation",
+        "translation.collapse": "⌃ Translation",
+        "translation.target_language": "目标语言：",
+        "translation.language.zh_cn": "简体中文",
+        "translation.language.en_us": "英文",
+        "translation.custom_prompt": "自定义 Prompt：",
+        "translation.custom_prompt_placeholder": (
+            "可选；留空时使用默认翻译 Prompt"
+        ),
+        "translation.configure_ai": "AI 设置",
+        "translation.original": "原文",
+        "translation.translated": "译文",
+        "translation.comparison_placeholder": (
+            "主动开始翻译后，原文和译文会按段落显示在这里。"
+        ),
+        "translation.generate": "开始翻译",
+        "translation.regenerate": "重新翻译",
+        "translation.generate_tooltip.no_article": "请先选择一篇文章。",
+        "translation.generate_tooltip.configure": "点击打开 AI 设置。",
+        "translation.generate_tooltip.ready": (
+            "在后台翻译当前文章并保留原文。"
+        ),
+        "translation.generated_at": "生成时间：{time}",
+        "translation.status.no_article": "选择一篇文章后可以开始翻译。",
+        "translation.status.unavailable": (
+            "翻译服务尚不可用，请检查 AI Provider 设置。"
+        ),
+        "translation.status.ready": (
+            "只有主动点击翻译后，文章内容才会发送给已配置的 Provider。"
+        ),
+        "translation.status.running": (
+            "正在后台翻译，文章正文和已有原文仍可阅读……"
+        ),
+        "translation.status.completed": "翻译已完成。",
+        "translation.status.partial": (
+            "部分段落翻译失败；所有原文仍完整保留。"
+        ),
+        "translation.status.failed": "翻译失败；所有原文仍可阅读。",
+        "translation.status.storage_warning": (
+            "翻译已生成，但未能保存到本地。"
+        ),
+        "translation.paragraph.original_heading": "原文 · 段落 {number}",
+        "translation.paragraph.translated_heading": "译文",
+        "translation.paragraph.translated": "段落 {number}：已翻译",
+        "translation.paragraph.partial": (
+            "段落 {number}：部分翻译，失败分段的原文仍保留"
+        ),
+        "translation.paragraph.failed": "段落 {number}：{error}",
+        "translation.paragraph.unavailable": "译文暂不可用",
+        "translation.error.invalid_input": (
+            "当前文章没有可用于翻译的正文；原文未受影响。"
+        ),
+        "translation.error.provider_not_configured": (
+            "请先配置 AI Provider；原文仍可阅读。"
+        ),
+        "translation.error.provider_failure": (
+            "Provider 翻译失败；原文仍可阅读。"
+        ),
+        "translation.error.empty_response": (
+            "Provider 没有返回译文；原文仍可阅读。"
+        ),
+        "translation.error.load_failed": (
+            "本地翻译读取失败，可以重新翻译。"
+        ),
+        "translation.error.unexpected": (
+            "翻译操作失败，文章正文和原文未受影响。"
+        ),
     },
     "en_US": {
         "app.title": "Mercury",
@@ -183,6 +256,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.ai_settings": "AI Settings",
         "action.toggle_tags_panel": "Tags Panel",
         "action.toggle_summary_panel": "Summary Panel",
+        "action.toggle_translation_panel": "Translation Panel",
         "action.shortcuts": "Shortcuts",
         "action.exit": "Exit",
         "action.about": "About Mercury",
@@ -218,6 +292,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "reader.summary_toggle": "Summary",
         "reader.summary_toggle_tooltip": (
             "Show or hide the Summary panel (Ctrl+Shift+S)"
+        ),
+        "reader.translation_toggle": "Translate",
+        "reader.translation_toggle_tooltip": (
+            "Show or hide paragraph comparison (Ctrl+Shift+T)"
         ),
         "reader.tags_toggle": "Tags",
         "reader.tags_toggle_tooltip": (
@@ -296,6 +374,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "shortcuts.show_help": "Open this shortcut reference",
         "shortcuts.open_settings": "Open Preferences",
         "shortcuts.toggle_summary": "Show or hide the Summary panel",
+        "shortcuts.toggle_translation": (
+            "Show or hide the translation comparison panel"
+        ),
         "shortcuts.exit": "Exit Mercury",
         "shortcuts.close": "Close",
         "tags.title": "Tags",
@@ -370,6 +451,86 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "summary.error.unexpected": (
             "The summary action failed; the article was not affected."
+        ),
+        "translation.expand": "⌄ Translation",
+        "translation.collapse": "⌃ Translation",
+        "translation.target_language": "Target language:",
+        "translation.language.zh_cn": "Simplified Chinese",
+        "translation.language.en_us": "English",
+        "translation.custom_prompt": "Custom prompt:",
+        "translation.custom_prompt_placeholder": (
+            "Optional; leave empty to use the default translation prompt"
+        ),
+        "translation.configure_ai": "AI Settings",
+        "translation.original": "Original",
+        "translation.translated": "Translation",
+        "translation.comparison_placeholder": (
+            "Start translation to compare original and translated paragraphs."
+        ),
+        "translation.generate": "Translate",
+        "translation.regenerate": "Translate Again",
+        "translation.generate_tooltip.no_article": "Select an article first.",
+        "translation.generate_tooltip.configure": "Open AI settings.",
+        "translation.generate_tooltip.ready": (
+            "Translate the current article in the background while retaining "
+            "the original."
+        ),
+        "translation.generated_at": "Generated: {time}",
+        "translation.status.no_article": (
+            "Select an article to start translation."
+        ),
+        "translation.status.unavailable": (
+            "The translation service is unavailable; check AI Provider settings."
+        ),
+        "translation.status.ready": (
+            "Article content is sent only after you explicitly start translation."
+        ),
+        "translation.status.running": (
+            "Translating in the background; the article and existing originals "
+            "remain readable…"
+        ),
+        "translation.status.completed": "Translation completed.",
+        "translation.status.partial": (
+            "Some paragraphs failed to translate; every original is retained."
+        ),
+        "translation.status.failed": (
+            "Translation failed; every original remains readable."
+        ),
+        "translation.status.storage_warning": (
+            "Translation generated but could not be saved locally."
+        ),
+        "translation.paragraph.original_heading": (
+            "Original · Paragraph {number}"
+        ),
+        "translation.paragraph.translated_heading": "Translation",
+        "translation.paragraph.translated": (
+            "Paragraph {number}: translated"
+        ),
+        "translation.paragraph.partial": (
+            "Paragraph {number}: partially translated; originals for failed "
+            "segments are retained"
+        ),
+        "translation.paragraph.failed": "Paragraph {number}: {error}",
+        "translation.paragraph.unavailable": "Translation unavailable",
+        "translation.error.invalid_input": (
+            "This article has no readable content to translate; the original "
+            "was not affected."
+        ),
+        "translation.error.provider_not_configured": (
+            "Configure an AI Provider first; the original remains readable."
+        ),
+        "translation.error.provider_failure": (
+            "Provider translation failed; the original remains readable."
+        ),
+        "translation.error.empty_response": (
+            "The Provider returned no translation; the original remains readable."
+        ),
+        "translation.error.load_failed": (
+            "The local translation could not be loaded; you can translate again."
+        ),
+        "translation.error.unexpected": (
+            "The translation action failed; the article and originals were not "
+            "affected."
         ),
     },
 }
