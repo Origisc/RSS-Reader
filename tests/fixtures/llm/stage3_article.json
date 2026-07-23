@@ -1,0 +1,19 @@
+{
+  "article_id": "stage-3-offline",
+  "title": "Local-first AI acceptance fixture",
+  "paragraphs": [
+    {
+      "original": "Mercury keeps subscriptions and cached articles on the local device.",
+      "translated": "Mercury 将订阅源和缓存文章保存在本地设备上。"
+    },
+    {
+      "original": "AI actions run only after the reader explicitly starts them.",
+      "translated": "AI 操作仅在读者明确启动后运行。"
+    },
+    {
+      "original": "If a Provider fails, the original article must remain readable.",
+      "translated": "如果 Provider 失败，原始文章仍必须保持可读。"
+    }
+  ],
+  "summary": "Mercury is local-first, starts AI work explicitly, and preserves readable originals on failure."
+}
