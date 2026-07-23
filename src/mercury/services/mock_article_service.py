@@ -72,6 +72,9 @@ class MockArticleService:
     def convert_to_markdown(self, article_id: str, force: bool = False) -> str:
         return f"Mock convert to markdown request received: {article_id}, force={force}"
 
+    def translate_article_content(self, article_id: str, target_language: str = "zh", force: bool = False) -> str:
+        return f"Mock translate article content request received: {article_id}, target_language={target_language}, force={force}"
+
     def add_feed(self, xml_url: str) -> str:
         return f"Mock add feed request received: {xml_url}"
 

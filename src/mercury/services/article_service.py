@@ -30,6 +30,10 @@ class ArticleService(Protocol):
         """将文章内容转换为 Markdown，返回结果说明。"""
         ...
 
+    def translate_article_content(self, article_id: str, target_language: str = "zh", force: bool = False) -> str:
+        """翻译文章内容，返回结果说明。"""
+        ...
+
     def add_feed(self, xml_url: str) -> str:
         """添加单个 Feed，并返回用户可理解的结果说明。"""
         ...

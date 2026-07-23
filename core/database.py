@@ -58,6 +58,26 @@ class DBManager:
                 self.conn.execute("ALTER TABLE articles ADD COLUMN clean_error TEXT")
             except sqlite3.OperationalError:
                 pass
+            try:
+                self.conn.execute("ALTER TABLE articles ADD COLUMN translated_text TEXT")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                self.conn.execute("ALTER TABLE articles ADD COLUMN translated_at TEXT")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                self.conn.execute("ALTER TABLE articles ADD COLUMN translate_status TEXT DEFAULT 'pending'")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                self.conn.execute("ALTER TABLE articles ADD COLUMN translate_error TEXT")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                self.conn.execute("ALTER TABLE articles ADD COLUMN target_language TEXT DEFAULT 'zh'")
+            except sqlite3.OperationalError:
+                pass
 
     def add_feed(self, title, xml_url, html_url=""):
         try:
@@ -108,7 +128,7 @@ class DBManager:
 
     def get_article_full_detail(self, article_id):
         cursor = self.conn.execute(
-            "SELECT title, description, link, original_html, fetched_at, fetch_status, fetch_error, cleaned_html, cleaned_markdown, cleaned_at, clean_status, clean_error FROM articles WHERE id = ?",
+            "SELECT title, description, link, original_html, fetched_at, fetch_status, fetch_error, cleaned_html, cleaned_markdown, cleaned_at, clean_status, clean_error, translated_text, translated_at, translate_status, translate_error, target_language FROM articles WHERE id = ?",
             (article_id,),
         )
         return cursor.fetchone()
@@ -136,7 +156,18 @@ class DBManager:
         except Exception as e:
             print(f"保存文章 HTML 失败: {e}")
             return False
-    # core/database.py -> 追加到 DBManager 类中
+
+    def save_article_translated(self, article_id, translated_text, translated_at, target_language, status="success", error=None):
+        try:
+            with self.conn:
+                self.conn.execute(
+                    "UPDATE articles SET translated_text = ?, translated_at = ?, target_language = ?, translate_status = ?, translate_error = ? WHERE id = ?",
+                    (translated_text, translated_at, target_language, status, error, article_id),
+                )
+                return True
+        except Exception as e:
+            print(f"保存文章翻译结果失败: {e}")
+            return False
 
     def delete_feed(self, feed_id: int) -> bool:
         """

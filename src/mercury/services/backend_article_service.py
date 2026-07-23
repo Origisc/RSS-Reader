@@ -12,6 +12,9 @@ from mercury.models.article import Article, Feed
 from mercury.services.article_fetcher import ArticleFetcher
 from mercury.services.reader_cleaner import ReaderCleaner
 from mercury.services.markdown_converter import MarkdownConverter
+from mercury.services.translation_service import TranslationService
+from mercury.llm.provider import MockProvider, create_provider
+from mercury.llm.config import get_config
 
 
 class BackendArticleService:
@@ -23,6 +26,7 @@ class BackendArticleService:
         self._fetcher = ArticleFetcher()
         self._cleaner = ReaderCleaner()
         self._converter = MarkdownConverter()
+        self._init_translation_service()
 
     def list_feeds(self) -> list[Feed]:
         return [
@@ -58,6 +62,11 @@ class BackendArticleService:
             cleaned_at,
             clean_status,
             clean_error,
+            translated_text,
+            translated_at,
+            translate_status,
+            translate_error,
+            target_language,
         ) = detail
         feed_id, source_title = self._find_feed_for_article(article_id)
         title, link = self._normalise_title_and_link(stored_title, stored_link)
@@ -78,6 +87,11 @@ class BackendArticleService:
             cleaned_at=cleaned_at,
             clean_status=clean_status or "pending",
             clean_error=clean_error,
+            translated_text=translated_text or "",
+            translated_at=translated_at,
+            translate_status=translate_status or "pending",
+            translate_error=translate_error,
+            target_language=target_language or "zh",
         )
 
     def fetch_article_content(self, article_id: str, force: bool = False) -> str:
@@ -239,6 +253,66 @@ class BackendArticleService:
                 error=result.error_message,
             )
             return f"Failed to convert article content: {result.error_message}"
+
+    def translate_article_content(self, article_id: str, target_language: str = "zh", force: bool = False) -> str:
+        article = self.get_article(article_id)
+        if article is None:
+            return "Article not found."
+
+        if not force and article.translate_status == "success":
+            return "Article content already translated."
+
+        if not article.cleaned_markdown and not article.cleaned_html and not article.original_html:
+            detail = self._db.get_article_detail(int(article_id))
+            has_link = detail is not None and detail[2]
+            if has_link and article.fetch_status != "success":
+                self.fetch_article_content(article_id)
+                article = self.get_article(article_id)
+                if article is None or article.fetch_status != "success":
+                    return "Cannot translate: article fetch failed."
+
+            if article.clean_status != "success":
+                clean_result = self.clean_article_content(article_id)
+                if "successfully" not in clean_result:
+                    return f"Cannot translate: {clean_result}"
+                article = self.get_article(article_id)
+
+        text_source = article.cleaned_markdown or article.cleaned_html or article.original_html
+
+        if not text_source:
+            return "Article has no content to translate."
+
+        result = self._translator.translate(text_source, target_language)
+        translated_at = datetime.now().isoformat()
+
+        if result.success:
+            self._db.save_article_translated(
+                int(article_id),
+                result.translated_text,
+                translated_at,
+                target_language,
+                status="success",
+                error=None,
+            )
+            return f"Article content translated to {target_language} successfully."
+        else:
+            self._db.save_article_translated(
+                int(article_id),
+                "",
+                translated_at,
+                target_language,
+                status="failed",
+                error=result.error_message,
+            )
+            return f"Failed to translate article content: {result.error_message}"
+
+    def _init_translation_service(self) -> None:
+        try:
+            config = get_config()
+            provider = create_provider(config.to_dict())
+            self._translator = TranslationService(provider)
+        except Exception:
+            self._translator = TranslationService(MockProvider())
 
     def _list_articles_for_feed(
         self,
