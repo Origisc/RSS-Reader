@@ -62,6 +62,48 @@ class MockArticleService:
                 return article
 
         return None
+
+    def fetch_article_content(
+        self,
+        article_id: str,
+        force: bool = False,
+    ) -> str:
+        return (
+            "Mock fetch article content request received: "
+            f"{article_id}, force={force}"
+        )
+
+    def clean_article_content(
+        self,
+        article_id: str,
+        force: bool = False,
+    ) -> str:
+        return (
+            "Mock clean article content request received: "
+            f"{article_id}, force={force}"
+        )
+
+    def convert_to_markdown(
+        self,
+        article_id: str,
+        force: bool = False,
+    ) -> str:
+        return (
+            "Mock convert to markdown request received: "
+            f"{article_id}, force={force}"
+        )
+
+    def translate_article_content(
+        self,
+        article_id: str,
+        target_language: str = "zh",
+        force: bool = False,
+    ) -> str:
+        return (
+            "Mock translate article content request received: "
+            f"{article_id}, target_language={target_language}, force={force}"
+        )
+
     def add_feed(self, xml_url: str) -> str:
         return f"Mock add feed request received: {xml_url}"
 

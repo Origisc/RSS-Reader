@@ -99,6 +99,26 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("First-stage original", self.reader.content.toPlainText())
         self.assertIn("unavailable", self.reader.view_status_label.text())
 
+    def test_document_uses_persisted_processing_results(self) -> None:
+        article = Article(
+            id="processed-article",
+            feed_id="feed-1",
+            title="Processed fixture",
+            source_title="Local fixture",
+            content_html="<p>Feed summary</p>",
+            original_html="<article><p>Fetched original</p></article>",
+            cleaned_html="<article><p>Cleaned result</p></article>",
+            cleaned_markdown="## Cleaned Markdown",
+            clean_error="previous cleaning warning",
+        )
+
+        document = ReaderDocument.from_article(article)
+
+        self.assertIn("Fetched original", document.raw_html)
+        self.assertIn("Cleaned result", document.cleaned_html or "")
+        self.assertEqual(document.cleaned_markdown, "## Cleaned Markdown")
+        self.assertEqual(document.cleaning_error, "previous cleaning warning")
+
     def test_reader_style_is_applied_without_changing_article(self) -> None:
         self.reader.show_article(self.article)
         style = ReaderStyle(

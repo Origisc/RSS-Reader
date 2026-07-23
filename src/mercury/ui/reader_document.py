@@ -35,8 +35,13 @@ class ReaderDocument:
 
     @classmethod
     def from_article(cls, article: Article) -> "ReaderDocument":
-        """Keep the first-stage article readable before ReaderService exists."""
-        return cls(raw_html=article.content_html)
+        """Expose persisted processing results while keeping a raw fallback."""
+        return cls(
+            raw_html=article.original_html or article.content_html,
+            cleaned_html=article.cleaned_html or None,
+            cleaned_markdown=article.cleaned_markdown or None,
+            cleaning_error=article.clean_error,
+        )
 
     def resolve(self, view: ReaderView) -> ResolvedReaderContent:
         """Resolve a requested view, falling back to the original HTML."""

@@ -2,47 +2,50 @@
 
 ## Goal
 
-把成员 B 的 PySide6 UI 从 Mock Service 接到成员 A 已完成的第一阶段后端能力：
+Connect Member B's PySide6 UI service boundary to Member A's backend while
+keeping the UI independently testable:
 
-- 添加订阅 Feed
-- 导入 OPML
-- 批量刷新订阅源
-- 文章列表与详情读取
+- add, import, refresh, and delete feeds;
+- list and read locally cached articles;
+- fetch full article HTML;
+- clean Reader content and convert it to Markdown;
+- translate article content through the shared Provider abstraction.
 
-## Implementation
+## Integration Decisions
 
-新增：
+`src/mercury/services/backend_article_service.py` remains the adapter between
+the UI and the backend.
 
-```text
-src/mercury/services/backend_article_service.py
-```
+- The UI depends only on the `ArticleService` protocol.
+- Feed operations use `FeedUseCase`, `DBManager`, and the OPML importer.
+- Article processing uses the backend fetcher, cleaner, and Markdown converter.
+- Translation receives `TranslationService` by constructor injection. The
+  adapter does not choose a vendor, model, Base URL, API Key, or mock fallback.
+- `ReaderDocument.from_article()` exposes persisted raw, cleaned HTML, and
+  Markdown content while preserving the feed summary as a fallback.
+- `MockArticleService` remains available for isolated UI development.
 
-该文件是 UI 和成员 A 后端之间的 adapter：
-
-- UI 仍只依赖 `ArticleService` 协议。
-- adapter 内部调用 `DBManager`、`FeedUseCase` 和 OPML 导入函数。
-- Mock Service 保留，便于成员 B 独立调 UI。
-
-## Verification
-
-自动验证：
+## Automated Verification
 
 ```powershell
-uv run python -m unittest discover
+.\.venv\Scripts\python.exe -m unittest discover -v
 ```
 
-人工验证：
+The tests use in-memory databases, local HTML fixtures, and deterministic mock
+Providers. They do not use the network, real credentials, or real LLM calls.
 
-1. 运行 `uv run python src/mercury/main.py`。
-2. 点击 Add Feed，输入一个 Feed URL。
-3. 点击 Import OPML，选择本地 OPML 文件。
-4. 点击 Refresh。
-5. 点击左侧 Feed，确认中间 Entries 更新。
-6. 点击文章，确认 Reader 显示文章详情。
-7. 关闭应用后重新打开，确认本地数据库中的 Feed 和文章仍可读取。
+## Manual Verification
 
-## Notes
+1. Run `.\.venv\Scripts\python.exe src\mercury\main.py`.
+2. Add or import a feed and refresh it.
+3. Select an entry and switch between Original, Cleaned HTML, and Markdown.
+4. Confirm missing or failed processing results still show the original.
+5. Delete a feed and confirm its cached entries disappear.
+6. Restart the application and confirm remaining local data is still readable.
 
-- 当前刷新和添加 Feed 暂为同步调用，后续应接入 worker，避免网络慢时阻塞 UI。
-- 当前不新增任何 LLM 调用。
-- 自动测试不依赖真实网络、真实 API Key 或真实 LLM。
+## Deferred Work
+
+- Network-backed operations should move to a worker so slow requests never
+  block the UI thread.
+- The comparison UI will consume original and translated paragraph pairs in a
+  later task.

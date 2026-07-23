@@ -6,6 +6,9 @@ class TestDBManager(unittest.TestCase):
         # 每个测试用例执行前，创建一个完全干净的内存数据库
         self.db = DBManager(":memory:")
 
+    def tearDown(self):
+        self.db.conn.close()
+
     def test_add_and_get_feed(self):
         """验证：能否正确添加并读取订阅源"""
         feed_id = self.db.add_feed("测试博客", "https://example.com/feed")

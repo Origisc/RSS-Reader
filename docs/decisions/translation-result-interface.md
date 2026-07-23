@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted for Task 3.3.1 Member B development; persistent repository pending.
+Accepted for Task 3.3.1 Member B development; local article persistence is
+integrated.
 
 ## Decision
 
@@ -20,9 +21,18 @@ Calling `translate()` is the explicit boundary at which article text may be sent
 
 ## Storage Integration Boundary
 
-Member B provides the repository protocol and deterministic in-memory implementation. Member A can implement `save()` and `latest_for_article()` with local persistence without changing Translation Agent or the later comparison UI.
+Member B's `TranslationAgent` retains its repository protocol and deterministic
+in-memory implementation. Member A's article-level translation storage is
+available through `DBManager.save_article_translated()` and is called by
+`BackendArticleService`.
+
+`BackendArticleService` receives `TranslationService` through constructor
+injection. It never creates a vendor adapter, selects a model, reads credentials,
+or silently substitutes a mock Provider. This keeps both translation paths on
+the shared `LLMProvider.complete(LLMRequest)` contract.
 
 ## Deferred Work
 
 - Task 3.3.2 owns asynchronous execution and original/translated paragraph comparison UI.
-- Cross-process persistence remains with the local storage adapter owned by Member A.
+- A later adapter may unify `TranslationResultStore` history with the persisted
+  article-level translation fields.
