@@ -1,9 +1,10 @@
 from html import escape
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -26,6 +27,7 @@ class ArticleReader(QWidget):
 
     read_state_change_requested = Signal(str, bool)
     summary_panel_visibility_requested = Signal(bool)
+    tag_panel_visibility_requested = Signal(bool)
 
     def __init__(self) -> None:
         super().__init__()
@@ -69,8 +71,10 @@ class ArticleReader(QWidget):
         self.view_buttons: dict[ReaderView, QPushButton] = {}
 
         toolbar_layout = QHBoxLayout(self.view_toolbar)
-        toolbar_layout.setContentsMargins(12, 6, 12, 6)
+        toolbar_layout.setContentsMargins(12, 6, 10, 6)
         toolbar_layout.setSpacing(6)
+        toolbar_layout.addWidget(self.title_label)
+        toolbar_layout.addStretch(1)
 
         for view in ReaderView:
             button = QPushButton()
@@ -87,15 +91,23 @@ class ArticleReader(QWidget):
             toolbar_layout.addWidget(button)
 
         self.view_buttons[ReaderView.RAW].setChecked(True)
-        toolbar_layout.addStretch(1)
 
         self.view_status_label = QLabel()
         self.view_status_label.setObjectName("ReaderViewStatus")
         self.view_status_label.setWordWrap(True)
         toolbar_layout.addWidget(self.view_status_label)
 
+        self.tag_toggle_button = QPushButton()
+        self.tag_toggle_button.setObjectName("ReaderUtilityButton")
+        self.tag_toggle_button.setCheckable(True)
+        self.tag_toggle_button.setChecked(True)
+        self.tag_toggle_button.clicked.connect(
+            lambda checked: self.tag_panel_visibility_requested.emit(checked)
+        )
+        toolbar_layout.addWidget(self.tag_toggle_button)
+
         self.summary_toggle_button = QPushButton()
-        self.summary_toggle_button.setObjectName("ReaderViewButton")
+        self.summary_toggle_button.setObjectName("ReaderUtilityButton")
         self.summary_toggle_button.setCheckable(True)
         self.summary_toggle_button.setChecked(True)
         self.summary_toggle_button.clicked.connect(
@@ -106,7 +118,7 @@ class ArticleReader(QWidget):
         toolbar_layout.addWidget(self.summary_toggle_button)
 
         self.read_state_button = QPushButton()
-        self.read_state_button.setObjectName("ReaderViewButton")
+        self.read_state_button.setObjectName("ReaderUtilityButton")
         self.read_state_button.clicked.connect(
             self._request_read_state_change
         )
@@ -116,14 +128,19 @@ class ArticleReader(QWidget):
         self.content.setObjectName("ReaderContent")
         self.content.setOpenExternalLinks(True)
 
+        self.reader_body = QFrame()
+        self.reader_body.setObjectName("ReaderBody")
+        self.reader_body_layout = QGridLayout(self.reader_body)
+        self.reader_body_layout.setContentsMargins(0, 0, 0, 0)
+        self.reader_body_layout.setSpacing(0)
+        self.reader_body_layout.addWidget(self.content, 0, 0)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(self.title_label)
         layout.addWidget(self.view_toolbar)
-        layout.addWidget(self.content)
-
-        self.view_toolbar.hide()
+        layout.addWidget(self.reader_body, 1)
+        self.view_status_label.hide()
 
     @property
     def current_view(self) -> ReaderView:
@@ -144,8 +161,11 @@ class ArticleReader(QWidget):
         self._current_article = None
         self._current_document = None
         self._is_read = False
-        self.view_toolbar.hide()
+        for button in self.view_buttons.values():
+            button.setEnabled(False)
+        self.read_state_button.setEnabled(False)
         self.view_status_label.clear()
+        self.view_status_label.hide()
         body = (
             f"<h1>{escape(self._welcome_title)}</h1>"
             f"<p class='lede'>{escape(self._welcome_body)}</p>"
@@ -159,7 +179,9 @@ class ArticleReader(QWidget):
     ) -> None:
         self._current_article = article
         self._current_document = document or ReaderDocument.from_article(article)
-        self.view_toolbar.show()
+        for button in self.view_buttons.values():
+            button.setEnabled(True)
+        self.read_state_button.setEnabled(True)
         self._render_current_view()
 
     def set_view(self, view: ReaderView) -> None:
@@ -185,6 +207,21 @@ class ArticleReader(QWidget):
 
     def set_summary_panel_visible(self, is_visible: bool) -> None:
         self.summary_toggle_button.setChecked(is_visible)
+
+    def set_tag_panel_visible(self, is_visible: bool) -> None:
+        self.tag_toggle_button.setChecked(is_visible)
+
+    def set_overlay_widget(self, widget: QWidget) -> None:
+        self.reader_body_layout.addWidget(
+            widget,
+            0,
+            0,
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
+        )
+
+    def set_tag_toggle_texts(self, text: str, tooltip: str) -> None:
+        self.tag_toggle_button.setText(text)
+        self.tag_toggle_button.setToolTip(tooltip)
 
     def set_summary_toggle_texts(self, text: str, tooltip: str) -> None:
         self.summary_toggle_button.setText(text)
@@ -269,6 +306,7 @@ class ArticleReader(QWidget):
                 )
 
         self.view_status_label.setText(status)
+        self.view_status_label.setVisible(rendered.used_fallback)
 
         if rendered.content_format is ReaderContentFormat.MARKDOWN:
             self._show_markdown(rendered.content)

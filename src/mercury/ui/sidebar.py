@@ -3,12 +3,15 @@ from collections.abc import Mapping
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
+    QButtonGroup,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
     QMenu,
     QPushButton,
+    QStackedWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -36,6 +39,9 @@ class Sidebar(QWidget):
 
         self.setObjectName("SidebarPanel")
         self._feed_detail_text = "{count} unread"
+        self._footer_template = "Feeds: {feeds} · Unread: {unread}"
+        self._feed_count = 0
+        self._unread_total = 0
 
         self.feeds_tab = QPushButton()
         self.feeds_tab.setObjectName("PrimarySegment")
@@ -45,7 +51,11 @@ class Sidebar(QWidget):
         self.tags_tab = QPushButton()
         self.tags_tab.setObjectName("SecondarySegment")
         self.tags_tab.setCheckable(True)
-        self.tags_tab.setEnabled(False)
+
+        self.tab_group = QButtonGroup(self)
+        self.tab_group.setExclusive(True)
+        self.tab_group.addButton(self.feeds_tab, 0)
+        self.tab_group.addButton(self.tags_tab, 1)
 
         tab_layout = QHBoxLayout()
         tab_layout.setContentsMargins(8, 8, 8, 4)
@@ -109,6 +119,10 @@ class Sidebar(QWidget):
         self.feed_list = QListWidget()
         self.feed_list.setObjectName("FeedList")
         self.feed_list.setAlternatingRowColors(False)
+        self.feed_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.feed_list.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.feed_list.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu
         )
@@ -117,14 +131,45 @@ class Sidebar(QWidget):
         self.footer_label.setObjectName("PanelFooter")
         self.footer_label.setWordWrap(True)
 
+        feeds_page = QFrame()
+        feeds_page.setObjectName("SidebarPage")
+        feeds_layout = QVBoxLayout(feeds_page)
+        feeds_layout.setContentsMargins(0, 0, 0, 0)
+        feeds_layout.setSpacing(0)
+        feeds_layout.addLayout(title_layout)
+        feeds_layout.addWidget(self.feed_list, 1)
+        feeds_layout.addWidget(self.footer_label)
+
+        self.tag_browser_title = QLabel()
+        self.tag_browser_title.setObjectName("PanelTitle")
+        self.tag_browser_hint = QLabel()
+        self.tag_browser_hint.setObjectName("SidebarHint")
+        self.tag_browser_hint.setWordWrap(True)
+        self.tag_list = QListWidget()
+        self.tag_list.setObjectName("SidebarTagList")
+
+        tags_page = QFrame()
+        tags_page.setObjectName("SidebarPage")
+        tags_layout = QVBoxLayout(tags_page)
+        tags_layout.setContentsMargins(12, 8, 12, 10)
+        tags_layout.setSpacing(7)
+        tags_layout.addWidget(self.tag_browser_title)
+        tags_layout.addWidget(self.tag_browser_hint)
+        tags_layout.addWidget(self.tag_list, 1)
+
+        self.pages = QStackedWidget()
+        self.pages.setObjectName("SidebarPages")
+        self.pages.addWidget(feeds_page)
+        self.pages.addWidget(tags_page)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addLayout(tab_layout)
-        layout.addLayout(title_layout)
-        layout.addWidget(self.feed_list, 1)
-        layout.addWidget(self.footer_label)
+        layout.addWidget(self.pages, 1)
 
+        self.feeds_tab.clicked.connect(lambda: self.pages.setCurrentIndex(0))
+        self.tags_tab.clicked.connect(lambda: self.pages.setCurrentIndex(1))
         self.feed_list.currentItemChanged.connect(
             self._on_current_item_changed
         )
@@ -140,6 +185,8 @@ class Sidebar(QWidget):
         self.feed_list.clear()
         self.menu_delete_feed_action.setEnabled(False)
         counts = unread_counts or {}
+        self._feed_count = len(feeds)
+        self._unread_total = sum(max(int(value), 0) for value in counts.values())
 
         for feed in feeds:
             unread_count = max(int(counts.get(feed.id, 0)), 0)
@@ -151,6 +198,8 @@ class Sidebar(QWidget):
             self._update_feed_item_text(item)
             self.feed_list.addItem(item)
 
+        self._update_footer()
+
     def update_unread_count(self, feed_id: str, unread_count: int) -> None:
         for index in range(self.feed_list.count()):
             item = self.feed_list.item(index)
@@ -160,6 +209,11 @@ class Sidebar(QWidget):
 
             item.setData(UNREAD_COUNT_ROLE, max(unread_count, 0))
             self._update_feed_item_text(item)
+            self._unread_total = sum(
+                int(self.feed_list.item(row).data(UNREAD_COUNT_ROLE) or 0)
+                for row in range(self.feed_list.count())
+            )
+            self._update_footer()
             return
 
     def set_title(self, title: str) -> None:
@@ -168,6 +222,14 @@ class Sidebar(QWidget):
     def set_tabs(self, feeds_text: str, tags_text: str) -> None:
         self.feeds_tab.setText(feeds_text)
         self.tags_tab.setText(tags_text)
+
+    def set_tag_browser_texts(self, title: str, hint: str) -> None:
+        self.tag_browser_title.setText(title)
+        self.tag_browser_hint.setText(hint)
+
+    def set_tags(self, tags: list[str]) -> None:
+        self.tag_list.clear()
+        self.tag_list.addItems(tags)
 
     def set_action_texts(
         self,
@@ -187,7 +249,8 @@ class Sidebar(QWidget):
         self.menu_delete_feed_action.setText(delete_feed)
 
     def set_footer(self, footer_text: str) -> None:
-        self.footer_label.setText(footer_text)
+        self._footer_template = footer_text
+        self._update_footer()
 
     def set_feed_detail_text(self, detail_text: str) -> None:
         self._feed_detail_text = detail_text
@@ -239,4 +302,12 @@ class Sidebar(QWidget):
         title = str(item.data(FEED_TITLE_ROLE) or "")
         unread_count = int(item.data(UNREAD_COUNT_ROLE) or 0)
         detail = self._feed_detail_text.format(count=unread_count)
-        item.setText(f"{title}\n  {detail}")
+        item.setText(f"{title}  ·  {detail}")
+
+    def _update_footer(self) -> None:
+        self.footer_label.setText(
+            self._footer_template.format(
+                feeds=self._feed_count,
+                unread=self._unread_total,
+            )
+        )

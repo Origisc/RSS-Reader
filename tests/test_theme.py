@@ -17,13 +17,15 @@ class ThemeTest(unittest.TestCase):
 
         self.assertIn("QWidget#ReaderPanel", stylesheet)
         self.assertIn('QLabel[chip="true"]', stylesheet)
-        self.assertIn("QToolBar#AppToolbar QToolButton", stylesheet)
+        self.assertIn("QFrame#TagEditorPopover", stylesheet)
+        self.assertIn("QPushButton#ReaderUtilityButton", stylesheet)
         self.assertIn("color: #e5edf5", stylesheet)
 
-    def test_light_theme_sets_toolbar_action_text_color(self) -> None:
+    def test_light_theme_sets_compact_navigation_colors(self) -> None:
         stylesheet = stylesheet_for_theme("light")
 
-        self.assertIn("QToolBar QToolButton", stylesheet)
+        self.assertIn("QPushButton#PrimarySegment", stylesheet)
+        self.assertIn("QPushButton#EntryFilterButton", stylesheet)
         self.assertIn("color: #1f2933", stylesheet)
         self.assertIn("QToolButton#FeedAddButton", stylesheet)
         self.assertIn("QToolButton#FeedMenuButton", stylesheet)
@@ -58,6 +60,10 @@ class ThemeTest(unittest.TestCase):
         for theme in ("light", "dark"):
             stylesheet = stylesheet_for_theme(theme)
 
+            self.assertIn("QFrame#SummarySection", stylesheet)
+            self.assertIn("QFrame#SummarySectionTitleBar", stylesheet)
+            self.assertIn("QPushButton#SummarySectionToggleButton", stylesheet)
+            self.assertIn("QSplitter#ReaderSummarySplitter", stylesheet)
             self.assertIn("QFrame#SummaryPanel", stylesheet)
             self.assertIn("QPlainTextEdit#SummaryContent", stylesheet)
             self.assertIn("QPushButton#SummaryActionButton", stylesheet)

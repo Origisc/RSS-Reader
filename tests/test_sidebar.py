@@ -54,6 +54,31 @@ class SidebarTest(unittest.TestCase):
             Qt.ArrowType.DownArrow,
         )
 
+    def test_feeds_and_tags_use_the_same_sidebar_space(self) -> None:
+        self.sidebar.set_tags(["AI", "Programming"])
+
+        self.assertEqual(self.sidebar.pages.currentIndex(), 0)
+        self.sidebar.tags_tab.click()
+
+        self.assertEqual(self.sidebar.pages.currentIndex(), 1)
+        self.assertTrue(self.sidebar.tags_tab.isChecked())
+        self.assertEqual(self.sidebar.tag_list.count(), 2)
+
+        self.sidebar.feeds_tab.click()
+        self.assertEqual(self.sidebar.pages.currentIndex(), 0)
+
+    def test_feed_list_uses_compact_elided_rows_without_horizontal_scroll(
+        self,
+    ) -> None:
+        self.assertEqual(
+            self.sidebar.feed_list.horizontalScrollBarPolicy(),
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
+        )
+        self.assertEqual(
+            self.sidebar.feed_list.textElideMode(),
+            Qt.TextElideMode.ElideRight,
+        )
+
     def test_dropdown_actions_emit_existing_feed_commands(self) -> None:
         requests: list[str] = []
         self.sidebar.add_feed_requested.connect(

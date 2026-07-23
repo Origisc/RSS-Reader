@@ -84,6 +84,97 @@ QToolButton#FeedMenuButton:pressed {
     border-color: #c7cdd3;
 }
 
+QWidget#SidebarPanel,
+QWidget#ArticleListPanel {
+    background: #f3f3f1;
+    border-right: 1px solid #d5d8dc;
+}
+
+QFrame#SidebarPage,
+QStackedWidget#SidebarPages {
+    background: transparent;
+}
+
+QLabel#PanelTitle,
+QLabel#ReaderPanelTitle,
+QLabel#TagPanelTitle {
+    color: #1f2933;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#SidebarHint,
+QLabel#PanelFooter,
+QLabel#TagSectionTitle,
+QLabel#TagEmpty {
+    color: #68737d;
+    font-size: 10px;
+}
+
+QPushButton#PrimarySegment,
+QPushButton#SecondarySegment,
+QPushButton#EntryFilterButton,
+QPushButton#ReaderUtilityButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #4f5d69;
+    padding: 3px 9px;
+}
+
+QPushButton#PrimarySegment:checked,
+QPushButton#SecondarySegment:checked,
+QPushButton#EntryFilterButton:checked,
+QPushButton#ReaderUtilityButton:checked {
+    background: #d9e8ff;
+    border-color: #9bbdea;
+    color: #0f3d73;
+}
+
+QListWidget#FeedList,
+QListWidget#SidebarTagList,
+QListWidget#EntryList {
+    background: #f3f3f1;
+    border: 0;
+    outline: 0;
+}
+
+QListWidget#FeedList::item,
+QListWidget#SidebarTagList::item {
+    border-bottom: 0;
+    padding: 5px 10px;
+}
+
+QFrame#TagEditorPopover {
+    background: #f7f9fb;
+    border: 1px solid #c9d2dc;
+    border-radius: 10px;
+    margin: 8px;
+}
+
+QLineEdit#TagInput {
+    background: #ffffff;
+    border: 1px solid #c9ced4;
+    border-radius: 5px;
+    color: #1f2933;
+    padding: 4px 7px;
+}
+
+QToolButton#TagPanelCloseButton {
+    background: transparent;
+    border: 0;
+    color: #68737d;
+    font-size: 15px;
+}
+
+QLabel[chip="true"] {
+    background: #dcecf8;
+    border-radius: 8px;
+    color: #24445d;
+    font-size: 10px;
+    padding: 3px 6px;
+}
+
 QStatusBar {
     background: #eeeeea;
 }
@@ -228,35 +319,38 @@ QLabel#ReaderViewStatus {
     font-size: 11px;
 }
 
+QPushButton#ReaderUtilityButton {
+    background: #ffffff;
+    border-color: #c9ced4;
+}
+
+QFrame#SummarySection,
 QFrame#SummaryPanel {
     background: #f7f7f5;
     border-top: 1px solid #d5d8dc;
 }
 
-QFrame#SummaryDockTitleBar {
+QSplitter#ReaderSummarySplitter::handle {
+    background: #c9ced4;
+    height: 4px;
+}
+
+QFrame#SummarySectionTitleBar {
     background: #eeeeea;
     border-bottom: 1px solid #c9ced4;
 }
 
-QLabel#SummaryDockTitle {
+QPushButton#SummarySectionToggleButton {
     background: transparent;
-    color: #1f2933;
+    border: 0;
+    color: #34404b;
     font-weight: 700;
+    padding: 3px 5px;
+    text-align: left;
 }
 
-QPushButton#SummaryDockHideButton {
-    background: #d9e8ff;
-    border: 1px solid #6b9de3;
-    border-radius: 4px;
-    color: #0f3d73;
-    font-weight: 700;
-    min-width: 52px;
-    padding: 3px 12px;
-}
-
-QPushButton#SummaryDockHideButton:hover {
-    background: #c3d8f5;
-    border-color: #3978cf;
+QPushButton#SummarySectionToggleButton:hover {
+    color: #0f68d8;
 }
 
 QLabel#SummaryFieldLabel,
@@ -443,8 +537,7 @@ QTableWidget#ShortcutTable QHeaderView::section {
 
 QMenuBar,
 QMenu,
-QStatusBar,
-QToolBar#AppToolbar {
+QStatusBar {
     background: #18181c;
     color: #d9e2ec;
 }
@@ -457,36 +550,6 @@ QMenu::item:selected {
 QMenuBar::item,
 QMenu::item {
     color: #d9e2ec;
-}
-
-QToolBar#AppToolbar {
-    border-bottom: 1px solid #29313a;
-    padding: 2px 8px;
-    spacing: 6px;
-}
-
-QToolBar#AppToolbar QToolButton {
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    color: #e5edf5;
-    padding: 4px 8px;
-}
-
-QToolBar#AppToolbar QToolButton:hover {
-    background: #2a323d;
-    border-color: #3b4653;
-}
-
-QToolBar#AppToolbar QToolButton:pressed,
-QToolBar#AppToolbar QToolButton:checked {
-    background: #0f68d8;
-    border-color: #2487ff;
-    color: #ffffff;
-}
-
-QToolBar#AppToolbar QToolButton:disabled {
-    color: #707b87;
 }
 
 QToolButton#FeedAddButton,
@@ -519,21 +582,25 @@ QToolButton#FeedMenuButton:pressed {
     border-color: #3b4653;
 }
 
-QToolBar#AppToolbar::separator {
-    background: #3b4653;
-    margin: 4px 6px;
-    width: 1px;
-}
-
 QSplitter::handle {
     background: #27313b;
     width: 1px;
+}
+
+QSplitter#ReaderSummarySplitter::handle {
+    background: #30333a;
+    height: 4px;
 }
 
 QWidget#SidebarPanel,
 QWidget#ArticleListPanel {
     background: #15161b;
     border-right: 1px solid #2a2d33;
+}
+
+QFrame#SidebarPage,
+QStackedWidget#SidebarPages {
+    background: transparent;
 }
 
 QWidget#ReaderPanel {
@@ -550,6 +617,7 @@ QLabel#TagPanelTitle {
 
 QLabel#PanelActionHint,
 QLabel#PanelFooter,
+QLabel#SidebarHint,
 QLabel#TagSectionTitle,
 QLabel#TagEmpty,
 QLabel#SummaryLabel {
@@ -559,6 +627,8 @@ QLabel#SummaryLabel {
 
 QPushButton#PrimarySegment,
 QPushButton#SecondarySegment,
+QPushButton#EntryFilterButton,
+QPushButton#ReaderUtilityButton,
 QPushButton#TagAddButton {
     background: #22242a;
     border: 1px solid #303640;
@@ -568,18 +638,21 @@ QPushButton#TagAddButton {
     padding: 4px 10px;
 }
 
-QPushButton#PrimarySegment:checked {
+QPushButton#PrimarySegment:checked,
+QPushButton#SecondarySegment:checked,
+QPushButton#EntryFilterButton:checked,
+QPushButton#ReaderUtilityButton:checked {
     background: #0b78ff;
     border-color: #0b78ff;
     color: #ffffff;
 }
 
-QPushButton#SecondarySegment:disabled,
 QPushButton#TagAddButton:disabled {
     color: #65707c;
 }
 
 QListWidget#FeedList,
+QListWidget#SidebarTagList,
 QListWidget#EntryList {
     background: #15161b;
     border: 0;
@@ -588,12 +661,18 @@ QListWidget#EntryList {
 }
 
 QListWidget#FeedList::item,
+QListWidget#SidebarTagList::item {
+    border-bottom: 0;
+    padding: 5px 10px;
+}
+
 QListWidget#EntryList::item {
     border-bottom: 1px solid #282a30;
     padding: 8px 12px;
 }
 
 QListWidget#FeedList::item:selected,
+QListWidget#SidebarTagList::item:selected,
 QListWidget#EntryList::item:selected {
     background: #0f68d8;
     border-radius: 6px;
@@ -624,34 +703,42 @@ QPushButton#ReaderViewButton:checked {
     color: #ffffff;
 }
 
+QPushButton#ReaderUtilityButton {
+    background: #15384d;
+    border-color: #31556c;
+}
+
 QLabel#ReaderViewStatus {
     color: #92a8b8;
     font-size: 11px;
 }
 
-QDockWidget#TagsDock,
-QDockWidget#SummaryDock {
-    background: #111a23;
-    color: #d9e2ec;
-}
-
-QDockWidget#TagsDock::title,
-QDockWidget#SummaryDock::title {
-    background: #18181c;
-    padding: 5px 8px;
-}
-
-QFrame#TagPanel {
+QFrame#TagEditorPopover {
     background: #112c3a;
-    border: 1px solid #203d4b;
-    border-radius: 8px;
+    border: 1px solid #315064;
+    border-radius: 10px;
+    margin: 8px;
 }
 
-QLabel#TagInputPlaceholder {
+QLineEdit#TagInput {
     background: #1c2732;
+    border: 1px solid #344759;
     border-radius: 6px;
-    color: #8898a7;
-    padding: 6px 8px;
+    color: #e5edf5;
+    padding: 5px 7px;
+    selection-background-color: #0f68d8;
+    selection-color: #ffffff;
+}
+
+QToolButton#TagPanelCloseButton {
+    background: transparent;
+    border: 0;
+    color: #9eb0bf;
+    font-size: 15px;
+}
+
+QToolButton#TagPanelCloseButton:hover {
+    color: #ffffff;
 }
 
 QLabel[chip="true"] {
@@ -662,35 +749,28 @@ QLabel[chip="true"] {
     padding: 4px 8px;
 }
 
+QFrame#SummarySection,
 QFrame#SummaryPanel {
     background: #18181c;
     border-top: 1px solid #30333a;
 }
 
-QFrame#SummaryDockTitleBar {
+QFrame#SummarySectionTitleBar {
     background: #18181c;
     border-bottom: 1px solid #30333a;
 }
 
-QLabel#SummaryDockTitle {
+QPushButton#SummarySectionToggleButton {
     background: transparent;
-    color: #f3f6f9;
+    border: 0;
+    color: #d9e2ec;
     font-weight: 700;
+    padding: 3px 5px;
+    text-align: left;
 }
 
-QPushButton#SummaryDockHideButton {
-    background: #0f68d8;
-    border: 1px solid #62a7ff;
-    border-radius: 4px;
-    color: #ffffff;
-    font-weight: 700;
-    min-width: 52px;
-    padding: 3px 12px;
-}
-
-QPushButton#SummaryDockHideButton:hover {
-    background: #2487ff;
-    border-color: #9dcbff;
+QPushButton#SummarySectionToggleButton:hover {
+    color: #69aefc;
 }
 
 QLabel#SummaryFieldLabel,

@@ -2,18 +2,15 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
-    QDockWidget,
     QFileDialog,
     QFrame,
     QHBoxLayout,
     QInputDialog,
-    QLabel,
     QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
     QSplitter,
-    QToolBar,
     QVBoxLayout,
 )
 
@@ -42,6 +39,7 @@ from mercury.ui.summary_panel import (
     SummaryPanel,
     SummaryResultLoader,
 )
+from mercury.ui.tag_panel import TagEditorPanel
 from mercury.ui.theme import stylesheet_for_theme
 
 
@@ -90,7 +88,6 @@ class MainWindow(QMainWindow):
         self._setup_actions()
         self._setup_ui()
         self._setup_menu_bar()
-        self._setup_tool_bar()
         self._setup_tag_panel()
         self._setup_summary_bar()
         self._connect_signals()
@@ -102,15 +99,19 @@ class MainWindow(QMainWindow):
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setObjectName("MainSplitter")
 
-        self.sidebar.setMinimumWidth(190)
-        self.article_list.setMinimumWidth(250)
-        self.article_reader.setMinimumWidth(560)
+        self.sidebar.setMinimumWidth(170)
+        self.article_list.setMinimumWidth(230)
+        self.article_reader.setMinimumWidth(540)
+
+        self.reader_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.reader_splitter.setObjectName("ReaderSummarySplitter")
+        self.reader_splitter.addWidget(self.article_reader)
 
         self.splitter.addWidget(self.sidebar)
         self.splitter.addWidget(self.article_list)
-        self.splitter.addWidget(self.article_reader)
+        self.splitter.addWidget(self.reader_splitter)
 
-        self.splitter.setSizes([210, 270, 840])
+        self.splitter.setSizes([185, 255, 880])
         self.splitter.setStretchFactor(0, 0)
         self.splitter.setStretchFactor(1, 0)
         self.splitter.setStretchFactor(2, 1)
@@ -146,7 +147,7 @@ class MainWindow(QMainWindow):
 
         self.toggle_summary_action = QAction(self)
         self.toggle_summary_action.setCheckable(True)
-        self.toggle_summary_action.setChecked(True)
+        self.toggle_summary_action.setChecked(False)
         self.toggle_summary_action.setShortcut("Ctrl+Shift+S")
 
         self.shortcut_help_action = QAction(self)
@@ -178,74 +179,19 @@ class MainWindow(QMainWindow):
         self.help_menu.addSeparator()
         self.help_menu.addAction(self.about_action)
 
-    def _setup_tool_bar(self) -> None:
-        self.main_toolbar = QToolBar(self)
-        self.main_toolbar.setObjectName("AppToolbar")
-        self.main_toolbar.setMovable(False)
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.main_toolbar)
-        self.main_toolbar.addAction(self.add_feed_action)
-        self.main_toolbar.addAction(self.import_opml_action)
-        self.main_toolbar.addAction(self.refresh_action)
-        self.main_toolbar.addSeparator()
-        self.main_toolbar.addAction(self.toggle_tags_action)
-        self.main_toolbar.addSeparator()
-        self.main_toolbar.addAction(self.shortcut_help_action)
-
     def _setup_tag_panel(self) -> None:
-        panel = QFrame()
-        panel.setObjectName("TagPanel")
-
-        self.tags_title_label = QLabel()
-        self.tags_title_label.setObjectName("TagPanelTitle")
-        self.tag_input_label = QLabel()
-        self.tag_input_label.setObjectName("TagInputPlaceholder")
-        self.tag_add_button = QPushButton()
-        self.tag_add_button.setObjectName("TagAddButton")
-        self.tag_add_button.setEnabled(False)
-        self.suggested_label = QLabel()
-        self.suggested_label.setObjectName("TagSectionTitle")
-        self.existing_label = QLabel()
-        self.existing_label.setObjectName("TagSectionTitle")
-        self.no_tags_label = QLabel()
-        self.no_tags_label.setObjectName("TagEmpty")
-
-        input_layout = QHBoxLayout()
-        input_layout.setContentsMargins(0, 0, 0, 0)
-        input_layout.setSpacing(6)
-        input_layout.addWidget(self.tag_input_label, 1)
-        input_layout.addWidget(self.tag_add_button)
-
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(9)
-        layout.addWidget(self.tags_title_label)
-        layout.addLayout(input_layout)
-        layout.addWidget(self.suggested_label)
-        layout.addLayout(
-            self._chip_row(["History", "Internet", "AOL", "America"])
+        self.tag_editor = TagEditorPanel()
+        self.tag_editor.close_requested.connect(
+            lambda: self.toggle_tags_action.setChecked(False)
         )
-        layout.addWidget(self.existing_label)
-        layout.addLayout(
-            self._chip_row(["AI", "Programming", "Open Source", "Apple"])
+        self.article_reader.set_overlay_widget(self.tag_editor)
+        self.toggle_tags_action.toggled.connect(
+            self._set_tag_panel_visible
         )
-        layout.addLayout(
-            self._chip_row(["Politics", "Hardware", "Business", "Writing"])
-        )
-        layout.addWidget(self.no_tags_label)
-        layout.addStretch(1)
 
-        self.tags_dock = QDockWidget(self)
-        self.tags_dock.setObjectName("TagsDock")
-        self.tags_dock.setWidget(panel)
-        self.tags_dock.visibilityChanged.connect(
-            self.toggle_tags_action.setChecked
-        )
-        self.toggle_tags_action.toggled.connect(self.tags_dock.setVisible)
-
-        self.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea,
-            self.tags_dock,
-        )
+    def _set_tag_panel_visible(self, visible: bool) -> None:
+        self.tag_editor.setVisible(visible)
+        self.article_reader.set_tag_panel_visible(visible)
 
     def _setup_summary_bar(self) -> None:
         self.summary_panel = SummaryPanel(
@@ -254,57 +200,84 @@ class MainWindow(QMainWindow):
             result_loader=self._summary_result_loader,
         )
 
+        self.summary_section = QFrame()
+        self.summary_section.setObjectName("SummarySection")
+
         self.summary_title_bar = QFrame()
-        self.summary_title_bar.setObjectName("SummaryDockTitleBar")
-        self.summary_title_label = QLabel()
-        self.summary_title_label.setObjectName("SummaryDockTitle")
-        self.summary_hide_button = QPushButton()
-        self.summary_hide_button.setObjectName("SummaryDockHideButton")
-        self.summary_hide_button.clicked.connect(
-            lambda: self.toggle_summary_action.setChecked(False)
+        self.summary_title_bar.setObjectName("SummarySectionTitleBar")
+        self.summary_title_button = QPushButton()
+        self.summary_title_button.setObjectName("SummarySectionToggleButton")
+        self.summary_title_button.clicked.connect(
+            lambda: self.toggle_summary_action.setChecked(
+                not self.toggle_summary_action.isChecked()
+            )
         )
 
         title_layout = QHBoxLayout(self.summary_title_bar)
-        title_layout.setContentsMargins(10, 3, 5, 3)
-        title_layout.setSpacing(8)
-        title_layout.addWidget(self.summary_title_label)
+        title_layout.setContentsMargins(7, 2, 7, 2)
+        title_layout.setSpacing(0)
+        title_layout.addWidget(self.summary_title_button)
         title_layout.addStretch(1)
-        title_layout.addWidget(self.summary_hide_button)
 
-        self.summary_dock = QDockWidget(self)
-        self.summary_dock.setObjectName("SummaryDock")
-        self.summary_dock.setMinimumHeight(210)
-        self.summary_dock.setWidget(self.summary_panel)
-        self.summary_dock.setTitleBarWidget(self.summary_title_bar)
-        self.summary_dock.setFeatures(
-            QDockWidget.DockWidgetFeature.NoDockWidgetFeatures
-        )
-        self.summary_dock.visibilityChanged.connect(
-            self.toggle_summary_action.setChecked
-        )
-        self.summary_dock.visibilityChanged.connect(
-            self.article_reader.set_summary_panel_visible
-        )
+        section_layout = QVBoxLayout(self.summary_section)
+        section_layout.setContentsMargins(0, 0, 0, 0)
+        section_layout.setSpacing(0)
+        section_layout.addWidget(self.summary_title_bar)
+        section_layout.addWidget(self.summary_panel, 1)
+
+        self.reader_splitter.addWidget(self.summary_section)
+        self.reader_splitter.setSizes([570, 230])
+        self.reader_splitter.setStretchFactor(0, 1)
+        self.reader_splitter.setStretchFactor(1, 0)
+        self.reader_splitter.setCollapsible(0, False)
+        self.reader_splitter.setCollapsible(1, False)
+        self._summary_section_height = 230
+
         self.toggle_summary_action.toggled.connect(
-            self.summary_dock.setVisible
+            self._set_summary_panel_visible
         )
-        self.addDockWidget(
-            Qt.DockWidgetArea.BottomDockWidgetArea,
-            self.summary_dock,
+        self._set_summary_panel_visible(False)
+
+    def _set_summary_panel_visible(self, visible: bool) -> None:
+        sizes = self.reader_splitter.sizes()
+        total_height = sum(sizes)
+
+        if not visible and self.summary_panel.isVisible():
+            if len(sizes) > 1 and sizes[1] > 0:
+                self._summary_section_height = sizes[1]
+
+        self.summary_panel.setVisible(visible)
+        self.article_reader.set_summary_panel_visible(visible)
+        self._update_summary_title()
+
+        if visible:
+            self.summary_section.setMaximumHeight(16_777_215)
+            self.summary_section.setMinimumHeight(180)
+            if total_height > 0:
+                summary_height = min(
+                    self._summary_section_height,
+                    max(180, total_height // 2),
+                )
+                self.reader_splitter.setSizes(
+                    [max(1, total_height - summary_height), summary_height]
+                )
+            return
+
+        self.summary_section.setMinimumHeight(0)
+        collapsed_height = self.summary_title_bar.sizeHint().height()
+        self.summary_section.setMaximumHeight(collapsed_height)
+        if total_height > 0:
+            self.reader_splitter.setSizes(
+                [max(1, total_height - collapsed_height), collapsed_height]
+            )
+
+    def _update_summary_title(self) -> None:
+        key = (
+            "summary.collapse"
+            if self.toggle_summary_action.isChecked()
+            else "summary.expand"
         )
-
-    def _chip_row(self, labels: list[str]) -> QHBoxLayout:
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(6)
-
-        for label_text in labels:
-            chip = QLabel(label_text)
-            chip.setProperty("chip", True)
-            row.addWidget(chip)
-
-        row.addStretch(1)
-        return row
+        self.summary_title_button.setText(self.translator.text(key))
 
     def _connect_signals(self) -> None:
         self.sidebar.feed_selected.connect(self._show_feed_articles)
@@ -318,6 +291,9 @@ class MainWindow(QMainWindow):
         )
         self.article_reader.summary_panel_visibility_requested.connect(
             self.toggle_summary_action.setChecked
+        )
+        self.article_reader.tag_panel_visibility_requested.connect(
+            self.toggle_tags_action.setChecked
         )
         self.summary_panel.settings_requested.connect(
             self._open_ai_settings
@@ -687,9 +663,6 @@ class MainWindow(QMainWindow):
         for action, description in shortcut_descriptions:
             action.setStatusTip(description)
             action.setToolTip(description)
-        self.main_toolbar.setWindowTitle(
-            self.translator.text("toolbar.main")
-        )
 
         self.sidebar.set_title(self.translator.text("sidebar.title"))
         self.sidebar.set_tabs(
@@ -706,8 +679,16 @@ class MainWindow(QMainWindow):
         self.sidebar.set_feed_detail_text(
             self.translator.text("sidebar.feed_detail")
         )
+        self.sidebar.set_tag_browser_texts(
+            self.translator.text("tags.title"),
+            self.translator.text("tags.browser_hint"),
+        )
+        self.sidebar.set_tags(list(TagEditorPanel.tag_names()))
         self.article_list.set_title(
             self.translator.text("article_list.title")
+        )
+        self.article_list.set_filter_text(
+            self.translator.text("article_list.unread_filter")
         )
         self.article_list.set_entry_meta_text(
             self.translator.text("article_list.entry_meta")
@@ -743,28 +724,24 @@ class MainWindow(QMainWindow):
             text=self.translator.text("reader.summary_toggle"),
             tooltip=self.translator.text("reader.summary_toggle_tooltip"),
         )
+        self.article_reader.set_tag_toggle_texts(
+            text=self.translator.text("reader.tags_toggle"),
+            tooltip=self.translator.text("reader.tags_toggle_tooltip"),
+        )
 
-        self.tags_dock.setWindowTitle(self.translator.text("tags.title"))
-        self.tags_title_label.setText(self.translator.text("tags.title"))
-        self.tag_input_label.setText(
-            self.translator.text("tags.input_placeholder")
+        self.tag_editor.set_texts(
+            title=self.translator.text("tags.title"),
+            input_placeholder=self.translator.text("tags.input_placeholder"),
+            add=self.translator.text("tags.add"),
+            suggested=self.translator.text("tags.suggested"),
+            existing=self.translator.text("tags.existing"),
+            empty=self.translator.text("tags.empty"),
+            close_tooltip=self.translator.text("tags.close"),
         )
-        self.tag_add_button.setText(self.translator.text("tags.add"))
-        self.suggested_label.setText(self.translator.text("tags.suggested"))
-        self.existing_label.setText(self.translator.text("tags.existing"))
-        self.no_tags_label.setText(self.translator.text("tags.empty"))
 
-        self.summary_dock.setWindowTitle(
-            self.translator.text("summary.title")
-        )
-        self.summary_title_label.setText(
-            self.translator.text("summary.title")
-        )
-        self.summary_hide_button.setText(
-            self.translator.text("summary.hide_panel")
-        )
-        self.summary_hide_button.setToolTip(
-            self.translator.text("summary.hide_panel_tooltip")
+        self._update_summary_title()
+        self.summary_title_button.setToolTip(
+            self.translator.text("reader.summary_toggle_tooltip")
         )
         self.summary_panel.set_translator(self.translator)
 

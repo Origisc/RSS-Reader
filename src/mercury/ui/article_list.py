@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QListView,
     QListWidget,
     QListWidgetItem,
+    QPushButton,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QVBoxLayout,
@@ -72,14 +73,24 @@ class ArticleList(QWidget):
         self.setObjectName("ArticleListPanel")
         self._entry_meta_text = "Mock entry"
         self._color_scheme = "dark"
+        self._articles: list[Article] = []
+        self._read_article_ids: set[str] = set()
 
         self.title_label = QLabel()
         self.title_label.setObjectName("PanelTitle")
 
+        self.unread_filter_button = QPushButton()
+        self.unread_filter_button.setObjectName("EntryFilterButton")
+        self.unread_filter_button.setCheckable(True)
+        self.unread_filter_button.toggled.connect(
+            lambda _checked: self._render_articles()
+        )
+
         header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(12, 10, 12, 6)
+        header_layout.setContentsMargins(12, 7, 10, 6)
         header_layout.addWidget(self.title_label)
         header_layout.addStretch(1)
+        header_layout.addWidget(self.unread_filter_button)
 
         self.list_widget = QListWidget()
         self.list_widget.setObjectName("EntryList")
@@ -109,13 +120,21 @@ class ArticleList(QWidget):
         articles: list[Article],
         read_article_ids: Collection[str] | None = None,
     ) -> None:
-        self.list_widget.clear()
-        read_ids = set(read_article_ids or set())
+        self._articles = list(articles)
+        self._read_article_ids = set(read_article_ids or set())
+        self._render_articles()
 
-        for article in articles:
+    def _render_articles(self) -> None:
+        self.list_widget.clear()
+
+        for article in self._articles:
+            is_read = article.id in self._read_article_ids
+            if self.unread_filter_button.isChecked() and is_read:
+                continue
+
             item = QListWidgetItem()
             item.setData(ARTICLE_ID_ROLE, article.id)
-            item.setData(READ_STATE_ROLE, article.id in read_ids)
+            item.setData(READ_STATE_ROLE, is_read)
             item.setData(ARTICLE_TITLE_ROLE, article.title)
             item.setData(ARTICLE_SOURCE_ROLE, article.source_title)
             item.setToolTip(article.title)
@@ -126,6 +145,15 @@ class ArticleList(QWidget):
         self.list_widget.doItemsLayout()
 
     def set_read_state(self, article_id: str, is_read: bool) -> None:
+        if is_read:
+            self._read_article_ids.add(article_id)
+        else:
+            self._read_article_ids.discard(article_id)
+
+        if self.unread_filter_button.isChecked():
+            self._render_articles()
+            return
+
         for index in range(self.list_widget.count()):
             item = self.list_widget.item(index)
 
@@ -145,6 +173,9 @@ class ArticleList(QWidget):
 
     def set_title(self, title: str) -> None:
         self.title_label.setText(title)
+
+    def set_filter_text(self, unread: str) -> None:
+        self.unread_filter_button.setText(unread)
 
     def set_entry_meta_text(self, text: str) -> None:
         self._entry_meta_text = text

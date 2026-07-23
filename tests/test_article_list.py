@@ -77,6 +77,16 @@ class ArticleListTest(unittest.TestCase):
         self.assertIs(self.panel.list_widget.currentItem(), selected_item)
         self.assertIn("Local cached entry", selected_item.text())
 
+    def test_unread_filter_updates_when_read_state_changes(self) -> None:
+        self.panel.unread_filter_button.setChecked(True)
+        self.assertEqual(self.panel.list_widget.count(), 1)
+
+        self.panel.set_read_state("long-title", True)
+        self.assertEqual(self.panel.list_widget.count(), 0)
+
+        self.panel.set_read_state("long-title", False)
+        self.assertEqual(self.panel.list_widget.count(), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

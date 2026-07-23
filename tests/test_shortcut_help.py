@@ -47,12 +47,12 @@ class ShortcutHelpDialogTest(unittest.TestCase):
         dialog.close()
         dialog.deleteLater()
 
-    def test_main_toolbar_action_opens_complete_shortcut_reference(self) -> None:
+    def test_help_menu_action_opens_complete_shortcut_reference(self) -> None:
         window = MainWindow(MockArticleService())
 
         self.assertIn(
             window.shortcut_help_action,
-            window.main_toolbar.actions(),
+            window.help_menu.actions(),
         )
         self.assertEqual(
             window.shortcut_help_action.shortcut().toString(),

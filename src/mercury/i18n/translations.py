@@ -30,8 +30,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "sidebar.tab.feeds": "Feeds",
         "sidebar.tab.tags": "Tags",
         "sidebar.feed_detail": "{count} 未读",
-        "sidebar.footer": "Feeds: 3 · Entries: 本地缓存",
+        "sidebar.footer": "Feeds: {feeds} · 未读: {unread}",
         "article_list.title": "Entries",
+        "article_list.unread_filter": "未读",
         "article_list.entry_meta": "本地缓存条目",
         "article_reader.title": "Reader",
         "article_reader.welcome_title": "欢迎使用 Mercury",
@@ -52,6 +53,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "reader.summary_toggle_tooltip": (
             "显示或隐藏摘要面板（Ctrl+Shift+S）"
         ),
+        "reader.tags_toggle": "标签",
+        "reader.tags_toggle_tooltip": "显示或隐藏当前文章的标签编辑器",
         "feed.add_dialog.title": "添加 Feed",
         "feed.add_dialog.label": "Feed URL：",
         "feed.delete_dialog.title": "删除 Feed",
@@ -118,12 +121,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "shortcuts.exit": "退出 Mercury",
         "shortcuts.close": "关闭",
         "tags.title": "Tags",
+        "tags.browser_hint": "浏览本地标签；文章标签可在 Reader 中编辑。",
         "tags.input_placeholder": "输入标签，逗号分隔",
         "tags.add": "添加",
+        "tags.close": "关闭标签编辑器",
         "tags.suggested": "Suggested",
         "tags.existing": "Existing",
         "tags.empty": "No tags yet",
         "summary.title": "Summary",
+        "summary.expand": "⌄ Summary",
+        "summary.collapse": "⌃ Summary",
         "summary.hide_panel": "隐藏",
         "summary.hide_panel_tooltip": (
             "隐藏摘要面板；可通过 Reader 工具栏或 Ctrl+Shift+S 恢复"
@@ -184,8 +191,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "sidebar.tab.feeds": "Feeds",
         "sidebar.tab.tags": "Tags",
         "sidebar.feed_detail": "{count} unread",
-        "sidebar.footer": "Feeds: 3 · Entries: local cache",
+        "sidebar.footer": "Feeds: {feeds} · Unread: {unread}",
         "article_list.title": "Entries",
+        "article_list.unread_filter": "Unread",
         "article_list.entry_meta": "Local cached entry",
         "article_reader.title": "Reader",
         "article_reader.welcome_title": "Welcome to Mercury",
@@ -210,6 +218,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "reader.summary_toggle": "Summary",
         "reader.summary_toggle_tooltip": (
             "Show or hide the Summary panel (Ctrl+Shift+S)"
+        ),
+        "reader.tags_toggle": "Tags",
+        "reader.tags_toggle_tooltip": (
+            "Show or hide the tag editor for the current article"
         ),
         "feed.add_dialog.title": "Add Feed",
         "feed.add_dialog.label": "Feed URL:",
@@ -287,12 +299,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "shortcuts.exit": "Exit Mercury",
         "shortcuts.close": "Close",
         "tags.title": "Tags",
+        "tags.browser_hint": (
+            "Browse local tags; edit article tags from the Reader."
+        ),
         "tags.input_placeholder": "Type tags (comma-separated)",
         "tags.add": "Add",
+        "tags.close": "Close tag editor",
         "tags.suggested": "Suggested",
         "tags.existing": "Existing",
         "tags.empty": "No tags yet",
         "summary.title": "Summary",
+        "summary.expand": "⌄ Summary",
+        "summary.collapse": "⌃ Summary",
         "summary.hide_panel": "Hide",
         "summary.hide_panel_tooltip": (
             "Hide the Summary panel; restore it from the Reader toolbar "

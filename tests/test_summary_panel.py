@@ -389,39 +389,63 @@ class MainWindowSummaryIntegrationTest(unittest.TestCase):
         window.close()
         window.deleteLater()
 
-    def test_summary_hide_button_can_be_reopened_from_view_action(self) -> None:
+    def test_summary_is_embedded_below_reader_only(self) -> None:
         window = MainWindow(MockArticleService())
         window.show()
         self.app.processEvents()
 
-        self.assertTrue(window.summary_hide_button.isVisible())
-        self.assertEqual(
-            window.summary_hide_button.text(),
-            window.translator.text("summary.hide_panel"),
+        self.assertIs(window.splitter.widget(2), window.reader_splitter)
+        self.assertIs(
+            window.reader_splitter.widget(0),
+            window.article_reader,
+        )
+        self.assertIs(
+            window.reader_splitter.widget(1),
+            window.summary_section,
         )
         self.assertEqual(
-            window.summary_hide_button.toolTip(),
-            window.translator.text("summary.hide_panel_tooltip"),
+            window.summary_section.width(),
+            window.reader_splitter.width(),
         )
+        self.assertLess(window.summary_section.width(), window.width())
+        window.close()
+        window.deleteLater()
 
-        window.summary_hide_button.click()
+    def test_summary_strip_expands_and_collapses_from_view_action(self) -> None:
+        window = MainWindow(MockArticleService())
+        window.show()
         self.app.processEvents()
 
-        self.assertFalse(window.summary_dock.isVisible())
-        self.assertFalse(window.toggle_summary_action.isChecked())
+        self.assertTrue(window.summary_title_button.isVisible())
+        self.assertEqual(
+            window.summary_title_button.text(),
+            window.translator.text("summary.expand"),
+        )
+        self.assertFalse(window.summary_panel.isVisible())
+        self.assertTrue(window.summary_section.isVisible())
+
+        window.summary_title_button.click()
+        self.app.processEvents()
+
+        self.assertTrue(window.summary_panel.isVisible())
+        self.assertTrue(window.toggle_summary_action.isChecked())
 
         window.toggle_summary_action.trigger()
         self.app.processEvents()
 
-        self.assertTrue(window.summary_dock.isVisible())
-        self.assertTrue(window.toggle_summary_action.isChecked())
+        self.assertFalse(window.summary_panel.isVisible())
+        self.assertTrue(window.summary_section.isVisible())
+        self.assertFalse(window.toggle_summary_action.isChecked())
         window.close()
         window.deleteLater()
 
-    def test_reader_toolbar_hides_entire_dock_and_preserves_state(self) -> None:
+    def test_reader_toolbar_hides_summary_section_and_preserves_state(
+        self,
+    ) -> None:
         window = MainWindow(MockArticleService())
         window.show()
         window._show_article("mercury-start")
+        window.toggle_summary_action.setChecked(True)
         window.summary_panel.summary_content.setPlainText(
             "Session summary remains available."
         )
@@ -436,7 +460,8 @@ class MainWindowSummaryIntegrationTest(unittest.TestCase):
         window.article_reader.summary_toggle_button.click()
         self.app.processEvents()
 
-        self.assertFalse(window.summary_dock.isVisible())
+        self.assertFalse(window.summary_panel.isVisible())
+        self.assertTrue(window.summary_section.isVisible())
         self.assertFalse(window.toggle_summary_action.isChecked())
         self.assertFalse(
             window.article_reader.summary_toggle_button.isChecked()
@@ -445,7 +470,7 @@ class MainWindowSummaryIntegrationTest(unittest.TestCase):
         window.article_reader.summary_toggle_button.click()
         self.app.processEvents()
 
-        self.assertTrue(window.summary_dock.isVisible())
+        self.assertTrue(window.summary_panel.isVisible())
         self.assertTrue(window.toggle_summary_action.isChecked())
         self.assertEqual(
             window.summary_panel.summary_content.toPlainText(),
@@ -454,7 +479,9 @@ class MainWindowSummaryIntegrationTest(unittest.TestCase):
         window.close()
         window.deleteLater()
 
-    def test_hiding_dock_does_not_cancel_background_generation(self) -> None:
+    def test_collapsing_section_does_not_cancel_background_generation(
+        self,
+    ) -> None:
         started = threading.Event()
         release = threading.Event()
         agent = SummaryAgent(
@@ -472,12 +499,13 @@ class MainWindowSummaryIntegrationTest(unittest.TestCase):
         )
         window.show()
         window._show_article("mercury-start")
+        window.toggle_summary_action.setChecked(True)
         spy = QSignalSpy(window.summary_panel.generation_completed)
 
         window.summary_panel.generate_button.click()
         self.assertTrue(started.wait(1))
         window.article_reader.summary_toggle_button.click()
-        self.assertFalse(window.summary_dock.isVisible())
+        self.assertFalse(window.summary_panel.isVisible())
 
         release.set()
         self.assertTrue(wait_for_signal(self.app, spy))
@@ -488,7 +516,7 @@ class MainWindowSummaryIntegrationTest(unittest.TestCase):
 
         window.article_reader.summary_toggle_button.click()
         self.app.processEvents()
-        self.assertTrue(window.summary_dock.isVisible())
+        self.assertTrue(window.summary_panel.isVisible())
         window.summary_panel._thread_pool.waitForDone(2000)
         window.close()
         window.deleteLater()

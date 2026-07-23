@@ -43,6 +43,14 @@ class TranslatorTest(unittest.TestCase):
                 translator.text("reader.view.cleaned_html"),
                 "reader.view.cleaned_html",
             )
+            self.assertNotEqual(
+                translator.text("reader.tags_toggle"),
+                "reader.tags_toggle",
+            )
+            self.assertNotEqual(
+                translator.text("article_list.unread_filter"),
+                "article_list.unread_filter",
+            )
             self.assertIn(
                 "{error}",
                 translator.text("reader.status.fallback_error"),

@@ -25,8 +25,8 @@ Known `SummaryErrorCode` values map to localized UI messages. Unexpected worker 
 
 Summary controls also set explicit text, placeholder, base, and popup-list colors. This avoids native Windows/Linux/macOS widget palettes falling back to unreadable black text in dark mode.
 
-Closing the Summary dock only hides it. A checkable **View → Summary Panel** action tracks dock visibility and restores the same panel instance, including its in-session results and controls.
+Summary is part of the Reader column rather than a window-wide bottom dock. The Reader and Summary areas are stacked in a vertical splitter, so Summary follows the Reader width and the user can adjust their relative heights without reducing the Feeds or Entries height.
 
-The Reader toolbar exposes the same visibility state as a prominent checkable Summary button with `Ctrl+Shift+S`. Hiding the dock removes both its content and title bar, does not cancel an active background request, and does not discard in-session results.
+Collapsing Summary keeps a narrow title strip visible and the same panel instance alive. A checkable **View → Summary Panel** action, the strip, and the Reader toolbar expose the same expanded state with `Ctrl+Shift+S`; collapsing the section does not cancel an active background request or discard in-session results.
 
-The Summary dock uses a custom fixed title bar instead of native float/close controls, because Windows and Qt platform styles can repaint those icons with unreadable colors. A high-contrast localized **Hide** button replaces both ambiguous icons. The Reader toolbar, View menu, and `Ctrl+Shift+S` remain the recovery paths.
+The embedded Summary section uses a compact clickable title strip, matching the Reader-first layout while keeping Summary discoverable. The Reader toolbar, View menu, and `Ctrl+Shift+S` remain equivalent controls.
