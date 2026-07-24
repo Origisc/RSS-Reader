@@ -13,10 +13,13 @@ class LLMProviderError(RuntimeError):
 class LLMRequest:
     prompt: str
     system_prompt: str = ""
+    temperature: float | None = None
 
     def __post_init__(self) -> None:
         if not self.prompt.strip():
             raise ValueError("Prompt cannot be empty.")
+        if self.temperature is not None and not 0 <= self.temperature <= 2:
+            raise ValueError("Temperature must be between 0 and 2.")
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,6 +1,7 @@
 from collections.abc import Callable
+import inspect
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal, Slot
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QComboBox,
@@ -10,30 +11,24 @@ from PySide6.QtWidgets import (
     QLabel,
     QPlainTextEdit,
     QPushButton,
-    QScrollArea,
     QVBoxLayout,
-    QWidget,
 )
 
 from mercury.agents import TranslationOptions, TranslationSource
 from mercury.domain import (
     TranslationErrorCode,
-    TranslationParagraph,
-    TranslationParagraphStatus,
     TranslationResult,
     TranslationStatus,
 )
 from mercury.i18n import Translator
 
 
-TranslationGenerator = Callable[
-    [TranslationSource, TranslationOptions],
-    TranslationResult,
-]
+TranslationGenerator = Callable[..., TranslationResult]
 TranslationResultLoader = Callable[[str], TranslationResult | None]
 
 
 class _TranslationWorkerSignals(QObject):
+    progress = Signal(int, object)
     completed = Signal(int, object)
     failed = Signal(int)
 
@@ -57,87 +52,43 @@ class _TranslationWorker(QRunnable):
     @Slot()
     def run(self) -> None:
         try:
-            result = self.generator(self.source, self.options)
+            if self._supports_progress_callback():
+                result = self.generator(
+                    self.source,
+                    self.options,
+                    progress_callback=self._emit_progress,
+                )
+            else:
+                result = self.generator(self.source, self.options)
         except Exception:
             self.signals.failed.emit(self.token)
             return
 
         self.signals.completed.emit(self.token, result)
 
+    def _supports_progress_callback(self) -> bool:
+        try:
+            parameters = inspect.signature(self.generator).parameters
+        except (TypeError, ValueError):
+            return False
 
-class TranslationParagraphRow(QFrame):
-    """One original/translated pair that wraps with the available width."""
-
-    def __init__(
-        self,
-        paragraph: TranslationParagraph,
-        original_heading: str,
-        translated_heading: str,
-        translated_fallback: str,
-        status_text: str,
-        parent=None,
-    ) -> None:
-        super().__init__(parent)
-
-        self.setObjectName("TranslationParagraphRow")
-        self.paragraph = paragraph
-
-        self.original_header_label = QLabel(original_heading)
-        self.original_header_label.setObjectName(
-            "TranslationOriginalHeader"
+        return (
+            "progress_callback" in parameters
+            or any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD
+                for parameter in parameters.values()
+            )
         )
 
-        self.original_text_label = QLabel(paragraph.original_text)
-        self.original_text_label.setObjectName("TranslationOriginalText")
-        self.original_text_label.setWordWrap(True)
-        self.original_text_label.setMinimumWidth(0)
-        self.original_text_label.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
-        )
-        self.original_text_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
-
-        translated_text = (
-            paragraph.translated_text
-            if paragraph.translated_text.strip()
-            else translated_fallback
-        )
-        self.translated_header_label = QLabel(translated_heading)
-        self.translated_header_label.setObjectName(
-            "TranslationTranslatedHeader"
-        )
-
-        self.translated_text_label = QLabel(translated_text)
-        self.translated_text_label.setObjectName("TranslationTranslatedText")
-        self.translated_text_label.setWordWrap(True)
-        self.translated_text_label.setMinimumWidth(0)
-        self.translated_text_label.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
-        )
-        self.translated_text_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
-
-        self.status_label = QLabel(status_text)
-        self.status_label.setObjectName("TranslationParagraphStatus")
-        self.status_label.setWordWrap(True)
-
-        layout = QGridLayout(self)
-        layout.setContentsMargins(10, 8, 10, 8)
-        layout.setVerticalSpacing(6)
-        layout.addWidget(self.original_header_label, 0, 0)
-        layout.addWidget(self.original_text_label, 1, 0)
-        layout.addWidget(self.translated_header_label, 2, 0)
-        layout.addWidget(self.translated_text_label, 3, 0)
-        layout.addWidget(self.status_label, 4, 0)
-        layout.setColumnStretch(0, 1)
+    def _emit_progress(self, result: TranslationResult) -> None:
+        self.signals.progress.emit(self.token, result)
 
 
 class TranslationPanel(QFrame):
-    """Asynchronous paragraph comparison UI that preserves every original."""
+    """Compact controls for generating Reader-embedded translations."""
 
     settings_requested = Signal()
+    generation_progress = Signal(object)
     generation_completed = Signal(object)
     generation_failed = Signal()
 
@@ -155,6 +106,12 @@ class TranslationPanel(QFrame):
         ),
         TranslationErrorCode.EMPTY_RESPONSE: (
             "translation.error.empty_response"
+        ),
+        TranslationErrorCode.WRONG_LANGUAGE: (
+            "translation.error.wrong_language"
+        ),
+        TranslationErrorCode.INCOMPLETE_RESPONSE: (
+            "translation.error.incomplete_response"
         ),
         TranslationErrorCode.STORAGE_FAILURE: (
             "translation.status.storage_warning"
@@ -185,7 +142,6 @@ class TranslationPanel(QFrame):
         self._is_running = False
         self._state = "no_article"
         self._last_error_code: TranslationErrorCode | None = None
-        self.paragraph_rows: list[TranslationParagraphRow] = []
 
         self.language_label = QLabel()
         self.language_label.setObjectName("TranslationFieldLabel")
@@ -213,24 +169,11 @@ class TranslationPanel(QFrame):
         self.timestamp_label = QLabel()
         self.timestamp_label.setObjectName("TranslationTimestamp")
 
-        self.comparison_container = QWidget()
-        self.comparison_container.setObjectName("TranslationComparisonContent")
-        self.comparison_layout = QVBoxLayout(self.comparison_container)
-        self.comparison_layout.setContentsMargins(0, 0, 0, 0)
-        self.comparison_layout.setSpacing(8)
-        self.comparison_layout.addStretch(1)
-
-        self.comparison_scroll = QScrollArea()
-        self.comparison_scroll.setObjectName("TranslationComparisonScroll")
-        self.comparison_scroll.setWidgetResizable(True)
-        self.comparison_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.comparison_scroll.setWidget(self.comparison_container)
-        self.comparison_scroll.setMinimumHeight(120)
-
-        self.empty_label = QLabel()
-        self.empty_label.setObjectName("TranslationEmpty")
-        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_label.setWordWrap(True)
+        self.result_location_label = QLabel()
+        self.result_location_label.setObjectName(
+            "TranslationResultLocation"
+        )
+        self.result_location_label.setWordWrap(True)
 
         controls_layout = QGridLayout()
         controls_layout.setContentsMargins(0, 0, 0, 0)
@@ -255,8 +198,7 @@ class TranslationPanel(QFrame):
         layout.setSpacing(8)
         layout.addLayout(controls_layout)
         layout.addLayout(action_layout)
-        layout.addWidget(self.comparison_scroll, 1)
-        layout.addWidget(self.empty_label, 1)
+        layout.addWidget(self.result_location_label)
 
         self.set_translator(translator)
         self.clear_article()
@@ -287,7 +229,6 @@ class TranslationPanel(QFrame):
                 result = self._result_loader(source.article_id)
             except Exception:
                 self._displayed_result = None
-                self._clear_paragraph_rows()
                 self._state = "load_failed"
                 self._render_state()
                 return
@@ -298,7 +239,6 @@ class TranslationPanel(QFrame):
             return
 
         self._displayed_result = None
-        self._clear_paragraph_rows()
         self._state = "ready" if self._generator is not None else "unavailable"
         self._render_state()
 
@@ -308,7 +248,6 @@ class TranslationPanel(QFrame):
         self._displayed_result = None
         self._last_error_code = None
         self._state = "no_article"
-        self._clear_paragraph_rows()
         self._render_state()
 
     def set_translator(self, translator: Translator) -> None:
@@ -325,8 +264,8 @@ class TranslationPanel(QFrame):
         self.configure_button.setText(
             translator.text("translation.configure_ai")
         )
-        self.empty_label.setText(
-            translator.text("translation.comparison_placeholder")
+        self.result_location_label.setText(
+            translator.text("translation.result_location")
         )
         self._replace_combo_items(
             [
@@ -335,8 +274,6 @@ class TranslationPanel(QFrame):
             ],
             default_value="Simplified Chinese",
         )
-        if self._displayed_result is not None:
-            self._render_paragraph_rows(self._displayed_result)
         self._render_state()
 
     def set_color_scheme(self, theme: str) -> None:
@@ -390,10 +327,28 @@ class TranslationPanel(QFrame):
             self._current_source,
             options,
         )
+        worker.signals.progress.connect(self._handle_progress)
         worker.signals.completed.connect(self._handle_completed)
         worker.signals.failed.connect(self._handle_failed)
         self._workers[token] = worker
         self._thread_pool.start(worker)
+
+    @Slot(int, object)
+    def _handle_progress(self, token: int, value: object) -> None:
+        if (
+            token != self._active_token
+            or self._current_source is None
+            or not isinstance(value, TranslationResult)
+            or value.article_id != self._current_source.article_id
+            or not value.paragraphs
+        ):
+            return
+
+        self._displayed_result = value
+        self._result_cache[value.article_id] = value
+        self._state = "running"
+        self._render_state()
+        self.generation_progress.emit(value)
 
     @Slot(int, object)
     def _handle_completed(self, token: int, value: object) -> None:
@@ -442,7 +397,6 @@ class TranslationPanel(QFrame):
     def _show_result(self, result: TranslationResult) -> None:
         self._displayed_result = result
         self._last_error_code = result.error_code
-        self._render_paragraph_rows(result)
 
         if result.storage_error_code is not None:
             self._state = "storage_warning"
@@ -454,69 +408,6 @@ class TranslationPanel(QFrame):
             self._state = "result_failure"
 
         self._render_state()
-
-    def _render_paragraph_rows(self, result: TranslationResult) -> None:
-        self._clear_paragraph_rows()
-        fallback = self._translator.text(
-            "translation.paragraph.unavailable"
-        )
-
-        for paragraph in result.paragraphs:
-            row = TranslationParagraphRow(
-                paragraph,
-                self._translator.text(
-                    "translation.paragraph.original_heading"
-                ).format(number=paragraph.index + 1),
-                self._translator.text(
-                    "translation.paragraph.translated_heading"
-                ),
-                fallback,
-                self._paragraph_status_text(paragraph),
-                self.comparison_container,
-            )
-            self.comparison_layout.insertWidget(
-                self.comparison_layout.count() - 1,
-                row,
-            )
-            self.paragraph_rows.append(row)
-
-        has_rows = bool(self.paragraph_rows)
-        self.comparison_scroll.setVisible(has_rows)
-        self.empty_label.setVisible(not has_rows)
-
-    def _clear_paragraph_rows(self) -> None:
-        for row in self.paragraph_rows:
-            self.comparison_layout.removeWidget(row)
-            row.deleteLater()
-        self.paragraph_rows.clear()
-        self.comparison_scroll.setVisible(False)
-        self.empty_label.setVisible(True)
-
-    def _paragraph_status_text(
-        self,
-        paragraph: TranslationParagraph,
-    ) -> str:
-        number = paragraph.index + 1
-        if paragraph.status is TranslationParagraphStatus.TRANSLATED:
-            return self._translator.text(
-                "translation.paragraph.translated"
-            ).format(number=number)
-
-        if paragraph.status is TranslationParagraphStatus.PARTIAL:
-            return self._translator.text(
-                "translation.paragraph.partial"
-            ).format(number=number)
-
-        error_key = self._ERROR_KEYS.get(
-            paragraph.error_code,
-            "translation.error.unexpected",
-        )
-        return self._translator.text(
-            "translation.paragraph.failed"
-        ).format(
-            number=number,
-            error=self._translator.text(error_key),
-        )
 
     def _render_state(self) -> None:
         state_keys = {

@@ -144,7 +144,7 @@ class TranslationPanelTest(unittest.TestCase):
 
         self.assertEqual(settings_spy.count(), 1)
 
-    def test_structured_result_displays_original_then_translation(
+    def test_structured_result_is_emitted_for_reader_rendering(
         self,
     ) -> None:
         calls: list[tuple[TranslationSource, TranslationOptions]] = []
@@ -181,47 +181,90 @@ class TranslationPanelTest(unittest.TestCase):
         panel.generate_button.click()
         self._wait_for(spy)
 
-        self.assertEqual(len(panel.paragraph_rows), 2)
+        self.assertIs(panel.displayed_result, result)
         self.assertEqual(
-            panel.paragraph_rows[0].original_text_label.text(),
+            panel.displayed_result.paragraphs[0].original_text,
             "First original.",
         )
         self.assertEqual(
-            panel.paragraph_rows[0].translated_text_label.text(),
+            panel.displayed_result.paragraphs[0].translated_text,
             "第一段译文。",
         )
         self.assertEqual(
-            panel.paragraph_rows[1].original_text_label.text(),
+            panel.displayed_result.paragraphs[1].original_text,
             "Second original.",
         )
         self.assertEqual(
-            panel.paragraph_rows[1].translated_text_label.text(),
+            panel.displayed_result.paragraphs[1].translated_text,
             "第二段译文。",
         )
-        first_row = panel.paragraph_rows[0]
-        row_layout = first_row.layout()
-        self.assertIs(
-            row_layout.itemAtPosition(1, 0).widget(),
-            first_row.original_text_label,
-        )
-        self.assertIs(
-            row_layout.itemAtPosition(3, 0).widget(),
-            first_row.translated_text_label,
-        )
-        self.assertEqual(
-            first_row.original_header_label.text(),
-            "原文 · 段落 1",
-        )
-        self.assertEqual(
-            first_row.translated_header_label.text(),
-            "译文",
-        )
+        self.assertFalse(hasattr(panel, "paragraph_rows"))
+        self.assertFalse(hasattr(panel, "comparison_scroll"))
+        self.assertIn("Reader 正文", panel.result_location_label.text())
         self.assertEqual(calls[0][1].target_language, "Simplified Chinese")
         self.assertEqual(
             calls[0][1].custom_prompt,
             "Keep product names unchanged.",
         )
         self.assertIn("已完成", panel.status_label.text())
+
+    def test_progressive_result_is_emitted_before_completion(self) -> None:
+        progress_result = translation_result(
+            paragraphs=(
+                paragraph(
+                    0,
+                    "First original.",
+                    "第一段已先显示。",
+                    TranslationParagraphStatus.TRANSLATED,
+                ),
+                paragraph(
+                    1,
+                    "Second original.",
+                    "",
+                    TranslationParagraphStatus.PARTIAL,
+                ),
+            ),
+            status=TranslationStatus.PARTIAL,
+        )
+        completed_result = translation_result(
+            paragraphs=(
+                paragraph(
+                    0,
+                    "First original.",
+                    "第一段已先显示。",
+                    TranslationParagraphStatus.TRANSLATED,
+                ),
+                paragraph(
+                    1,
+                    "Second original.",
+                    "第二段最终译文。",
+                    TranslationParagraphStatus.TRANSLATED,
+                ),
+            ),
+            status=TranslationStatus.COMPLETED,
+        )
+
+        def generate(
+            _source: TranslationSource,
+            _options: TranslationOptions,
+            *,
+            progress_callback,
+        ) -> TranslationResult:
+            progress_callback(progress_result)
+            return completed_result
+
+        panel = self._panel(Translator("zh_CN"), generator=generate)
+        panel.set_article(translation_source())
+        progress_spy = QSignalSpy(panel.generation_progress)
+        completed_spy = QSignalSpy(panel.generation_completed)
+
+        panel.generate_button.click()
+        self._wait_for(completed_spy)
+
+        self.assertEqual(progress_spy.count(), 1)
+        emitted_progress = progress_spy.at(0)[0]
+        self.assertIs(emitted_progress, progress_result)
+        self.assertIs(panel.displayed_result, completed_result)
 
     def test_failed_paragraph_keeps_original_and_localizes_error(self) -> None:
         result = translation_result(
@@ -252,21 +295,16 @@ class TranslationPanelTest(unittest.TestCase):
         panel.generate_button.click()
         self._wait_for(spy)
 
-        failed_row = panel.paragraph_rows[1]
+        displayed = panel.displayed_result
+        self.assertIsNotNone(displayed)
+        failed_paragraph = displayed.paragraphs[1]
         self.assertEqual(
-            failed_row.original_text_label.text(),
+            failed_paragraph.original_text,
             "Original must stay visible.",
         )
-        self.assertEqual(
-            failed_row.translated_text_label.text(),
-            "Translation unavailable",
-        )
-        self.assertIn("original remains readable", failed_row.status_label.text())
-        self.assertNotIn(
-            "Backend details",
-            failed_row.status_label.text(),
-        )
-        self.assertIn("every original is retained", panel.status_label.text())
+        self.assertEqual(failed_paragraph.translated_text, "")
+        self.assertNotIn("Backend details", panel.status_label.text())
+        self.assertIn("remains in Reader", panel.status_label.text())
 
     def test_total_failure_still_displays_every_original(self) -> None:
         result = translation_result(
@@ -299,11 +337,10 @@ class TranslationPanelTest(unittest.TestCase):
         panel.generate_button.click()
         self._wait_for(spy)
 
+        displayed = panel.displayed_result
+        self.assertIsNotNone(displayed)
         self.assertEqual(
-            [
-                row.original_text_label.text()
-                for row in panel.paragraph_rows
-            ],
+            [item.original_text for item in displayed.paragraphs],
             [
                 "First retained original.",
                 "Second retained original.",
@@ -311,9 +348,8 @@ class TranslationPanelTest(unittest.TestCase):
         )
         self.assertTrue(
             all(
-                row.translated_text_label.text()
-                == "Translation unavailable"
-                for row in panel.paragraph_rows
+                not item.translated_text
+                for item in displayed.paragraphs
             )
         )
         self.assertIn("original remains readable", panel.status_label.text())
@@ -362,7 +398,7 @@ class TranslationPanelTest(unittest.TestCase):
         self._wait_for(second_spy)
 
         self.assertEqual(
-            panel.paragraph_rows[0].translated_text_label.text(),
+            panel.displayed_result.paragraphs[0].translated_text,
             "Regenerated translation.",
         )
 
@@ -384,7 +420,9 @@ class TranslationPanelTest(unittest.TestCase):
             "#f3f6f9",
         )
 
-    def test_runtime_language_switch_updates_failure_rows(self) -> None:
+    def test_runtime_language_switch_updates_reader_location_and_status(
+        self,
+    ) -> None:
         result = translation_result(
             paragraphs=(
                 paragraph(
@@ -406,18 +444,7 @@ class TranslationPanelTest(unittest.TestCase):
 
         panel.set_translator(Translator("zh_CN"))
 
-        self.assertEqual(
-            panel.paragraph_rows[0].original_header_label.text(),
-            "原文 · 段落 1",
-        )
-        self.assertEqual(
-            panel.paragraph_rows[0].translated_header_label.text(),
-            "译文",
-        )
-        self.assertEqual(
-            panel.paragraph_rows[0].translated_text_label.text(),
-            "译文暂不可用",
-        )
+        self.assertIn("Reader 正文", panel.result_location_label.text())
         self.assertIn("原文仍可阅读", panel.status_label.text())
 
 
@@ -426,7 +453,7 @@ class TranslationPanelMainWindowTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
 
-    def test_reader_translation_section_and_shortcut_preserve_article(
+    def test_reader_inline_translation_controls_and_shortcut_preserve_article(
         self,
     ) -> None:
         window = MainWindow(MockArticleService())
@@ -434,22 +461,22 @@ class TranslationPanelMainWindowTest(unittest.TestCase):
         window._show_article("mercury-start")
         self.app.processEvents()
 
+        self.assertEqual(window.reader_splitter.count(), 2)
         self.assertIs(
-            window.reader_splitter.widget(2),
-            window.translation_section,
+            window.translation_panel.parentWidget(),
+            window.article_reader,
         )
         self.assertEqual(
             window.translation_panel.current_article_id,
             "mercury-start",
         )
         self.assertFalse(window.translation_panel.isVisible())
-        self.assertTrue(window.translation_section.isVisible())
         self.assertEqual(
             window.toggle_translation_action.shortcut().toString(),
             "Ctrl+Shift+T",
         )
 
-        window.translation_title_button.click()
+        window.article_reader.translation_toggle_button.click()
         self.app.processEvents()
 
         self.assertTrue(window.translation_panel.isVisible())
@@ -459,7 +486,7 @@ class TranslationPanelMainWindowTest(unittest.TestCase):
             "mercury-start",
         )
 
-        window.article_reader.translation_toggle_button.click()
+        window.toggle_translation_action.setChecked(False)
         self.app.processEvents()
 
         self.assertFalse(window.translation_panel.isVisible())
@@ -467,6 +494,37 @@ class TranslationPanelMainWindowTest(unittest.TestCase):
         self.assertEqual(
             window.article_reader.current_article_id,
             "mercury-start",
+        )
+        window.close()
+        window.deleteLater()
+
+    def test_reader_displays_translation_progress_without_waiting_for_final(
+        self,
+    ) -> None:
+        window = MainWindow(MockArticleService())
+        window.show()
+        window._show_article("mercury-start")
+        progress_result = translation_result(
+            article_id="mercury-start",
+            paragraphs=(
+                paragraph(
+                    0,
+                    "Mercury 是一个使用 PySide6 构建的本地优先 RSS 阅读器。",
+                    "Mercury is a local-first RSS reader built with PySide6.",
+                    TranslationParagraphStatus.TRANSLATED,
+                ),
+            ),
+            status=TranslationStatus.PARTIAL,
+        )
+
+        window.translation_panel.generation_progress.emit(progress_result)
+        self.app.processEvents()
+
+        rendered = window.article_reader.content.toPlainText()
+        self.assertTrue(window.article_reader.bilingual_visible)
+        self.assertIn(
+            "Mercury is a local-first RSS reader built with PySide6.",
+            rendered,
         )
         window.close()
         window.deleteLater()

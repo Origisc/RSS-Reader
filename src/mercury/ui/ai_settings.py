@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
@@ -14,6 +15,12 @@ from PySide6.QtWidgets import (
 from mercury.i18n import Translator
 from mercury.llm import ProviderConfig, ProviderConnectionResult
 from mercury.llm.config import MAX_TIMEOUT_SECONDS, MIN_TIMEOUT_SECONDS
+from mercury.ui.provider_presets import (
+    CUSTOM_PRESET_ID,
+    PROVIDER_PRESETS,
+    find_matching_preset,
+    preset_by_id,
+)
 
 
 ConnectionTester = Callable[[ProviderConfig], ProviderConnectionResult]
@@ -37,7 +44,30 @@ class AISettingsDialog(QDialog):
 
         self.setMinimumWidth(480)
 
+        self.provider_preset_combo = QComboBox()
+        for preset in PROVIDER_PRESETS:
+            self.provider_preset_combo.addItem(
+                translator.text(preset.name_key),
+                preset.identifier,
+            )
+
+        matching_preset = find_matching_preset(config)
+        matching_index = self.provider_preset_combo.findData(
+            matching_preset.identifier
+        )
+        self.provider_preset_combo.setCurrentIndex(matching_index)
+
+        self.preset_notice = QLabel()
+        self.preset_notice.setObjectName("AIProviderPresetNotice")
+        self.preset_notice.setWordWrap(True)
+
         self.base_url_edit = QLineEdit(config.base_url)
+        self.base_url_edit.setPlaceholderText(
+            translator.text("ai_settings.base_url_placeholder")
+        )
+        self.base_url_edit.setToolTip(
+            translator.text("ai_settings.base_url_tooltip")
+        )
         self.model_edit = QLineEdit(config.model)
         self.api_key_edit = QLineEdit(config.api_key)
         self.api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
@@ -65,6 +95,10 @@ class AISettingsDialog(QDialog):
 
         form_layout = QFormLayout()
         form_layout.addRow(
+            self._translator.text("ai_settings.preset"),
+            self.provider_preset_combo,
+        )
+        form_layout.addRow(
             self._translator.text("ai_settings.base_url"),
             self.base_url_edit,
         )
@@ -90,12 +124,20 @@ class AISettingsDialog(QDialog):
 
         main_layout = QVBoxLayout(self)
         main_layout.addLayout(form_layout)
+        main_layout.addWidget(self.preset_notice)
         main_layout.addWidget(self.privacy_notice)
         main_layout.addWidget(self.test_connection_button)
         main_layout.addWidget(self.connection_status)
         main_layout.addWidget(self.button_box)
 
+        self.provider_preset_combo.currentIndexChanged.connect(
+            self._apply_selected_preset
+        )
+        self.base_url_edit.textEdited.connect(self._mark_as_custom)
+        self.model_edit.textEdited.connect(self._mark_as_custom)
+
         self._translate_ui()
+        self._update_preset_notice(matching_preset.identifier)
 
     def selected_config(self) -> ProviderConfig:
         return ProviderConfig(
@@ -164,6 +206,35 @@ class AISettingsDialog(QDialog):
             return message
 
         return message.replace(api_key, "••••")
+
+    def _apply_selected_preset(self, _index: int) -> None:
+        identifier = self.provider_preset_combo.currentData()
+        preset = preset_by_id(str(identifier))
+        self._update_preset_notice(preset.identifier)
+        self.connection_status.clear()
+
+        if preset.config is None:
+            return
+
+        self.base_url_edit.setText(preset.config.base_url)
+        self.model_edit.setText(preset.config.model)
+        self.api_key_edit.clear()
+        self.timeout_spin.setValue(preset.config.timeout_seconds)
+
+    def _mark_as_custom(self, _text: str) -> None:
+        if self.provider_preset_combo.currentData() == CUSTOM_PRESET_ID:
+            return
+
+        custom_index = self.provider_preset_combo.findData(
+            CUSTOM_PRESET_ID
+        )
+        self.provider_preset_combo.setCurrentIndex(custom_index)
+
+    def _update_preset_notice(self, identifier: str) -> None:
+        preset = preset_by_id(identifier)
+        self.preset_notice.setText(
+            self._translator.text(preset.description_key)
+        )
 
     def _translate_ui(self) -> None:
         self.setWindowTitle(self._translator.text("ai_settings.title"))

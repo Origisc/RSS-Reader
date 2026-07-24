@@ -160,6 +160,9 @@ venv.bak/
 # Local credentials
 password/
 
+# Local application data
+database.db
+
 # Spyder project settings
 .spyderproject
 .spyproject

@@ -1,6 +1,7 @@
 from html import escape
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QTextDocument
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -13,7 +14,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from mercury.domain import (
+    TranslationResult,
+    TranslationSourceFormat,
+)
 from mercury.models.article import Article
+from mercury.ui.bilingual_document import (
+    interleave_html_translations,
+    translation_card_html,
+)
 from mercury.ui.reader_document import (
     ReaderContentFormat,
     ReaderDocument,
@@ -43,6 +52,18 @@ class ArticleReader(QWidget):
         self._current_view = ReaderView.RAW
         self._reader_style = ReaderStyle()
         self._is_read = False
+        self._translation_result: TranslationResult | None = None
+        self._bilingual_visible = False
+        self._bilingual_show_text = "Bilingual"
+        self._bilingual_hide_text = "Original only"
+        self._bilingual_available_tooltip = (
+            "Switch between original-only and paragraph bilingual reading."
+        )
+        self._bilingual_unavailable_tooltip = (
+            "Generate a translation before opening bilingual reading."
+        )
+        self._bilingual_status = "Showing paragraph bilingual reading"
+        self._translation_unavailable = "Translation unavailable"
         self._mark_read_text = "Mark read"
         self._mark_unread_text = "Mark unread"
         self._view_labels = {
@@ -129,6 +150,14 @@ class ArticleReader(QWidget):
         )
         toolbar_layout.addWidget(self.translation_toggle_button)
 
+        self.bilingual_view_button = QPushButton()
+        self.bilingual_view_button.setObjectName("ReaderUtilityButton")
+        self.bilingual_view_button.setCheckable(True)
+        self.bilingual_view_button.clicked.connect(
+            self.set_bilingual_visible
+        )
+        toolbar_layout.addWidget(self.bilingual_view_button)
+
         self.read_state_button = QPushButton()
         self.read_state_button.setObjectName("ReaderUtilityButton")
         self.read_state_button.clicked.connect(
@@ -147,12 +176,13 @@ class ArticleReader(QWidget):
         self.reader_body_layout.setSpacing(0)
         self.reader_body_layout.addWidget(self.content, 0, 0)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self.view_toolbar)
-        layout.addWidget(self.reader_body, 1)
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+        self.main_layout.addWidget(self.view_toolbar)
+        self.main_layout.addWidget(self.reader_body, 1)
         self.view_status_label.hide()
+        self._update_bilingual_button()
 
     @property
     def current_view(self) -> ReaderView:
@@ -169,13 +199,24 @@ class ArticleReader(QWidget):
     def reader_style(self) -> ReaderStyle:
         return self._reader_style
 
+    @property
+    def bilingual_visible(self) -> bool:
+        return self._bilingual_visible
+
+    @property
+    def translation_result(self) -> TranslationResult | None:
+        return self._translation_result
+
     def show_welcome(self) -> None:
         self._current_article = None
         self._current_document = None
         self._is_read = False
+        self._translation_result = None
+        self._bilingual_visible = False
         for button in self.view_buttons.values():
             button.setEnabled(False)
         self.read_state_button.setEnabled(False)
+        self._update_bilingual_button()
         self.view_status_label.clear()
         self.view_status_label.hide()
         body = (
@@ -191,9 +232,12 @@ class ArticleReader(QWidget):
     ) -> None:
         self._current_article = article
         self._current_document = document or ReaderDocument.from_article(article)
+        self._translation_result = None
+        self._bilingual_visible = False
         for button in self.view_buttons.values():
             button.setEnabled(True)
         self.read_state_button.setEnabled(True)
+        self._update_bilingual_button()
         self._render_current_view()
 
     def set_view(self, view: ReaderView) -> None:
@@ -223,6 +267,44 @@ class ArticleReader(QWidget):
     def set_translation_panel_visible(self, is_visible: bool) -> None:
         self.translation_toggle_button.setChecked(is_visible)
 
+    def set_translation_controls_widget(self, widget: QWidget) -> None:
+        """Place translation controls above the article, not below it."""
+        self.main_layout.insertWidget(1, widget)
+
+    def set_translation_result(
+        self,
+        result: TranslationResult | None,
+    ) -> None:
+        if (
+            result is None
+            or self._current_article is None
+            or result.article_id != self._current_article.id
+            or not result.paragraphs
+        ):
+            self._translation_result = None
+            self._bilingual_visible = False
+        else:
+            self._translation_result = result
+            self._bilingual_visible = True
+
+        self._update_bilingual_button()
+        if self._current_article is not None:
+            self._render_current_view()
+
+    def set_bilingual_visible(self, visible: bool) -> None:
+        can_show = (
+            self._current_article is not None
+            and self._translation_result is not None
+            and self._translation_result.article_id
+            == self._current_article.id
+            and bool(self._translation_result.paragraphs)
+        )
+        self._bilingual_visible = bool(visible and can_show)
+        self._update_bilingual_button()
+
+        if self._current_article is not None:
+            self._render_current_view()
+
     def set_tag_panel_visible(self, is_visible: bool) -> None:
         self.tag_toggle_button.setChecked(is_visible)
 
@@ -249,6 +331,27 @@ class ArticleReader(QWidget):
     ) -> None:
         self.translation_toggle_button.setText(text)
         self.translation_toggle_button.setToolTip(tooltip)
+
+    def set_translation_view_texts(
+        self,
+        *,
+        show_bilingual: str,
+        show_original: str,
+        available_tooltip: str,
+        unavailable_tooltip: str,
+        status: str,
+        translation_unavailable: str,
+    ) -> None:
+        self._bilingual_show_text = show_bilingual
+        self._bilingual_hide_text = show_original
+        self._bilingual_available_tooltip = available_tooltip
+        self._bilingual_unavailable_tooltip = unavailable_tooltip
+        self._bilingual_status = status
+        self._translation_unavailable = translation_unavailable
+        self._update_bilingual_button()
+
+        if self._bilingual_visible:
+            self._render_current_view()
 
     def set_read_state_texts(
         self,
@@ -311,10 +414,48 @@ class ArticleReader(QWidget):
 
         self.read_state_button.setText(self._mark_read_text)
 
+    def _update_bilingual_button(self) -> None:
+        has_result = (
+            self._current_article is not None
+            and self._translation_result is not None
+            and self._translation_result.article_id
+            == self._current_article.id
+            and bool(self._translation_result.paragraphs)
+        )
+        self.bilingual_view_button.setEnabled(has_result)
+        self.bilingual_view_button.setChecked(
+            has_result and self._bilingual_visible
+        )
+        self.bilingual_view_button.setText(
+            self._bilingual_hide_text
+            if has_result and self._bilingual_visible
+            else self._bilingual_show_text
+        )
+        self.bilingual_view_button.setToolTip(
+            self._bilingual_available_tooltip
+            if has_result
+            else self._bilingual_unavailable_tooltip
+        )
+
     def _render_current_view(self) -> None:
         if self._current_article is None or self._current_document is None:
             return
 
+        if (
+            self._bilingual_visible
+            and self._translation_result is not None
+            and self._translation_result.article_id
+            == self._current_article.id
+        ):
+            for button in self.view_buttons.values():
+                button.setEnabled(False)
+            self.view_status_label.setText(self._bilingual_status)
+            self.view_status_label.hide()
+            self._show_bilingual_result(self._translation_result)
+            return
+
+        for button in self.view_buttons.values():
+            button.setEnabled(True)
         rendered = self._current_document.resolve(self._current_view)
         status = self._view_statuses[self._current_view]
 
@@ -336,6 +477,91 @@ class ArticleReader(QWidget):
             return
 
         self._show_html(rendered.content, status if rendered.used_fallback else "")
+
+    def _show_bilingual_result(self, result: TranslationResult) -> None:
+        if self._current_article is None or self._current_document is None:
+            return
+
+        if result.source_format is not TranslationSourceFormat.CLEANED_MARKDOWN:
+            source_html = (
+                self._current_document.cleaned_html
+                if result.source_format is TranslationSourceFormat.CLEANED_HTML
+                else self._current_document.raw_html
+            )
+            if source_html:
+                interleaved = interleave_html_translations(
+                    source_html,
+                    result.paragraphs,
+                    self._translation_unavailable,
+                )
+                if interleaved.fully_aligned:
+                    self._show_bilingual_html(interleaved.html)
+                    return
+
+        pairs: list[str] = []
+        for paragraph in result.paragraphs:
+            if result.source_format is TranslationSourceFormat.CLEANED_MARKDOWN:
+                original_html = self._markdown_fragment(
+                    paragraph.original_text
+                )
+            else:
+                original_html = (
+                    f"<p>{self._text_to_html(paragraph.original_text)}</p>"
+                )
+
+            pairs.append(
+                '<div class="bilingual-pair">'
+                f'<div class="original-paragraph">{original_html}</div>'
+                f"{translation_card_html(
+                    paragraph,
+                    self._translation_unavailable,
+                )}"
+                "</div>"
+            )
+
+        self._show_bilingual_html("".join(pairs))
+
+    def _show_bilingual_html(self, interleaved_html: str) -> None:
+        if self._current_article is None:
+            return
+
+        article = self._current_article
+        safe_title = escape(article.title)
+        safe_source = escape(article.source_title)
+        safe_source_label = escape(self._source_label)
+        safe_note = escape(self._reader_note)
+        body = f"""
+            <h1>{safe_title}</h1>
+            <p class="byline">{safe_source}</p>
+            <div class="reader-card">
+                <span>{safe_source_label}</span>
+                <strong>{safe_source}</strong>
+            </div>
+            <div class="reader-article bilingual-article">
+                {interleaved_html}
+            </div>
+            <div class="reader-note">{safe_note}</div>
+        """
+        self.content.setHtml(self._wrap_html(body))
+
+    @staticmethod
+    def _text_to_html(text: str) -> str:
+        return escape(text).replace("\n", "<br>")
+
+    @staticmethod
+    def _markdown_fragment(markdown: str) -> str:
+        document = QTextDocument()
+        document.setMarkdown(markdown)
+        full_html = document.toHtml()
+        lowered = full_html.lower()
+        body_start = lowered.find("<body")
+        body_open_end = full_html.find(">", body_start)
+        body_end = lowered.rfind("</body>")
+
+        if body_start < 0 or body_open_end < 0 or body_end < 0:
+            return f"<p>{escape(markdown)}</p>"
+
+        return full_html[body_open_end + 1 : body_end]
 
     def _show_html(self, content_html: str, fallback_status: str) -> None:
         if self._current_article is None:
@@ -361,7 +587,7 @@ class ArticleReader(QWidget):
                 <strong>{safe_source}</strong>
             </div>
             {fallback_html}
-            <article>{content_html}</article>
+            <div class="reader-article">{content_html}</div>
             <div class="reader-note">{safe_note}</div>
         """
         self.content.setHtml(self._wrap_html(body))
@@ -475,39 +701,75 @@ class ArticleReader(QWidget):
                     font-family: "Segoe UI", Arial, sans-serif;
                     font-size: 13px;
                 }}
-                article p {{
+                .reader-article p {{
                     margin: 0 0 18px;
                 }}
-                article img {{
+                .bilingual-pair {{
+                    border-bottom: 1px solid #29485c;
+                    margin: 0 0 24px;
+                    padding: 0 0 24px;
+                }}
+                .bilingual-pair:last-child {{
+                    border-bottom: 0;
+                }}
+                .original-paragraph {{
+                    color: #d7e3ed;
+                    margin-bottom: 10px;
+                }}
+                .translation-block {{
+                    background: #102f53;
+                    border-left: 3px solid #2487ff;
+                    border-radius: 5px;
+                    color: #f0f6fc;
+                    margin: 8px 0 22px;
+                    padding: 12px 16px;
+                }}
+                .translation-block p {{
+                    margin: 0;
+                }}
+                .translation-table-row td {{
+                    border: 0;
+                    padding: 0;
+                }}
+                .translation-partial {{
+                    border-left-color: #e6a23c;
+                }}
+                .translation-unavailable {{
+                    background: #2d3035;
+                    border-left-color: #718096;
+                    color: #b8c4ce;
+                    font-style: italic;
+                }}
+                .reader-article img {{
                     height: auto;
                     max-width: 100%;
                 }}
-                article table {{
+                .reader-article table {{
                     border-collapse: collapse;
                     margin: 18px 0;
                     width: 100%;
                 }}
-                article th,
-                article td {{
+                .reader-article th,
+                .reader-article td {{
                     border: 1px solid #416074;
                     padding: 8px;
                     text-align: left;
                 }}
-                article pre,
-                article code {{
+                .reader-article pre,
+                .reader-article code {{
                     background: #0f2a3d;
                     border-radius: 4px;
                     font-family: Consolas, "SFMono-Regular", monospace;
                 }}
-                article pre {{
+                .reader-article pre {{
                     overflow-wrap: anywhere;
                     padding: 14px;
                 }}
-                article a {{
+                .reader-article a {{
                     color: #69aefc;
                 }}
             </style>
         </head>
-        <body><main class="reader-page">{body}</main></body>
+        <body><div class="reader-page">{body}</div></body>
         </html>
         """

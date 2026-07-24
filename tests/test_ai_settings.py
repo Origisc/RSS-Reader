@@ -52,6 +52,10 @@ class AISettingsDialogTest(unittest.TestCase):
             dialog.api_key_edit.echoMode(),
             QLineEdit.EchoMode.Password,
         )
+        self.assertIn(
+            "/chat/completions",
+            dialog.base_url_edit.toolTip(),
+        )
         self.assertNotIn(config.api_key, dialog.connection_status.text())
         dialog.close()
         dialog.deleteLater()
@@ -60,6 +64,140 @@ class AISettingsDialogTest(unittest.TestCase):
         dialog = AISettingsDialog(Translator("zh_CN"), self._valid_config())
 
         self.assertEqual(dialog.selected_config(), self._valid_config())
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_local_deepseek_preset_configures_ollama_without_key(
+        self,
+    ) -> None:
+        dialog = AISettingsDialog(
+            Translator("zh_CN"),
+            self._valid_config("must-be-cleared"),
+        )
+
+        preset_index = dialog.provider_preset_combo.findData(
+            "ollama-local-deepseek"
+        )
+        dialog.provider_preset_combo.setCurrentIndex(preset_index)
+        config = dialog.selected_config()
+
+        self.assertEqual(
+            config.base_url,
+            "http://127.0.0.1:11434/v1",
+        )
+        self.assertEqual(config.model, "deepseek-r1:1.5b")
+        self.assertEqual(config.api_key, "")
+        self.assertEqual(config.timeout_seconds, 120.0)
+        self.assertIn("零 API 费用", dialog.preset_notice.text())
+        self.assertIn("ollama pull", dialog.preset_notice.text())
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_local_qwen_preset_configures_recommended_translation_model(
+        self,
+    ) -> None:
+        dialog = AISettingsDialog(
+            Translator("zh_CN"),
+            self._valid_config("must-be-cleared"),
+        )
+
+        preset_index = dialog.provider_preset_combo.findData(
+            "ollama-local-qwen25-7b"
+        )
+        self.assertGreaterEqual(preset_index, 0)
+
+        dialog.provider_preset_combo.setCurrentIndex(preset_index)
+        config = dialog.selected_config()
+
+        self.assertEqual(
+            config.base_url,
+            "http://127.0.0.1:11434/v1",
+        )
+        self.assertEqual(config.model, "qwen2.5:7b-instruct")
+        self.assertEqual(config.api_key, "")
+        self.assertEqual(config.timeout_seconds, 120.0)
+        self.assertIn("推荐用于中英翻译", dialog.preset_notice.text())
+        self.assertIn(
+            "ollama pull qwen2.5:7b-instruct",
+            dialog.preset_notice.text(),
+        )
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_deepseek_api_preset_is_explicitly_paid_and_clears_key(
+        self,
+    ) -> None:
+        dialog = AISettingsDialog(
+            Translator("en_US"),
+            self._valid_config("wrong-provider-secret"),
+        )
+
+        preset_index = dialog.provider_preset_combo.findData(
+            "deepseek-api"
+        )
+        dialog.provider_preset_combo.setCurrentIndex(preset_index)
+        config = dialog.selected_config()
+
+        self.assertEqual(config.base_url, "https://api.deepseek.com")
+        self.assertEqual(config.model, "deepseek-v4-flash")
+        self.assertEqual(config.api_key, "")
+        self.assertIn("paid cloud API", dialog.preset_notice.text())
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_editing_preset_endpoint_switches_back_to_custom(self) -> None:
+        dialog = AISettingsDialog(Translator("en_US"))
+        preset_index = dialog.provider_preset_combo.findData(
+            "ollama-local-deepseek"
+        )
+        dialog.provider_preset_combo.setCurrentIndex(preset_index)
+
+        dialog.base_url_edit.setText("http://localhost:9000/v1")
+        dialog.base_url_edit.textEdited.emit(
+            "http://localhost:9000/v1"
+        )
+
+        self.assertEqual(
+            dialog.provider_preset_combo.currentData(),
+            "custom",
+        )
+        self.assertEqual(
+            dialog.base_url_edit.text(),
+            "http://localhost:9000/v1",
+        )
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_existing_local_config_selects_matching_preset(self) -> None:
+        config = ProviderConfig(
+            base_url="http://127.0.0.1:11434/v1/",
+            model="deepseek-r1:1.5b",
+        )
+
+        dialog = AISettingsDialog(Translator("en_US"), config)
+
+        self.assertEqual(
+            dialog.provider_preset_combo.currentData(),
+            "ollama-local-deepseek",
+        )
+        self.assertEqual(dialog.selected_config(), config)
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_existing_qwen_config_selects_matching_preset(self) -> None:
+        config = ProviderConfig(
+            base_url="http://127.0.0.1:11434/v1/",
+            model="qwen2.5:7b-instruct",
+            timeout_seconds=120.0,
+        )
+
+        dialog = AISettingsDialog(Translator("en_US"), config)
+
+        self.assertEqual(
+            dialog.provider_preset_combo.currentData(),
+            "ollama-local-qwen25-7b",
+        )
+        self.assertEqual(dialog.selected_config(), config)
         dialog.close()
         dialog.deleteLater()
 

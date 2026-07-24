@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from mercury.agents import SummarySource, TranslationSource
+from mercury.domain import TranslationResult
 from mercury.i18n import Translator
 from mercury.i18n.translations import SUPPORTED_LANGUAGES
 from mercury.llm import InMemoryProviderConfigStore, ProviderConfigStore
@@ -279,40 +280,9 @@ class MainWindow(QMainWindow):
             generator=self._translation_generator,
             result_loader=self._translation_result_loader,
         )
-
-        self.translation_section = QFrame()
-        self.translation_section.setObjectName("TranslationSection")
-
-        self.translation_title_bar = QFrame()
-        self.translation_title_bar.setObjectName(
-            "TranslationSectionTitleBar"
+        self.article_reader.set_translation_controls_widget(
+            self.translation_panel
         )
-        self.translation_title_button = QPushButton()
-        self.translation_title_button.setObjectName(
-            "TranslationSectionToggleButton"
-        )
-        self.translation_title_button.clicked.connect(
-            lambda: self.toggle_translation_action.setChecked(
-                not self.toggle_translation_action.isChecked()
-            )
-        )
-
-        title_layout = QHBoxLayout(self.translation_title_bar)
-        title_layout.setContentsMargins(7, 2, 7, 2)
-        title_layout.setSpacing(0)
-        title_layout.addWidget(self.translation_title_button)
-        title_layout.addStretch(1)
-
-        section_layout = QVBoxLayout(self.translation_section)
-        section_layout.setContentsMargins(0, 0, 0, 0)
-        section_layout.setSpacing(0)
-        section_layout.addWidget(self.translation_title_bar)
-        section_layout.addWidget(self.translation_panel, 1)
-
-        self.reader_splitter.addWidget(self.translation_section)
-        self.reader_splitter.setStretchFactor(2, 0)
-        self.reader_splitter.setCollapsible(2, False)
-        self._translation_section_height = 300
 
         self.toggle_translation_action.toggled.connect(
             self._set_translation_panel_visible
@@ -320,23 +290,8 @@ class MainWindow(QMainWindow):
         self._set_translation_panel_visible(False)
 
     def _set_translation_panel_visible(self, visible: bool) -> None:
-        self._set_reader_section_visible(
-            visible=visible,
-            section=self.translation_section,
-            title_bar=self.translation_title_bar,
-            panel=self.translation_panel,
-            stored_height_name="_translation_section_height",
-        )
+        self.translation_panel.setVisible(visible)
         self.article_reader.set_translation_panel_visible(visible)
-        self._update_translation_title()
-
-    def _update_translation_title(self) -> None:
-        key = (
-            "translation.collapse"
-            if self.toggle_translation_action.isChecked()
-            else "translation.expand"
-        )
-        self.translation_title_button.setText(self.translator.text(key))
 
     def _set_reader_section_visible(
         self,
@@ -413,6 +368,12 @@ class MainWindow(QMainWindow):
         self.translation_panel.settings_requested.connect(
             self._open_ai_settings
         )
+        self.translation_panel.generation_progress.connect(
+            self._show_translation_progress
+        )
+        self.translation_panel.generation_completed.connect(
+            self._show_translation_result
+        )
 
     def _load_initial_data(self) -> None:
         feeds = self.article_service.list_feeds()
@@ -467,7 +428,29 @@ class MainWindow(QMainWindow):
                 cleaned_html=document.cleaned_html,
             )
         )
+        self.article_reader.set_translation_result(
+            self.translation_panel.displayed_result
+        )
         self._set_read_state(article.id, True, article)
+
+    def _show_translation_progress(self, value: object) -> None:
+        if not isinstance(value, TranslationResult):
+            return
+
+        if self.article_reader.current_article_id != value.article_id:
+            return
+
+        self.article_reader.set_translation_result(value)
+
+    def _show_translation_result(self, value: object) -> None:
+        if not isinstance(value, TranslationResult):
+            return
+
+        if self.article_reader.current_article_id != value.article_id:
+            return
+
+        self.article_reader.set_translation_result(value)
+        self.toggle_translation_action.setChecked(False)
 
     def _set_read_state(
         self,
@@ -865,6 +848,26 @@ class MainWindow(QMainWindow):
                 "reader.translation_toggle_tooltip"
             ),
         )
+        self.article_reader.set_translation_view_texts(
+            show_bilingual=self.translator.text(
+                "reader.translation_view.bilingual"
+            ),
+            show_original=self.translator.text(
+                "reader.translation_view.original"
+            ),
+            available_tooltip=self.translator.text(
+                "reader.translation_view.available_tooltip"
+            ),
+            unavailable_tooltip=self.translator.text(
+                "reader.translation_view.unavailable_tooltip"
+            ),
+            status=self.translator.text(
+                "reader.status.bilingual"
+            ),
+            translation_unavailable=self.translator.text(
+                "translation.paragraph.unavailable"
+            ),
+        )
         self.article_reader.set_tag_toggle_texts(
             text=self.translator.text("reader.tags_toggle"),
             tooltip=self.translator.text("reader.tags_toggle_tooltip"),
@@ -885,10 +888,6 @@ class MainWindow(QMainWindow):
             self.translator.text("reader.summary_toggle_tooltip")
         )
         self.summary_panel.set_translator(self.translator)
-        self._update_translation_title()
-        self.translation_title_button.setToolTip(
-            self.translator.text("reader.translation_toggle_tooltip")
-        )
         self.translation_panel.set_translator(self.translator)
 
     def _apply_theme(self) -> None:

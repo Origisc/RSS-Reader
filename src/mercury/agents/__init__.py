@@ -11,8 +11,12 @@ from mercury.agents.translation_agent import (
     TranslationOptions,
     TranslationResultStore,
     TranslationSource,
+    clean_translation_response,
     extract_translation_paragraphs,
     segment_translation_text,
+    translation_appears_complete,
+    translation_matches_target_language,
+    translation_validation_error,
 )
 
 __all__ = [
@@ -26,6 +30,10 @@ __all__ = [
     "TranslationOptions",
     "TranslationResultStore",
     "TranslationSource",
+    "clean_translation_response",
     "extract_translation_paragraphs",
     "segment_translation_text",
+    "translation_appears_complete",
+    "translation_matches_target_language",
+    "translation_validation_error",
 ]

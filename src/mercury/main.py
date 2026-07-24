@@ -13,6 +13,16 @@ from PySide6.QtWidgets import QApplication
 
 from core.database import DBManager
 from domain.feed.use_cases import FeedUseCase
+from mercury.agents import (
+    InMemorySummaryResultStore,
+    InMemoryTranslationResultStore,
+    SummaryAgent,
+    TranslationAgent,
+)
+from mercury.llm import (
+    HTTPChatCompletionsProvider,
+    InMemoryProviderConfigStore,
+)
 from mercury.services.backend_article_service import BackendArticleService
 from mercury.ui.main_window import MainWindow
 
@@ -24,10 +34,27 @@ def main() -> int:
     db = DBManager(str(db_path))
     feed_use_case = FeedUseCase(db)
     article_service = BackendArticleService(db, feed_use_case)
+    provider_config_store = InMemoryProviderConfigStore()
+    provider = HTTPChatCompletionsProvider(provider_config_store)
+    summary_result_store = InMemorySummaryResultStore()
+    translation_result_store = InMemoryTranslationResultStore()
+    summary_agent = SummaryAgent(provider, summary_result_store)
+    translation_agent = TranslationAgent(
+        provider,
+        translation_result_store,
+    )
 
     window = MainWindow(
         article_service,
         feed_deletion_service=article_service,
+        provider_config_store=provider_config_store,
+        provider_connection_tester=provider.test_config,
+        summary_generator=summary_agent.summarize,
+        summary_result_loader=summary_result_store.latest_for_article,
+        translation_generator=translation_agent.translate,
+        translation_result_loader=(
+            translation_result_store.latest_for_article
+        ),
     )
     window.show()
 

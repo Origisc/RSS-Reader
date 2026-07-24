@@ -186,3 +186,13 @@ class TranslatorTest(unittest.TestCase):
                 "{time}",
                 translator.text("summary.generated_at"),
             )
+
+    def test_translation_validation_errors_are_localized(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "translation.error.wrong_language",
+                "translation.error.incomplete_response",
+            ):
+                self.assertNotEqual(translator.text(key), key)

@@ -29,10 +29,14 @@ uv sync --group dev
 ```powershell
 uv run pytest `
   tests/test_llm_provider.py `
+  tests/test_http_llm_provider.py `
+  tests/test_ai_provider_integration.py `
   tests/test_summary_agent.py `
   tests/test_summary_panel.py `
   tests/test_translation_agent.py `
   tests/test_translation_panel.py `
+  tests/test_article_reader.py `
+  tests/test_bilingual_document.py `
   tests/test_stage3_acceptance.py
 ```
 
@@ -41,10 +45,14 @@ uv run pytest `
 ```powershell
 uv run python -m unittest `
   tests.test_llm_provider `
+  tests.test_http_llm_provider `
+  tests.test_ai_provider_integration `
   tests.test_summary_agent `
   tests.test_summary_panel `
   tests.test_translation_agent `
   tests.test_translation_panel `
+  tests.test_article_reader `
+  tests.test_bilingual_document `
   tests.test_stage3_acceptance
 ```
 
@@ -55,8 +63,8 @@ uv run python -m unittest `
 | Provider | 配置校验、连接结果、API Key 脱敏和固定 Mock 响应通过 |
 | Summary Agent | Cleaned Markdown 优先、可配置语言/详细度/Prompt、失败返回结构化错误 |
 | Summary UI | 后台生成、重新生成、缓存、双语状态和正文不被替换 |
-| Translation Agent | 段落顺序稳定、长段分段、部分失败继续处理、原文完整保留 |
-| Translation UI | 每段原文在上、对应译文在下；支持重新翻译、双语状态/错误和失败原文兜底 |
+| Translation Agent | 优先使用 Cleaned HTML 的 `p/ul/ol` Reader 段落边界；旧式 RSS 裸文本按连续 `<br>` 恢复段落；段落顺序稳定、长段分段、部分失败继续处理、原文完整保留 |
+| Translation UI | 翻译设置位于 Reader 内；首段完成后立即渐进显示，不等待整篇；原始 HTML/Markdown 的段落和富文本结构保持不变，每段译文卡片插入对应原文块下方，整块列表只对应一块译文；旧式 RSS 无法插回时使用结构化双语对兜底；支持原文/双语切换、重新翻译、错误提示和失败原文兜底 |
 | Stage 3 fixture | 固定摘要和三段译文与 fixture 一致；故意失败时三段原文仍可读取 |
 
 完整回归：
@@ -73,7 +81,7 @@ uv run python -m unittest discover -s tests -p "test_*.py"
 服务。运行应用：
 
 ```powershell
-uv run python -m mercury.main
+uv run python main.py
 ```
 
 逐项检查：
@@ -82,38 +90,74 @@ uv run python -m mercury.main
    Cleaned HTML / Markdown，并使用已读、未读和标签功能。
 2. 选择文章后按 `Ctrl+Shift+S` 展开 Summary；点击生成入口时应提示配置
    AI，正文保持可读。
-3. 按 `Ctrl+Shift+T` 展开 Translation；点击翻译入口时应提示配置 AI，
-   正文保持可读。
+3. 按 `Ctrl+Shift+T` 展开 Reader 内的翻译设置；点击翻译入口时应提示配置
+   AI，Reader 正文保持可读，页面下方不应出现类似 Summary 的翻译结果区。
 4. 在设置中将界面从简体中文切换到 English；Summary、Translation、
    按钮、状态和错误文案应立即更新，无需重启。
-5. 收起或重新展开两个 AI 面板，当前文章不应被清空。
+5. 收起或重新展开 Summary 与翻译设置，当前文章不应被清空。
 
 ## 4. 可选真实 Provider 人工验收
 
 真实 Provider 验收不是自动测试的一部分，必须由用户主动配置并明确发起。
-当前仓库的 `main.py` 没有内置具体厂商的网络适配器；执行本节前，集成环境
-必须已经提供实现统一 `LLMProvider` 协议的适配器，并把：
+生产入口已经把 `HTTPChatCompletionsProvider`、`SummaryAgent` 和
+`TranslationAgent` 接入同一个动态配置存储。
 
-- `SummaryAgent(provider).summarize` 注入 `MainWindow.summary_generator`；
-- `TranslationAgent(provider).translate` 注入
-  `MainWindow.translation_generator`。
+适配器发送标准 Chat Completions 请求。如果 Base URL 是
+`https://provider.example/v1`，请求地址为
+`https://provider.example/v1/chat/completions`；如果设置中已经填写完整的
+`.../chat/completions` 地址，则不会重复追加。
 
+当前默认配置存储只在本次应用运行期间保留。重启后的持久化配置仍属于成员 A
+的本地设置存储集成点；这不影响当前会话内保存配置、测试连接、摘要和翻译。
 不得在 Agent、UI 或文章业务逻辑中写死厂商、模型、Base URL 或 API Key。
 
 人工步骤：
 
 1. 在 AI 设置中填写用户选择的 Base URL、模型、超时和可选 API Key。
    凭据只放入本次验收允许的本地配置位置，不写入仓库。
-2. 主动执行“测试连接”。在此之前不应出现 Provider 网络请求。
+2. 主动执行“测试连接”。该操作只发送一个简短确认提示，不发送文章内容；
+   在此之前不应出现 Provider 网络请求。
 3. 选择一篇非敏感测试文章，展开 Summary 并主动生成。确认摘要语言、
    详细程度和自定义 Prompt 生效，正文始终可读。
-4. 展开 Translation，选择目标语言，填写可选 Prompt 并主动翻译。确认每组
-   内容均为原文在上、同序号译文在下，并可“重新翻译”。
+4. 展开 Reader 内的翻译设置，选择目标语言，填写可选 Prompt 并主动翻译。
+   生成完成后设置区应自动收起，Reader 正文应切换为双语对照：第一段原文
+   后紧跟第一段译文，再显示第二段原文及第二段译文，依此类推。使用 Reader
+   工具栏的“显示原文 / 双语对照”可以来回切换，并可重新展开设置执行
+   “重新翻译”。原文中的标题、粗体、链接、图片、引用、列表和表格不应因
+   翻译而变成连续纯文本。
 5. 临时使用无效地址或适配器的测试失败模式，分别触发摘要和翻译失败。
-   确认 UI 显示可理解错误；文章正文不消失，翻译区仍显示所有原文。
+   确认 UI 显示可理解错误；Reader 中所有原文仍可读，失败段落不会被空白
+   译文替换。
 6. 恢复有效配置后重新执行，确认失败不会破坏后续生成。
 7. 验收结束后清除临时凭据，并检查 `git status --short`，确保没有凭据、
    本地数据库或私有文章进入待提交文件。
+
+### 4.1 零 API 费用的本地 DeepSeek 验收
+
+DeepSeek 官方云 API 按 Token 计费。“本地 DeepSeek（Ollama，零 API
+费用）”模板才是无需云端 API 余额的方案。模型仍会占用本机磁盘、内存和
+计算资源。
+
+1. 从 Ollama 官方渠道安装适用于当前系统的版本。
+2. 在终端下载轻量模型：
+
+   ```powershell
+   ollama pull deepseek-r1:1.5b
+   ```
+
+3. 确认 Ollama 正在运行，然后打开 Mercury 的“AI 设置”。
+4. 选择“本地 DeepSeek（Ollama，零 API 费用）”。确认 Base URL 为
+   `http://127.0.0.1:11434/v1`、模型为 `deepseek-r1:1.5b`，API Key
+   留空。
+5. 点击“测试连接”。首次加载模型可能较慢，模板默认超时为 120 秒。
+6. 使用非敏感测试文章分别验证摘要和逐段翻译。请求应只发送到本机回环
+   地址；关闭 Ollama 后应显示 Provider 失败，正文仍保持可读。
+
+### 4.2 DeepSeek 官方 API 验收
+
+如果选择“DeepSeek 官方 API（按量计费）”，必须使用用户自己的 DeepSeek
+API Key 和可用余额。模板仅填写当前官方 Base URL 和模型名，不附带凭据，
+也不会把其他服务已填写的 API Key 带入该模板。
 
 ## 5. Stage 3 Gate
 
@@ -123,6 +167,8 @@ uv run python -m mercury.main
 - 未配置 Provider 时，基础阅读功能完全可用。
 - Provider 失败时，摘要/翻译给出可理解错误，文章和翻译原文仍可读。
 - 翻译对照严格使用结构化 `TranslationResult`，不从整篇字符串猜测段落。
+- 翻译结果渲染在 Reader 正文区域，严格保持“原文段落 → 对应译文”的顺序，
+  不在页面底部创建类似 Summary 的结果面板。
 - UI 不直接访问数据库、网络或 Provider 协议。
 - 业务逻辑没有硬编码具体厂商、生产模型、Base URL 或 API Key。
 - `git status --short` 中没有凭据、私有 fixture 或无关本地数据。

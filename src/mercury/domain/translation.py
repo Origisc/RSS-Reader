@@ -26,6 +26,8 @@ class TranslationErrorCode(StrEnum):
     PROVIDER_NOT_CONFIGURED = "provider_not_configured"
     PROVIDER_FAILURE = "provider_failure"
     EMPTY_RESPONSE = "empty_response"
+    WRONG_LANGUAGE = "wrong_language"
+    INCOMPLETE_RESPONSE = "incomplete_response"
     STORAGE_FAILURE = "storage_failure"
 
 

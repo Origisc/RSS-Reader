@@ -326,7 +326,6 @@ QPushButton#ReaderUtilityButton {
 
 QFrame#SummarySection,
 QFrame#SummaryPanel,
-QFrame#TranslationSection,
 QFrame#TranslationPanel {
     background: #f7f7f5;
     border-top: 1px solid #d5d8dc;
@@ -337,14 +336,12 @@ QSplitter#ReaderSummarySplitter::handle {
     height: 4px;
 }
 
-QFrame#SummarySectionTitleBar,
-QFrame#TranslationSectionTitleBar {
+QFrame#SummarySectionTitleBar {
     background: #eeeeea;
     border-bottom: 1px solid #c9ced4;
 }
 
-QPushButton#SummarySectionToggleButton,
-QPushButton#TranslationSectionToggleButton {
+QPushButton#SummarySectionToggleButton {
     background: transparent;
     border: 0;
     color: #34404b;
@@ -353,8 +350,7 @@ QPushButton#TranslationSectionToggleButton {
     text-align: left;
 }
 
-QPushButton#SummarySectionToggleButton:hover,
-QPushButton#TranslationSectionToggleButton:hover {
+QPushButton#SummarySectionToggleButton:hover {
     color: #0f68d8;
 }
 
@@ -364,10 +360,7 @@ QLabel#SummaryTimestamp,
 QLabel#TranslationFieldLabel,
 QLabel#TranslationStatus,
 QLabel#TranslationTimestamp,
-QLabel#TranslationOriginalHeader,
-QLabel#TranslationTranslatedHeader,
-QLabel#TranslationOriginalText,
-QLabel#TranslationTranslatedText {
+QLabel#TranslationResultLocation {
     background: transparent;
     color: #25313c;
 }
@@ -376,8 +369,7 @@ QLabel#SummaryStatus,
 QLabel#SummaryTimestamp,
 QLabel#TranslationStatus,
 QLabel#TranslationTimestamp,
-QLabel#TranslationParagraphStatus,
-QLabel#TranslationEmpty {
+QLabel#TranslationResultLocation {
     color: #4f5d69;
     font-size: 11px;
 }
@@ -431,34 +423,6 @@ QPushButton#TranslationActionButton:disabled {
     color: #56636f;
 }
 
-QScrollArea#TranslationComparisonScroll,
-QWidget#TranslationComparisonContent {
-    background: transparent;
-}
-
-QLabel#TranslationOriginalHeader,
-QLabel#TranslationTranslatedHeader {
-    color: #25313c;
-    font-weight: 700;
-}
-
-QLabel#TranslationTranslatedHeader {
-    color: #0f68d8;
-    padding-top: 6px;
-}
-
-QFrame#TranslationParagraphRow {
-    background: #ffffff;
-    border: 1px solid #d5d8dc;
-    border-radius: 4px;
-}
-
-QLabel#TranslationParagraphStatus,
-QLabel#TranslationEmpty {
-    background: transparent;
-    color: #4f5d69;
-    font-size: 11px;
-}
 """
 
 DARK_STYLESHEET = """
@@ -803,20 +767,17 @@ QLabel[chip="true"] {
 
 QFrame#SummarySection,
 QFrame#SummaryPanel,
-QFrame#TranslationSection,
 QFrame#TranslationPanel {
     background: #18181c;
     border-top: 1px solid #30333a;
 }
 
-QFrame#SummarySectionTitleBar,
-QFrame#TranslationSectionTitleBar {
+QFrame#SummarySectionTitleBar {
     background: #18181c;
     border-bottom: 1px solid #30333a;
 }
 
-QPushButton#SummarySectionToggleButton,
-QPushButton#TranslationSectionToggleButton {
+QPushButton#SummarySectionToggleButton {
     background: transparent;
     border: 0;
     color: #d9e2ec;
@@ -825,8 +786,7 @@ QPushButton#TranslationSectionToggleButton {
     text-align: left;
 }
 
-QPushButton#SummarySectionToggleButton:hover,
-QPushButton#TranslationSectionToggleButton:hover {
+QPushButton#SummarySectionToggleButton:hover {
     color: #69aefc;
 }
 
@@ -836,10 +796,7 @@ QLabel#SummaryTimestamp,
 QLabel#TranslationFieldLabel,
 QLabel#TranslationStatus,
 QLabel#TranslationTimestamp,
-QLabel#TranslationOriginalHeader,
-QLabel#TranslationTranslatedHeader,
-QLabel#TranslationOriginalText,
-QLabel#TranslationTranslatedText {
+QLabel#TranslationResultLocation {
     background: transparent;
     color: #f3f6f9;
 }
@@ -848,8 +805,7 @@ QLabel#SummaryStatus,
 QLabel#SummaryTimestamp,
 QLabel#TranslationStatus,
 QLabel#TranslationTimestamp,
-QLabel#TranslationParagraphStatus,
-QLabel#TranslationEmpty {
+QLabel#TranslationResultLocation {
     color: #c1ccd6;
     font-size: 11px;
 }
@@ -903,34 +859,6 @@ QPushButton#TranslationActionButton:disabled {
     color: #d2dbe3;
 }
 
-QScrollArea#TranslationComparisonScroll,
-QWidget#TranslationComparisonContent {
-    background: transparent;
-}
-
-QLabel#TranslationOriginalHeader,
-QLabel#TranslationTranslatedHeader {
-    color: #f3f6f9;
-    font-weight: 700;
-}
-
-QLabel#TranslationTranslatedHeader {
-    color: #69aefc;
-    padding-top: 6px;
-}
-
-QFrame#TranslationParagraphRow {
-    background: #202833;
-    border: 1px solid #465363;
-    border-radius: 4px;
-}
-
-QLabel#TranslationParagraphStatus,
-QLabel#TranslationEmpty {
-    background: transparent;
-    color: #c1ccd6;
-    font-size: 11px;
-}
 """
 
 

@@ -22,7 +22,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.ai_settings": "AI 设置",
         "action.toggle_tags_panel": "标签面板",
         "action.toggle_summary_panel": "摘要面板",
-        "action.toggle_translation_panel": "翻译面板",
+        "action.toggle_translation_panel": "翻译设置",
         "action.shortcuts": "快捷键",
         "action.exit": "退出",
         "action.about": "关于 Mercury",
@@ -54,10 +54,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "reader.summary_toggle_tooltip": (
             "显示或隐藏摘要面板（Ctrl+Shift+S）"
         ),
-        "reader.translation_toggle": "翻译",
+        "reader.translation_toggle": "翻译设置",
         "reader.translation_toggle_tooltip": (
-            "显示或隐藏原文译文对照面板（Ctrl+Shift+T）"
+            "显示或隐藏 Reader 内的翻译设置（Ctrl+Shift+T）"
         ),
+        "reader.translation_view.bilingual": "双语对照",
+        "reader.translation_view.original": "显示原文",
+        "reader.translation_view.available_tooltip": (
+            "在纯原文和逐段双语阅读之间切换"
+        ),
+        "reader.translation_view.unavailable_tooltip": (
+            "请先生成当前文章的翻译"
+        ),
+        "reader.status.bilingual": "正在显示逐段双语对照",
         "reader.tags_toggle": "标签",
         "reader.tags_toggle_tooltip": "显示或隐藏当前文章的标签编辑器",
         "feed.add_dialog.title": "添加 Feed",
@@ -81,7 +90,36 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.ok": "确定",
         "settings.cancel": "取消",
         "ai_settings.title": "AI Provider 设置",
+        "ai_settings.preset": "配置模板：",
+        "ai_settings.preset.custom": "自定义（OpenAI 兼容）",
+        "ai_settings.preset.custom_description": (
+            "Base URL 和模型均可编辑，适用于兼容 Chat Completions 的服务。"
+        ),
+        "ai_settings.preset.ollama_qwen25_7b": (
+            "本地 Qwen2.5 7B（Ollama，推荐翻译）"
+        ),
+        "ai_settings.preset.ollama_qwen25_7b_description": (
+            "推荐用于中英翻译；零 API 费用，内容只发送到本机 "
+            "127.0.0.1，无需 API Key。使用前请执行："
+            "ollama pull qwen2.5:7b-instruct"
+        ),
+        "ai_settings.preset.ollama_deepseek": (
+            "本地 DeepSeek（Ollama，零 API 费用）"
+        ),
+        "ai_settings.preset.ollama_deepseek_description": (
+            "零 API 费用，内容只发送到本机 127.0.0.1；无需 API Key。"
+            "使用前请安装 Ollama，并执行：ollama pull deepseek-r1:1.5b"
+        ),
+        "ai_settings.preset.deepseek_api": "DeepSeek 官方 API（按量计费）",
+        "ai_settings.preset.deepseek_api_description": (
+            "这是云端付费 API，需要 DeepSeek API Key 和可用余额；"
+            "它不是免费方案。"
+        ),
         "ai_settings.base_url": "Base URL：",
+        "ai_settings.base_url_placeholder": "例如：https://服务地址/v1",
+        "ai_settings.base_url_tooltip": (
+            "填写 Chat Completions API 根地址；程序会自动追加 /chat/completions。"
+        ),
         "ai_settings.model": "模型：",
         "ai_settings.api_key": "API Key（可选）：",
         "ai_settings.timeout": "超时时间：",
@@ -123,7 +161,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "shortcuts.show_help": "打开快捷键说明",
         "shortcuts.open_settings": "打开首选项",
         "shortcuts.toggle_summary": "显示或隐藏摘要面板",
-        "shortcuts.toggle_translation": "显示或隐藏原文译文对照面板",
+        "shortcuts.toggle_translation": "显示或隐藏 Reader 翻译设置",
         "shortcuts.exit": "退出 Mercury",
         "shortcuts.close": "关闭",
         "tags.title": "Tags",
@@ -184,8 +222,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "translation.configure_ai": "AI 设置",
         "translation.original": "原文",
         "translation.translated": "译文",
-        "translation.comparison_placeholder": (
-            "主动开始翻译后，原文和译文会按段落显示在这里。"
+        "translation.result_location": (
+            "翻译结果会直接写入 Reader 正文，按“原文段落 → 对应译文”交替显示。"
         ),
         "translation.generate": "开始翻译",
         "translation.regenerate": "重新翻译",
@@ -205,11 +243,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "translation.status.running": (
             "正在后台翻译，文章正文和已有原文仍可阅读……"
         ),
-        "translation.status.completed": "翻译已完成。",
-        "translation.status.partial": (
-            "部分段落翻译失败；所有原文仍完整保留。"
+        "translation.status.completed": (
+            "翻译已完成，Reader 已切换到双语对照。"
         ),
-        "translation.status.failed": "翻译失败；所有原文仍可阅读。",
+        "translation.status.partial": (
+            "部分段落翻译失败；Reader 中的所有原文仍完整保留。"
+        ),
+        "translation.status.failed": "翻译失败；Reader 中的原文仍可阅读。",
         "translation.status.storage_warning": (
             "翻译已生成，但未能保存到本地。"
         ),
@@ -232,6 +272,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "translation.error.empty_response": (
             "Provider 没有返回译文；原文仍可阅读。"
+        ),
+        "translation.error.wrong_language": (
+            "Provider 未按目标语言返回译文；已丢弃错误内容，原文仍可阅读。"
+        ),
+        "translation.error.incomplete_response": (
+            "Provider 未完整翻译当前段落；已丢弃不完整译文，原文仍可阅读。"
         ),
         "translation.error.load_failed": (
             "本地翻译读取失败，可以重新翻译。"
@@ -256,7 +302,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.ai_settings": "AI Settings",
         "action.toggle_tags_panel": "Tags Panel",
         "action.toggle_summary_panel": "Summary Panel",
-        "action.toggle_translation_panel": "Translation Panel",
+        "action.toggle_translation_panel": "Translation Settings",
         "action.shortcuts": "Shortcuts",
         "action.exit": "Exit",
         "action.about": "About Mercury",
@@ -293,10 +339,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "reader.summary_toggle_tooltip": (
             "Show or hide the Summary panel (Ctrl+Shift+S)"
         ),
-        "reader.translation_toggle": "Translate",
+        "reader.translation_toggle": "Translation Settings",
         "reader.translation_toggle_tooltip": (
-            "Show or hide paragraph comparison (Ctrl+Shift+T)"
+            "Show or hide translation settings inside Reader (Ctrl+Shift+T)"
         ),
+        "reader.translation_view.bilingual": "Bilingual",
+        "reader.translation_view.original": "Original only",
+        "reader.translation_view.available_tooltip": (
+            "Switch between original-only and paragraph bilingual reading"
+        ),
+        "reader.translation_view.unavailable_tooltip": (
+            "Generate a translation for this article first"
+        ),
+        "reader.status.bilingual": "Showing paragraph bilingual reading",
         "reader.tags_toggle": "Tags",
         "reader.tags_toggle_tooltip": (
             "Show or hide the tag editor for the current article"
@@ -326,7 +381,43 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.ok": "OK",
         "settings.cancel": "Cancel",
         "ai_settings.title": "AI Provider Settings",
+        "ai_settings.preset": "Configuration template:",
+        "ai_settings.preset.custom": "Custom (OpenAI-compatible)",
+        "ai_settings.preset.custom_description": (
+            "The Base URL and model remain editable for any compatible "
+            "Chat Completions service."
+        ),
+        "ai_settings.preset.ollama_qwen25_7b": (
+            "Local Qwen2.5 7B (Ollama, recommended for translation)"
+        ),
+        "ai_settings.preset.ollama_qwen25_7b_description": (
+            "Recommended for Chinese-English translation. There is no API "
+            "cost; content is sent only to 127.0.0.1 and no API key is "
+            "needed. Before use, run: ollama pull qwen2.5:7b-instruct"
+        ),
+        "ai_settings.preset.ollama_deepseek": (
+            "Local DeepSeek (Ollama, no API cost)"
+        ),
+        "ai_settings.preset.ollama_deepseek_description": (
+            "There is no API cost; content is sent only to 127.0.0.1 and "
+            "no API key is needed. Install Ollama, then run: "
+            "ollama pull deepseek-r1:1.5b"
+        ),
+        "ai_settings.preset.deepseek_api": (
+            "Official DeepSeek API (usage billed)"
+        ),
+        "ai_settings.preset.deepseek_api_description": (
+            "This is a paid cloud API and requires a DeepSeek API key and "
+            "available balance; it is not the free option."
+        ),
         "ai_settings.base_url": "Base URL:",
+        "ai_settings.base_url_placeholder": (
+            "Example: https://service-address/v1"
+        ),
+        "ai_settings.base_url_tooltip": (
+            "Enter the Chat Completions API root; "
+            "/chat/completions is appended automatically."
+        ),
         "ai_settings.model": "Model:",
         "ai_settings.api_key": "API Key (optional):",
         "ai_settings.timeout": "Timeout:",
@@ -375,7 +466,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "shortcuts.open_settings": "Open Preferences",
         "shortcuts.toggle_summary": "Show or hide the Summary panel",
         "shortcuts.toggle_translation": (
-            "Show or hide the translation comparison panel"
+            "Show or hide Reader translation settings"
         ),
         "shortcuts.exit": "Exit Mercury",
         "shortcuts.close": "Close",
@@ -464,8 +555,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "translation.configure_ai": "AI Settings",
         "translation.original": "Original",
         "translation.translated": "Translation",
-        "translation.comparison_placeholder": (
-            "Start translation to compare original and translated paragraphs."
+        "translation.result_location": (
+            "Translations are rendered directly in Reader as alternating "
+            "original and translated paragraphs."
         ),
         "translation.generate": "Translate",
         "translation.regenerate": "Translate Again",
@@ -489,12 +581,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Translating in the background; the article and existing originals "
             "remain readable…"
         ),
-        "translation.status.completed": "Translation completed.",
+        "translation.status.completed": (
+            "Translation completed; Reader is now showing bilingual text."
+        ),
         "translation.status.partial": (
-            "Some paragraphs failed to translate; every original is retained."
+            "Some paragraphs failed; every original remains in Reader."
         ),
         "translation.status.failed": (
-            "Translation failed; every original remains readable."
+            "Translation failed; the original remains readable in Reader."
         ),
         "translation.status.storage_warning": (
             "Translation generated but could not be saved locally."
@@ -524,6 +618,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "translation.error.empty_response": (
             "The Provider returned no translation; the original remains readable."
+        ),
+        "translation.error.wrong_language": (
+            "The Provider did not use the target language; the invalid output "
+            "was discarded and the original remains readable."
+        ),
+        "translation.error.incomplete_response": (
+            "The Provider did not translate the complete paragraph; the "
+            "incomplete output was discarded and the original remains readable."
         ),
         "translation.error.load_failed": (
             "The local translation could not be loaded; you can translate again."

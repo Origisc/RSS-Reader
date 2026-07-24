@@ -11,20 +11,30 @@ Implement `plan.md` Task 3.1.1 as an offline, provider-neutral foundation:
 - Deterministic Mock Provider.
 - Replaceable configuration Store protocol.
 
-## Boundary
+## Original Boundary
 
-This task performs no network request and does not include a real vendor adapter. `InMemoryProviderConfigStore` enables independent development; persistent local storage waits for Member A's repository adapter.
+Task 3.1.1 originally performed no network request and did not include a real
+adapter. `InMemoryProviderConfigStore` enabled independent development;
+persistent local storage still waits for Member A's repository adapter.
 
-No Provider call is connected to article reading. Basic RSS reading therefore remains fully usable without any AI configuration.
+## Connected HTTP Follow-up
+
+`HTTPChatCompletionsProvider` now implements the production protocol using only
+the user-supplied Base URL, model, optional API Key, and timeout. `main.py`
+shares it between connection testing, `SummaryAgent`, and `TranslationAgent`.
+It reads the current configuration before each explicit AI request, while
+basic RSS reading remains usable without configuration.
+
+Automated tests inject an in-memory HTTP transport or patch `requests.post`;
+they never access a real network or credential.
 
 ## Offline Verification
 
 ```powershell
-uv run python -m unittest tests.test_llm_provider -v
+uv run python -m unittest tests.test_llm_provider tests.test_http_llm_provider tests.test_ai_provider_integration -v
 ```
 
-The tests cover deterministic responses, request recording, connection success/failure, configuration validation, in-memory save/load, empty prompts, user-readable errors, and API Key redaction.
-
-## Next Task
-
-Task 3.1.2 can build an AI settings page against these interfaces, using `MockLLMProvider` for connection testing and never displaying the complete API Key.
+The tests cover deterministic responses, request construction, dynamic
+configuration, connection success/failure, configuration validation,
+in-memory save/load, timeout handling, malformed responses, and API Key
+redaction.
