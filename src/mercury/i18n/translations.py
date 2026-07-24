@@ -140,7 +140,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status.settings_applied": (
             "已应用语言：{language}，主题：{theme}，正文字号：{font_size}px"
         ),
-        "status.ai_settings_saved": "AI Provider 配置已在本次运行中保存。",
+        "status.ai_settings_saved": "AI Provider 配置已保存到本地。",
+        "status.ai_settings_storage_failed": (
+            "AI Provider 配置未能保存到本地；现有阅读功能不受影响。"
+        ),
         "status.add_feed_started": "正在添加 Feed...",
         "status.import_opml_started": "正在导入 OPML...",
         "status.refresh_started": "正在刷新订阅源...",
@@ -442,7 +445,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Applied language: {language}; theme: {theme}; "
             "reader font: {font_size}px"
         ),
-        "status.ai_settings_saved": "AI Provider settings saved for this session.",
+        "status.ai_settings_saved": "AI Provider settings saved locally.",
+        "status.ai_settings_storage_failed": (
+            "AI Provider settings could not be saved locally; "
+            "existing reading features are unaffected."
+        ),
         "status.add_feed_started": "Adding feed...",
         "status.import_opml_started": "Importing OPML...",
         "status.refresh_started": "Refreshing feeds...",

@@ -30,6 +30,7 @@ uv sync --group dev
 uv run pytest `
   tests/test_llm_provider.py `
   tests/test_http_llm_provider.py `
+  tests/test_ai_persistence.py `
   tests/test_ai_provider_integration.py `
   tests/test_summary_agent.py `
   tests/test_summary_panel.py `
@@ -46,6 +47,7 @@ uv run pytest `
 uv run python -m unittest `
   tests.test_llm_provider `
   tests.test_http_llm_provider `
+  tests.test_ai_persistence `
   tests.test_ai_provider_integration `
   tests.test_summary_agent `
   tests.test_summary_panel `
@@ -60,7 +62,8 @@ uv run python -m unittest `
 
 | 范围 | 通过条件 |
 | --- | --- |
-| Provider | 配置校验、连接结果、API Key 脱敏和固定 Mock 响应通过 |
+| Provider | 配置校验、连接结果、API Key 脱敏、固定 Mock 响应和本地配置重启恢复通过 |
+| 本地 AI 存储 | Provider 配置、摘要和逐段翻译可从临时 SQLite 重建；后台线程写入、UTF-8、结构化失败信息和现有 Reader 表共存通过 |
 | Summary Agent | Cleaned Markdown 优先、可配置语言/详细度/Prompt、失败返回结构化错误 |
 | Summary UI | 后台生成、重新生成、缓存、双语状态和正文不被替换 |
 | Translation Agent | 优先使用 Cleaned HTML 的 `p/ul/ol` Reader 段落边界；旧式 RSS 裸文本按连续 `<br>` 恢复段落；段落顺序稳定、长段分段、部分失败继续处理、原文完整保留 |
@@ -107,8 +110,10 @@ uv run python main.py
 `https://provider.example/v1/chat/completions`；如果设置中已经填写完整的
 `.../chat/completions` 地址，则不会重复追加。
 
-当前默认配置存储只在本次应用运行期间保留。重启后的持久化配置仍属于成员 A
-的本地设置存储集成点；这不影响当前会话内保存配置、测试连接、摘要和翻译。
+当前生产入口使用 `SQLiteProviderConfigStore`、
+`SQLiteSummaryResultStore` 和 `SQLiteTranslationResultStore`，统一写入
+现有本地 `database.db`。重启后会恢复 Provider 配置以及每篇文章最近一次
+摘要和翻译。数据库文件被 Git 忽略，Mercury 不会主动同步或上传其中内容。
 不得在 Agent、UI 或文章业务逻辑中写死厂商、模型、Base URL 或 API Key。
 
 人工步骤：
@@ -129,7 +134,9 @@ uv run python main.py
    确认 UI 显示可理解错误；Reader 中所有原文仍可读，失败段落不会被空白
    译文替换。
 6. 恢复有效配置后重新执行，确认失败不会破坏后续生成。
-7. 验收结束后清除临时凭据，并检查 `git status --short`，确保没有凭据、
+7. 关闭并重新启动 Mercury，重新选择同一篇文章；确认 Provider 配置仍在，
+   最近一次摘要和逐段翻译无需重新调用 Provider 即可恢复。
+8. 验收结束后清除临时凭据，并检查 `git status --short`，确保没有凭据、
    本地数据库或私有文章进入待提交文件。
 
 ### 4.1 零 API 费用的本地 DeepSeek 验收
@@ -166,6 +173,8 @@ API Key 和可用余额。模板仅填写当前官方 Base URL 和模型名，�
 - Mock Provider 自动验收和完整回归通过。
 - 未配置 Provider 时，基础阅读功能完全可用。
 - Provider 失败时，摘要/翻译给出可理解错误，文章和翻译原文仍可读。
+- Provider 配置、摘要和结构化逐段翻译在重启后可从本地数据库恢复。
+- SQLite 存储失败不会导致应用崩溃，也不会影响基础阅读。
 - 翻译对照严格使用结构化 `TranslationResult`，不从整篇字符串猜测段落。
 - 翻译结果渲染在 Reader 正文区域，严格保持“原文段落 → 对应译文”的顺序，
   不在页面底部创建类似 Summary 的结果面板。

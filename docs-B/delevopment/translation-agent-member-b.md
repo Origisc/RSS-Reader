@@ -30,7 +30,7 @@
   Provider 翻译或最终结果保存。
 - 段落级成功、部分成功、失败状态；单段失败后继续翻译后文。
 - 所有结果始终保留原文，Provider 错误中的 API Key 会被遮盖。
-- 可替换的 `TranslationResultStore` 和进程内测试实现。
+- 可替换的 `TranslationResultStore`、进程内测试实现和生产 SQLite 实现。
 
 Agent 层只返回结构化结果，不直接修改或隐藏 Article Reader 的正文。当前
 Task 3.3.2 的 Reader 双语对照展示已完成，详见
@@ -47,13 +47,15 @@ Task 3.3.2 的 Reader 双语对照展示已完成，详见
 目标语言偏离后的纠正重试与错误输出丢弃、部分失败、空响应、未配置
 Provider、密钥脱敏和存储失败，不访问网络或真实 API Key。
 
-## 成员 A 接口
+## 本地持久化
 
-本地持久化适配器实现以下接口即可接入：
+正式应用通过 `SQLiteTranslationResultStore` 实现以下接口：
 
 ```python
 def save(self, result: TranslationResult) -> None: ...
 def latest_for_article(self, article_id: str) -> TranslationResult | None: ...
 ```
 
-当前 `InMemoryTranslationResultStore` 仅用于独立开发、测试和下一步 UI 联调，不提供跨进程持久化。
+翻译头信息和所有段落在一个 SQLite 事务中保存，重启后仍按段落顺序恢复，
+失败段落的原文和错误状态不会丢失。`InMemoryTranslationResultStore` 仅保留
+给独立测试和 Mock 联调。

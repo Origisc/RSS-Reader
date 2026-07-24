@@ -62,7 +62,7 @@ class ProviderConfig:
 
 
 class ProviderConfigStore(Protocol):
-    """Injection point for Member A's future local settings repository."""
+    """Persistence boundary for Provider configuration."""
 
     def load(self) -> ProviderConfig | None:
         ...

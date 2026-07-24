@@ -117,6 +117,7 @@ class TranslatorTest(unittest.TestCase):
                 "ai_settings.connection_success",
                 "ai_settings.connection_failed",
                 "status.ai_settings_saved",
+                "status.ai_settings_storage_failed",
             ):
                 self.assertNotEqual(translator.text(key), key)
 

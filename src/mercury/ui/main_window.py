@@ -660,15 +660,43 @@ class MainWindow(QMainWindow):
             )
 
     def _open_ai_settings(self) -> None:
+        try:
+            current_config = self._provider_config_store.load()
+        except Exception:
+            message = self.translator.text(
+                "status.ai_settings_storage_failed"
+            )
+            QMessageBox.warning(
+                self,
+                self.translator.text("dialog.feature_failed.title"),
+                message,
+            )
+            self.statusBar().showMessage(message, 8000)
+            return
+
         dialog = AISettingsDialog(
             self.translator,
-            current_config=self._provider_config_store.load(),
+            current_config=current_config,
             connection_tester=self._provider_connection_tester,
             parent=self,
         )
 
         if dialog.exec():
-            self._provider_config_store.save(dialog.selected_config())
+            try:
+                self._provider_config_store.save(
+                    dialog.selected_config()
+                )
+            except Exception:
+                message = self.translator.text(
+                    "status.ai_settings_storage_failed"
+                )
+                QMessageBox.warning(
+                    self,
+                    self.translator.text("dialog.feature_failed.title"),
+                    message,
+                )
+                self.statusBar().showMessage(message, 8000)
+                return
             self.statusBar().showMessage(
                 self.translator.text("status.ai_settings_saved"),
                 5000,

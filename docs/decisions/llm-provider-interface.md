@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted for Stage 3 Member B development; HTTP adapter connected and
-persistent configuration storage pending.
+Accepted and completed for Stage 3. The HTTP adapter and local SQLite
+configuration storage are connected in the production composition.
 
 ## Decision
 
@@ -32,16 +32,30 @@ persistent configuration storage pending.
 
 ## Configuration Storage Boundary
 
-Member B provides `ProviderConfigStore` and an in-memory implementation for independent UI and Agent development. Member A can later inject a local settings repository without changing Provider consumers.
+`ProviderConfigStore` remains the only configuration boundary used by the UI
+and Provider. `InMemoryProviderConfigStore` is retained for deterministic
+tests. Production injects `SQLiteProviderConfigStore`, which stores the latest
+user-selected configuration in the existing local `database.db`. The file is
+excluded from Git and is never synchronized by Mercury.
+
+Every database operation uses a short-lived connection. This allows Summary
+and Translation jobs to run in worker threads without sharing a SQLite
+connection created by the UI thread.
+
+## AI Result Persistence
+
+- `SQLiteSummaryResultStore` saves structured summaries and loads the latest
+  result for an article after restart.
+- `SQLiteTranslationResultStore` saves the translation header and all
+  paragraph rows in one transaction, preserving paragraph order and failure
+  fallback metadata.
+- Result history is capped per article to avoid unbounded local growth.
+- Storage failures remain non-fatal: generated content stays available in the
+  current UI and the base article remains readable.
 
 ## Failure Contract
 
 Provider failures use `LLMProviderError` with a user-readable message. Summary and Translation workflows must catch this error and preserve the base article reading experience.
-
-## Deferred Work
-
-- Local configuration persistence belongs to the storage integration point
-  owned by Member A.
 
 ## Completed Follow-up
 
@@ -49,4 +63,6 @@ Task 3.1.2 added the Provider-neutral settings UI and injectable
 connection-test interaction. The production composition now shares one
 `HTTPChatCompletionsProvider` between connection testing, `SummaryAgent`, and
 `TranslationAgent`. Automated tests replace its HTTP transport and never
-access a real network.
+access a real network. The production composition now injects the SQLite
+Provider, Summary, and Translation stores; restart round trips are covered by
+`tests/test_ai_persistence.py`.

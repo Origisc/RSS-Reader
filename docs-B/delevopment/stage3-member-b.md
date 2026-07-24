@@ -1,95 +1,72 @@
-# Stage 3 - Member B Development Log
+# Stage 3 - Member B Completion Log
 
-## Overview
+## Completion Summary
 
-本阶段继续沿用 Mock Service，不接入真实 Feed、数据库或 LLM 服务。
+第三阶段已形成完整的可运行闭环：
 
-目标是在现有三栏阅读器基础上补齐成员 B 下一步 UI 骨架：菜单栏、工具栏、设置窗口、运行时语言切换、主题切换，以及 AI 面板入口。
+- 厂商中立的 `LLMProvider` 与标准 Chat Completions HTTP 适配器。
+- 可配置 Base URL、模型、API Key、超时和连接测试的 AI 设置界面。
+- 可配置语言、详细度和 Prompt 的 Summary Agent 与异步 Summary UI。
+- 可配置目标语言和 Prompt 的 Translation Agent、长文分段、纠错重试、
+  渐进式逐段显示和 Reader 内原文/译文对照。
+- Provider、摘要和结构化翻译结果默认保存到现有本地 SQLite 数据库，应用
+  重启后可恢复。
+- Provider、存储或单段翻译失败时，基础阅读和所有原文继续可用。
 
----
+## Local-first and Privacy Boundary
 
-## Completed Features
+- 未配置 Provider 时不会发送网络请求。
+- 只有用户主动执行连接测试、摘要或翻译时才调用所选 Provider。
+- 自动测试全部使用 Mock Provider、内存 HTTP transport 和临时数据库。
+- API Key 不进入对象 `repr`、状态栏、异常提示、fixture 或测试输出。
+- `database.db` 被 Git 忽略，Mercury 不主动同步用户配置和 AI 结果。
+- UI 只调用 Store/Agent 接口，不直接执行 SQL 或 Provider 请求。
 
-### 1. Runtime i18n
+## Persistence Design
 
-新增：
+`src/mercury/storage/ai_repository.py` 提供：
 
-```text
-src/mercury/i18n/
-```
+- `SQLiteProviderConfigStore`
+- `SQLiteSummaryResultStore`
+- `SQLiteTranslationResultStore`
 
-当前支持：
-
-- 简体中文
-- English
-- 缺失翻译 fallback
-- 无需重启即可刷新主窗口、菜单、工具栏、列表标题、阅读区欢迎文案和 AI 面板文案
-
-### 2. Settings Dialog
-
-设置窗口现在可以选择：
-
-- 界面语言
-- 界面主题
-
-点击确定后即时应用，不需要重启应用。
-
-### 3. Theme Switching
-
-新增：
-
-```text
-src/mercury/ui/theme.py
-```
-
-当前支持：
-
-- 跟随系统
-- 浅色
-- 深色
-
-设置暂时保存在运行时内存中，等待成员 A 的配置/存储接口稳定后再接入本地持久化。
-
-### 4. Menu Bar and Tool Bar
-
-主窗口已提供：
-
-- 添加 Feed 入口
-- 刷新入口
-- 首选项入口
-- AI 面板入口
-- 关于窗口
-- 退出入口
-
-添加 Feed 与刷新目前只显示“入口已预留”提示，避免 UI 层绕过 service 直接处理网络或数据库逻辑。
-
-### 5. AI Panel Entry
-
-AI 面板入口已预留，并明确提示后续摘要/翻译必须通过可配置 LLM Provider，且用户主动配置和触发前不会发送文章内容。
-
----
+每次数据库操作使用短连接并显式提交、回滚和关闭，支持 Summary/Translation
+在线程池中写入。逐段翻译头信息和段落行在同一事务中保存；每篇文章只保留
+有限数量的历史结果，避免本地数据库无限增长。
 
 ## Verification
 
-自动验证：
+Stage 3 定向验收：
 
 ```powershell
-uv run python -m unittest tests.test_i18n
+uv run python -m unittest `
+  tests.test_llm_provider `
+  tests.test_http_llm_provider `
+  tests.test_ai_persistence `
+  tests.test_ai_provider_integration `
+  tests.test_summary_agent `
+  tests.test_summary_panel `
+  tests.test_translation_agent `
+  tests.test_translation_panel `
+  tests.test_article_reader `
+  tests.test_bilingual_document `
+  tests.test_stage3_acceptance
 ```
 
-人工验证：
+完整离线回归：
 
-1. 运行 `uv run python src/mercury/main.py`。
-2. 打开“设置 / 首选项”。
-3. 切换 English，确认菜单、工具栏、列表标题、阅读区欢迎文案更新。
-4. 切换深色主题，确认窗口样式更新。
-5. 打开 View / AI Panel，确认 AI 面板出现且文案说明未配置前不会发送文章内容。
-6. 点击 Add Feed / Refresh，确认只是显示预留入口提示，没有直接发起网络请求。
+```powershell
+uv run python -m unittest discover -s tests -p "test_*.py"
+```
 
----
+人工验收以 `docs/verification/stage-3.md` 为准，尤其检查：
 
-## Notes
+1. 无 Provider 时基础 Reader 正常。
+2. 原文和译文逐段一一对应，单段失败仍保留原文。
+3. 关闭并重启应用后，Provider 配置、摘要和翻译可以恢复。
+4. 本地数据库、真实凭据和私有文章未进入 Git 待提交文件。
 
-- 本阶段仍不依赖数据库、网络或真实 LLM。
-- UI 仍只通过 Mock Service 获取文章数据。
-- 设置持久化等待后续配置存储接口，不在本阶段硬写本地文件。
+## Scope Boundary
+
+本记录只完成 `plan.md` 第三阶段。第四阶段的笔记面板未实现，也不属于本次
+交付范围。

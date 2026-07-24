@@ -33,12 +33,16 @@ DeepSeek 官方云 API 是按量计费服务，界面明确标注为非免费方
 Provider 发送请求。自动测试使用 Mock 或内存 HTTP transport，全程不依赖
 真实网络或真实 API Key。
 
-配置当前使用可替换的内存存储；后续由本地 settings repository 实现并注入 `ProviderConfigStore` 后，可获得跨进程持久化，不需要修改 UI。
+配置继续通过可替换的 `ProviderConfigStore` 保存。自动测试使用内存实现；
+正式应用使用 `SQLiteProviderConfigStore` 写入现有本地 `database.db`，重启后
+会恢复 Base URL、模型、可选 API Key 和超时。数据库文件被 Git 忽略，
+Mercury 不会主动同步或上传这些配置。保存失败时显示可翻译提示，基础阅读
+不受影响。
 
 ## 独立验证
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest tests.test_ai_settings tests.test_http_llm_provider tests.test_ai_provider_integration tests.test_i18n tests.test_theme -v
+.\.venv\Scripts\python.exe -m unittest tests.test_ai_settings tests.test_ai_persistence tests.test_http_llm_provider tests.test_ai_provider_integration tests.test_i18n tests.test_theme -v
 ```
 
 验收点：
@@ -50,3 +54,4 @@ Provider 发送请求。自动测试使用 Mock 或内存 HTTP transport，全�
 5. 失败信息即使意外包含 API Key，也会在 UI 中被遮盖。
 6. 本地 Qwen2.5 7B 与 DeepSeek 模板使用回环地址、不保留其他服务的 API
    Key；手动修改 Base URL 或模型后恢复为自定义模板。
+7. 关闭并重新创建配置 Store 后仍能读取已保存配置；清除后不再返回配置。

@@ -327,6 +327,60 @@ class MainWindowAISettingsTest(unittest.TestCase):
         window.close()
         window.deleteLater()
 
+    def test_storage_failure_is_readable_and_does_not_crash_reader(
+        self,
+    ) -> None:
+        config = ProviderConfig(
+            base_url="https://example.invalid/v1",
+            model="saved-model",
+            api_key="must-not-appear",
+        )
+
+        class FailingStore:
+            def load(self):
+                return None
+
+            def save(self, _config) -> None:
+                raise OSError("database details must stay internal")
+
+            def clear(self) -> None:
+                pass
+
+        class AcceptedDialog:
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+            def exec(self) -> int:
+                return 1
+
+            def selected_config(self) -> ProviderConfig:
+                return config
+
+        window = MainWindow(
+            MockArticleService(),
+            provider_config_store=FailingStore(),
+        )
+
+        with (
+            patch(
+                "mercury.ui.main_window.AISettingsDialog",
+                AcceptedDialog,
+            ),
+            patch(
+                "mercury.ui.main_window.QMessageBox.warning"
+            ) as warning,
+        ):
+            window._open_ai_settings()
+
+        message = window.statusBar().currentMessage()
+        self.assertIn("保存到本地", message)
+        self.assertNotIn(config.api_key, message)
+        self.assertNotIn("database details", message)
+        self.assertEqual(window.article_list.list_widget.count(), 3)
+        warning.assert_called_once()
+        window.close()
+        window.deleteLater()
+
 
 if __name__ == "__main__":
     unittest.main()

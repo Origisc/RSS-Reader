@@ -77,7 +77,7 @@ class TranslationSource:
 
 
 class TranslationResultStore(Protocol):
-    """Persistence boundary for Member A's future local repository."""
+    """Persistence boundary for paragraph-aligned translation results."""
 
     def save(self, result: TranslationResult) -> None:
         ...

@@ -35,16 +35,16 @@ class MainEntryTest(unittest.TestCase):
                 "mercury.main.BackendArticleService"
             ) as article_service_class,
             patch(
-                "mercury.main.InMemoryProviderConfigStore"
+                "mercury.main.SQLiteProviderConfigStore"
             ) as config_store_class,
             patch(
                 "mercury.main.HTTPChatCompletionsProvider"
             ) as provider_class,
             patch(
-                "mercury.main.InMemorySummaryResultStore"
+                "mercury.main.SQLiteSummaryResultStore"
             ) as summary_store_class,
             patch(
-                "mercury.main.InMemoryTranslationResultStore"
+                "mercury.main.SQLiteTranslationResultStore"
             ) as translation_store_class,
             patch("mercury.main.SummaryAgent") as summary_agent_class,
             patch(
@@ -58,11 +58,15 @@ class MainEntryTest(unittest.TestCase):
             result = main()
 
         database = database_class.return_value
+        database_path = Path.cwd() / "database.db"
         use_case_class.assert_called_once_with(database)
         article_service_class.assert_called_once_with(
             database,
             use_case_class.return_value,
         )
+        config_store_class.assert_called_once_with(database_path)
+        summary_store_class.assert_called_once_with(database_path)
+        translation_store_class.assert_called_once_with(database_path)
         provider_class.assert_called_once_with(
             config_store_class.return_value
         )
