@@ -34,6 +34,7 @@ class TestDBManager(unittest.TestCase):
         self.assertEqual(len(feeds), 1)
 
     def test_existing_article_schema_receives_processing_columns(self):
+        import threading
         connection = sqlite3.connect(":memory:")
         connection.execute(
             """
@@ -49,6 +50,7 @@ class TestDBManager(unittest.TestCase):
         )
         database = DBManager.__new__(DBManager)
         database.conn = connection
+        database._lock = threading.Lock()
 
         database.create_tables()
 

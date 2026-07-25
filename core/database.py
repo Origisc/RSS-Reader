@@ -1,13 +1,15 @@
 import sqlite3
+import threading
 from datetime import datetime
 
 class DBManager:
     def __init__(self, db_path="database.db"):
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._lock = threading.Lock()
         self.create_tables()
 
     def create_tables(self):
-        with self.conn:
+        with self._lock, self.conn:
             # 1. 订阅源表
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS feeds (
@@ -106,7 +108,7 @@ class DBManager:
 
     def add_feed(self, title, xml_url, html_url=""):
         try:
-            with self.conn:
+            with self._lock, self.conn:
                 cursor = self.conn.execute(
                     "INSERT INTO feeds (title, xml_url, html_url) VALUES (?, ?, ?)",
                     (title, xml_url, html_url)
@@ -118,16 +120,23 @@ class DBManager:
             return cursor.fetchone()[0]
 
     def get_all_feeds(self):
-        cursor = self.conn.execute("SELECT id, title, xml_url FROM feeds")
-        return cursor.fetchall()
+        with self._lock:
+            cursor = self.conn.execute("SELECT id, title, xml_url FROM feeds")
+            return cursor.fetchall()
 
     def save_articles(self, feed_id, entries):
-        with self.conn:
+        with self._lock, self.conn:
             for entry in entries:
-                # 提取文章核心信息
                 title = entry.get("title", "No Title")
                 link = entry.get("link", "")
-                description = entry.get("summary", entry.get("description", ""))
+                
+                content = entry.get("content", [])
+                if isinstance(content, list) and content:
+                    content_dict = content[0]
+                    description = content_dict.get("value", "")
+                else:
+                    description = entry.get("summary", entry.get("description", ""))
+                
                 published = entry.get("published", str(datetime.now()))
                 
                 try:
@@ -140,27 +149,30 @@ class DBManager:
                     continue
 
     def get_articles_by_feed(self, feed_id):
-        cursor = self.conn.execute(
-            "SELECT id, title, published FROM articles WHERE feed_id = ? ORDER BY id DESC", (feed_id,)
-        )
-        return cursor.fetchall()
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT id, title, published FROM articles WHERE feed_id = ? ORDER BY id DESC", (feed_id,)
+            )
+            return cursor.fetchall()
 
     def get_article_detail(self, article_id):
-        cursor = self.conn.execute(
-            "SELECT title, description, link FROM articles WHERE id = ?", (article_id,)
-        )
-        return cursor.fetchone()
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT title, description, link FROM articles WHERE id = ?", (article_id,)
+            )
+            return cursor.fetchone()
 
     def get_article_full_detail(self, article_id):
-        cursor = self.conn.execute(
-            "SELECT title, description, link, original_html, fetched_at, fetch_status, fetch_error, cleaned_html, cleaned_markdown, cleaned_at, clean_status, clean_error, translated_text, translated_at, translate_status, translate_error, target_language FROM articles WHERE id = ?",
-            (article_id,),
-        )
-        return cursor.fetchone()
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT title, description, link, original_html, fetched_at, fetch_status, fetch_error, cleaned_html, cleaned_markdown, cleaned_at, clean_status, clean_error, translated_text, translated_at, translate_status, translate_error, target_language FROM articles WHERE id = ?",
+                (article_id,),
+            )
+            return cursor.fetchone()
 
     def save_article_cleaned(self, article_id, cleaned_html, cleaned_markdown, cleaned_at, status="success", error=None):
         try:
-            with self.conn:
+            with self._lock, self.conn:
                 self.conn.execute(
                     "UPDATE articles SET cleaned_html = ?, cleaned_markdown = ?, cleaned_at = ?, clean_status = ?, clean_error = ? WHERE id = ?",
                     (cleaned_html, cleaned_markdown, cleaned_at, status, error, article_id),
@@ -172,7 +184,7 @@ class DBManager:
 
     def save_article_html(self, article_id, html_content, fetched_at, status="success", error=None):
         try:
-            with self.conn:
+            with self._lock, self.conn:
                 self.conn.execute(
                     "UPDATE articles SET original_html = ?, fetched_at = ?, fetch_status = ?, fetch_error = ? WHERE id = ?",
                     (html_content, fetched_at, status, error, article_id),
@@ -184,7 +196,7 @@ class DBManager:
 
     def save_article_translated(self, article_id, translated_text, translated_at, target_language, status="success", error=None):
         try:
-            with self.conn:
+            with self._lock, self.conn:
                 self.conn.execute(
                     "UPDATE articles SET translated_text = ?, translated_at = ?, target_language = ?, translate_status = ?, translate_error = ? WHERE id = ?",
                     (translated_text, translated_at, target_language, status, error, article_id),
@@ -200,7 +212,7 @@ class DBManager:
         由于设置了外键级联删除 (ON DELETE CASCADE)，对应的文章会自动被清理。
         """
         try:
-            with self.conn:
+            with self._lock, self.conn:
                 # 显式开启外键约束支持（SQLite 默认可能关闭外键级联，这行能确保级联生效）
                 self.conn.execute("PRAGMA foreign_keys = ON")
 

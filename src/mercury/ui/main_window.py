@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QRunnable, QThreadPool, QObject, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
@@ -87,6 +87,7 @@ class MainWindow(QMainWindow):
         self._summary_result_loader = summary_result_loader
         self._translation_generator = translation_generator
         self._translation_result_loader = translation_result_loader
+        self._active_workers = set()
 
         self.resize(1320, 820)
 
@@ -399,6 +400,74 @@ class MainWindow(QMainWindow):
         self.summary_panel.clear_article()
         self.translation_panel.clear_article()
 
+    def _ensure_article_processed(self, article_id: str) -> None:
+        class _ArticleProcessorSignals(QObject):
+            processed = Signal(str)
+            finished = Signal()
+
+        class _ArticleProcessor(QRunnable):
+            def __init__(self, service, article_id):
+                super().__init__()
+                self.service = service
+                self.article_id = article_id
+                self.signals = _ArticleProcessorSignals()
+
+            def run(self):
+                try:
+                    article = self.service.get_article(self.article_id)
+                    if article is None:
+                        return
+
+                    if not article.original_html:
+                        self.service.fetch_article_content(self.article_id)
+                        article = self.service.get_article(self.article_id)
+                        if article is None or not article.original_html:
+                            return
+
+                    if article.original_html and article.clean_status != "success":
+                        self.service.clean_article_content(self.article_id)
+
+                    self.signals.processed.emit(self.article_id)
+                except Exception as e:
+                    print(f"Error processing article {self.article_id}: {e}")
+                finally:
+                    self.signals.finished.emit()
+
+        worker = _ArticleProcessor(self.article_service, article_id)
+        worker.signals.processed.connect(self._on_article_processed)
+        worker.signals.finished.connect(lambda: self._active_workers.discard(worker))
+        self._active_workers.add(worker)
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_article_processed(self, article_id: str) -> None:
+        if self.article_reader.current_article_id != article_id:
+            return
+
+        article = self.article_service.get_article(article_id)
+        if article is None:
+            return
+
+        document = ReaderDocument.from_article(article)
+        self.article_reader.show_article(article, document)
+        self.summary_panel.set_article(
+            SummarySource(
+                article_id=article.id,
+                title=article.title,
+                raw_html=document.raw_html,
+                cleaned_markdown=document.cleaned_markdown,
+                cleaned_html=document.cleaned_html,
+            )
+        )
+        self.translation_panel.set_article(
+            TranslationSource(
+                article_id=article.id,
+                title=article.title,
+                raw_html=document.raw_html,
+                cleaned_markdown=document.cleaned_markdown,
+                cleaned_html=document.cleaned_html,
+            )
+        )
+
     def _show_article(self, article_id: str) -> None:
         article = self.article_service.get_article(article_id)
 
@@ -407,6 +476,8 @@ class MainWindow(QMainWindow):
             self.summary_panel.clear_article()
             self.translation_panel.clear_article()
             return
+
+        self._ensure_article_processed(article_id)
 
         document = ReaderDocument.from_article(article)
         self.article_reader.show_article(article, document)
