@@ -113,5 +113,206 @@ class TestDBManager(unittest.TestCase):
         )
         connection.close()
 
+    def test_repairs_legacy_swapped_title_link_without_losing_user_state(
+        self,
+    ):
+        feed_id = self.db.add_feed(
+            "Legacy feed",
+            "https://example.com/feed",
+        )
+        with self.db.conn:
+            cursor = self.db.conn.execute(
+                """
+                INSERT INTO articles (
+                    feed_id,
+                    title,
+                    link,
+                    description,
+                    published,
+                    fetched_at,
+                    fetch_status,
+                    fetch_error,
+                    clean_status,
+                    clean_error,
+                    translated_text,
+                    translate_status,
+                    is_starred
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    feed_id,
+                    "https://example.com/legacy-article",
+                    "Readable legacy title",
+                    "<p>Feed summary</p>",
+                    "Today",
+                    "2026-07-26T12:00:00",
+                    "failed",
+                    "Invalid URL",
+                    "failed",
+                    "Fetch failed",
+                    "保留的翻译",
+                    "success",
+                    1,
+                ),
+            )
+            article_id = int(cursor.lastrowid)
+
+        tag_id = int(self.db.create_or_get_tag("Keep tag")[0])
+        self.db.add_article_tag(article_id, tag_id)
+
+        self.db.create_tables()
+        self.db.create_tables()
+
+        repaired = self.db.conn.execute(
+            """
+            SELECT
+                title,
+                link,
+                fetched_at,
+                fetch_status,
+                fetch_error,
+                clean_status,
+                clean_error,
+                translated_text,
+                translate_status,
+                is_starred
+            FROM articles
+            WHERE id = ?
+            """,
+            (article_id,),
+        ).fetchone()
+        self.assertEqual(
+            repaired,
+            (
+                "Readable legacy title",
+                "https://example.com/legacy-article",
+                None,
+                "pending",
+                None,
+                "pending",
+                None,
+                "保留的翻译",
+                "success",
+                1,
+            ),
+        )
+        self.assertEqual(
+            self.db.get_article_tags(article_id),
+            [(tag_id, "Keep tag")],
+        )
+
+    def test_does_not_swap_rows_when_title_and_link_are_both_urls(self):
+        feed_id = self.db.add_feed(
+            "URL titles",
+            "https://example.com/url-feed",
+        )
+        with self.db.conn:
+            cursor = self.db.conn.execute(
+                """
+                INSERT INTO articles (feed_id, title, link)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    feed_id,
+                    "https://example.com/title-as-text",
+                    "https://example.com/real-link",
+                ),
+            )
+            article_id = int(cursor.lastrowid)
+
+        self.db.create_tables()
+
+        self.assertEqual(
+            self.db.get_article_detail(article_id),
+            (
+                "https://example.com/title-as-text",
+                None,
+                "https://example.com/real-link",
+            ),
+        )
+
+    def test_legacy_swap_conflict_resets_retry_without_deleting_rows(
+        self,
+    ):
+        feed_id = self.db.add_feed(
+            "Duplicate legacy feed",
+            "https://example.com/duplicate-feed",
+        )
+        article_url = "https://example.com/same-article"
+        with self.db.conn:
+            correct_cursor = self.db.conn.execute(
+                """
+                INSERT INTO articles (feed_id, title, link)
+                VALUES (?, ?, ?)
+                """,
+                (feed_id, "Correct row", article_url),
+            )
+            correct_id = int(correct_cursor.lastrowid)
+            legacy_cursor = self.db.conn.execute(
+                """
+                INSERT INTO articles (
+                    feed_id,
+                    title,
+                    link,
+                    fetch_status,
+                    fetch_error,
+                    clean_status,
+                    clean_error,
+                    is_starred
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    feed_id,
+                    article_url,
+                    "Legacy duplicate title",
+                    "failed",
+                    "Invalid URL",
+                    "failed",
+                    "Fetch failed",
+                    1,
+                ),
+            )
+            legacy_id = int(legacy_cursor.lastrowid)
+
+        self.db.create_tables()
+
+        self.assertEqual(
+            self.db.conn.execute(
+                """
+                SELECT id, title, link
+                FROM articles
+                WHERE id IN (?, ?)
+                ORDER BY id
+                """,
+                (correct_id, legacy_id),
+            ).fetchall(),
+            [
+                (correct_id, "Correct row", article_url),
+                (
+                    legacy_id,
+                    article_url,
+                    "Legacy duplicate title",
+                ),
+            ],
+        )
+        self.assertEqual(
+            self.db.conn.execute(
+                """
+                SELECT
+                    fetch_status,
+                    fetch_error,
+                    clean_status,
+                    clean_error,
+                    is_starred
+                FROM articles
+                WHERE id = ?
+                """,
+                (legacy_id,),
+            ).fetchone(),
+            ("pending", None, "pending", None, 1),
+        )
+
 if __name__ == "__main__":
     unittest.main()

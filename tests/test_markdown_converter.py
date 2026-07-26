@@ -45,6 +45,10 @@ class MarkdownConverterTest(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertIn("First paragraph", result.markdown)
         self.assertIn("Second paragraph", result.markdown)
+        self.assertEqual(
+            result.markdown,
+            "First paragraph\n\nSecond paragraph",
+        )
 
     def test_convert_links(self) -> None:
         html = '<p>Visit <a href="https://example.com">Example</a></p>'

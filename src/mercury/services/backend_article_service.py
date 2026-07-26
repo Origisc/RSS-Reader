@@ -255,7 +255,11 @@ class BackendArticleService:
         if detail is None:
             return "Article detail not found."
 
-        _, _, link = detail
+        stored_title, _, stored_link = detail
+        _, link = self._normalise_title_and_link(
+            stored_title,
+            stored_link,
+        )
         if not link:
             return "Article has no link."
 

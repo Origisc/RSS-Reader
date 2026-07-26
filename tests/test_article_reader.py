@@ -86,6 +86,29 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("one", markdown_text)
         self.assertEqual(self.reader.current_article_id, "article-1")
 
+    def test_markdown_view_uses_dark_reader_text_color(self) -> None:
+        document = ReaderDocument(
+            raw_html="<p>Raw fallback</p>",
+            cleaned_markdown=(
+                "## Visible heading\n\n"
+                "First visible paragraph.\n\n"
+                "Second visible paragraph."
+            ),
+        )
+        self.reader.show_article(self.article, document)
+
+        self.reader.set_view(ReaderView.MARKDOWN)
+
+        rendered_html = self.reader.content.toHtml().replace(" ", "").lower()
+        rendered_text = self.reader.content.toPlainText()
+        markdown_fragment = self.reader._markdown_fragment(
+            document.cleaned_markdown or ""
+        )
+        self.assertIn("First visible paragraph", rendered_text)
+        self.assertIn("Second visible paragraph", rendered_text)
+        self.assertGreaterEqual(markdown_fragment.lower().count("<p"), 2)
+        self.assertIn("color:#d7e3ed", rendered_html)
+
     def test_cleaning_failure_keeps_original_article_readable(self) -> None:
         document = ReaderDocument(
             raw_html="<p>Readable fallback text</p>",
@@ -108,7 +131,7 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("First-stage original", self.reader.content.toPlainText())
         self.assertIn("unavailable", self.reader.view_status_label.text())
 
-    def test_document_uses_persisted_processing_results(self) -> None:
+    def test_document_keeps_feed_content_as_original_view(self) -> None:
         article = Article(
             id="processed-article",
             feed_id="feed-1",
@@ -123,10 +146,25 @@ class ArticleReaderTest(unittest.TestCase):
 
         document = ReaderDocument.from_article(article)
 
-        self.assertIn("Fetched original", document.raw_html)
+        self.assertIn("Feed summary", document.raw_html)
+        self.assertNotIn("Fetched original", document.raw_html)
         self.assertIn("Cleaned result", document.cleaned_html or "")
         self.assertEqual(document.cleaned_markdown, "## Cleaned Markdown")
         self.assertEqual(document.cleaning_error, "previous cleaning warning")
+
+    def test_document_uses_fetched_html_when_feed_content_is_empty(self) -> None:
+        article = Article(
+            id="fetched-only",
+            feed_id="feed-1",
+            title="Fetched-only fixture",
+            source_title="Local fixture",
+            content_html="",
+            original_html="<article><p>Fetched fallback</p></article>",
+        )
+
+        document = ReaderDocument.from_article(article)
+
+        self.assertIn("Fetched fallback", document.raw_html)
 
     def test_reader_style_is_applied_without_changing_article(self) -> None:
         self.reader.show_article(self.article)

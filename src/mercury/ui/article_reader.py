@@ -624,37 +624,8 @@ class ArticleReader(QWidget):
         if self._current_article is None:
             return
 
-        article = self._current_article
-        safe_title = escape(article.title)
-        safe_source = escape(article.source_title)
-        safe_source_label = escape(self._source_label)
-        safe_note = escape(self._reader_note)
-
-        md_document = QTextDocument()
-        md_document.setMarkdown(markdown)
-        content_html = md_document.toHtml()
-        lowered = content_html.lower()
-        body_start = lowered.find("<body")
-        body_open_end = content_html.find(">", body_start)
-        body_end = lowered.rfind("</body>")
-
-        if body_start >= 0 and body_open_end >= 0 and body_end >= 0:
-            content_html = content_html[body_open_end + 1 : body_end]
-        else:
-            content_html = f"<p>{escape(markdown)}</p>"
-
-        body = f"""
-            <h1>{safe_title}</h1>
-            <p class="byline">{safe_source}</p>
-            <div class="reader-card">
-                <span>{safe_source_label}</span>
-                <strong>{safe_source}</strong>
-            </div>
-            <div class="reader-article">{content_html}</div>
-            <div class="reader-note">{safe_note}</div>
-        """
-        self.content.setHtml(self._wrap_html(body))
-        self._resolve_images_async(content_html)
+        markdown_html = self._markdown_fragment(markdown)
+        self._show_html(markdown_html, "")
 
     def set_texts(
         self,

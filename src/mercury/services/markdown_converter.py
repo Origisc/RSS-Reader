@@ -217,10 +217,17 @@ class _HTMLToMarkdownParser(HTMLParser):
         elif self._in_table and hasattr(self, '_current_cell'):
             self._current_cell.append(data)
         else:
+            if (
+                not data.strip()
+                and "\n" in data
+                and self._last_was_newline
+            ):
+                return
             if self._block_start and data.strip():
                 data = data.lstrip()
                 self._block_start = False
             self._result.append(data)
+            self._last_was_newline = data.endswith("\n")
 
     def handle_entityref(self, name):
         entities = {
@@ -233,12 +240,21 @@ class _HTMLToMarkdownParser(HTMLParser):
         self._result.append(entities.get(name, f'&{name};'))
 
     def _ensure_newline(self, count=1):
-        for _ in range(count):
-            if not self._last_was_newline:
-                self._result.append('\n')
-                self._last_was_newline = True
-        if count == 0:
+        if count <= 0:
             self._last_was_newline = False
+            return
+
+        trailing_newlines = 0
+        for chunk in reversed(self._result):
+            chunk_without_newlines = chunk.rstrip("\n")
+            trailing_newlines += len(chunk) - len(chunk_without_newlines)
+            if chunk_without_newlines:
+                break
+
+        missing_newlines = max(count - trailing_newlines, 0)
+        if missing_newlines:
+            self._result.append("\n" * missing_newlines)
+        self._last_was_newline = True
 
     def _format_table(self):
         if not self._table_rows:

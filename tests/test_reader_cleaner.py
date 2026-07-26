@@ -202,6 +202,29 @@ class ReaderCleanerTest(unittest.TestCase):
         self.assertIn("Article Title", result.cleaned_html)
         self.assertIn("Article content", result.cleaned_html)
 
+    def test_clean_selects_substantial_article_in_legacy_pre_page(self) -> None:
+        fixture_path = (
+            PROJECT_ROOT
+            / "tests"
+            / "fixtures"
+            / "html"
+            / "legacy_pre_article.html"
+        )
+        html = fixture_path.read_text(encoding="utf-8")
+
+        result = self.cleaner.clean(html)
+
+        self.assertTrue(result.success)
+        self.assertIn("First substantial paragraph", result.cleaned_html)
+        self.assertIn("Second substantial paragraph", result.cleaned_html)
+        self.assertIn("Final paragraph", result.cleaned_html)
+        self.assertIn("<p>", result.cleaned_html)
+        self.assertIn("<h2>", result.cleaned_html)
+        self.assertIn("Legacy section heading", result.cleaned_html)
+        self.assertNotIn("<pre>", result.cleaned_html)
+        self.assertNotIn("Legacy headline card", result.cleaned_html)
+        self.assertNotIn("window.unwanted", result.cleaned_html)
+
     def test_clean_result_dataclass(self) -> None:
         result = CleanResult(success=True, cleaned_html="<p>content</p>")
         self.assertTrue(result.success)

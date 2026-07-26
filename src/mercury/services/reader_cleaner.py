@@ -35,6 +35,7 @@ class ReaderCleaner:
             cleaned = self._remove_scripts_and_styles(html)
             cleaned = self._remove_comments(cleaned)
             cleaned = self._extract_main_content(cleaned)
+            cleaned = self._normalise_legacy_prose_pre(cleaned)
             cleaned = self._sanitize_tags(cleaned)
 
             if not cleaned.strip():
@@ -58,22 +59,147 @@ class ReaderCleaner:
 
     def _extract_main_content(self, html: str) -> str:
         import re
-        patterns = [
-            r'<article[^>]*>(.*?)</article>',
-            r'<main[^>]*>(.*?)</main>',
-            r'<div[^>]*class=[\'"]?.*(post|content|article|entry).*[\'"]?[^>]*>(.*?)</div>',
-        ]
 
-        for pattern in patterns:
-            match = re.search(pattern, html, flags=re.DOTALL | re.IGNORECASE)
-            if match:
-                return match.group(1) if len(match.groups()) == 1 else match.group(2)
+        # Some older sites use one short ``article`` for a headline card and
+        # another for the actual body. Returning the first regex match drops
+        # the real article completely, so compare all semantic candidates.
+        for tag in ("article", "main"):
+            matches = re.findall(
+                rf"<{tag}\b[^>]*>(.*?)</{tag}\s*>",
+                html,
+                flags=re.DOTALL | re.IGNORECASE,
+            )
+            if matches:
+                return max(matches, key=self._content_score)
 
-        body_match = re.search(r'<body[^>]*>(.*?)</body>', html, flags=re.DOTALL)
+        content_divs = re.findall(
+            (
+                r"<div\b[^>]*class\s*=\s*"
+                r"['\"][^'\"]*(?:post|content|article|entry)[^'\"]*['\"]"
+                r"[^>]*>(.*?)</div\s*>"
+            ),
+            html,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        if content_divs:
+            return max(content_divs, key=self._content_score)
+
+        body_match = re.search(
+            r"<body\b[^>]*>(.*?)</body\s*>",
+            html,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
         if body_match:
             return body_match.group(1)
 
         return html
+
+    @staticmethod
+    def _content_score(html_fragment: str) -> int:
+        """Estimate useful candidate size without changing its HTML."""
+        import re
+
+        visible_text = re.sub(
+            r"<[^>]+>",
+            " ",
+            html_fragment,
+            flags=re.DOTALL,
+        )
+        return len(re.sub(r"\s+", " ", visible_text).strip())
+
+    def _normalise_legacy_prose_pre(self, html: str) -> str:
+        """Turn long prose stored in ``pre`` into readable HTML blocks."""
+        import re
+        from html import unescape
+
+        def replace_pre(match) -> str:
+            inner_html = match.group(1)
+            if re.search(r"<\s*(?:code|kbd|samp)\b", inner_html, re.IGNORECASE):
+                return match.group(0)
+
+            text = unescape(inner_html).replace("\r\n", "\n").replace("\r", "\n")
+            if not self._looks_like_prose_pre(text):
+                return match.group(0)
+
+            return self._prose_pre_to_html(text)
+
+        return re.sub(
+            r"<pre\b[^>]*>(.*?)</pre\s*>",
+            replace_pre,
+            html,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+
+    @staticmethod
+    def _looks_like_prose_pre(text: str) -> bool:
+        import re
+
+        stripped = text.strip()
+        if len(stripped) < 500:
+            return False
+
+        blocks = [
+            block.strip()
+            for block in re.split(r"\n\s*\n+", stripped)
+            if block.strip()
+        ]
+        if len(blocks) < 3:
+            return False
+
+        wordy_blocks = sum(
+            1
+            for block in blocks
+            if len(re.findall(r"\b[\w’'-]+\b", block, re.UNICODE)) >= 8
+        )
+        sentence_blocks = sum(
+            1
+            for block in blocks
+            if re.search(r"[.!?。！？][\"'”’)]?\s*$", block)
+        )
+        has_setext_heading = bool(
+            re.search(r"(?m)^[^\n]+\n(?:={3,}|-{3,})\s*$", stripped)
+        )
+        return wordy_blocks >= 3 and (
+            has_setext_heading or sentence_blocks >= 3
+        )
+
+    @staticmethod
+    def _prose_pre_to_html(text: str) -> str:
+        import re
+        from html import escape
+
+        output: list[str] = []
+        blocks = [
+            block.strip()
+            for block in re.split(r"\n\s*\n+", text.strip())
+            if block.strip()
+        ]
+
+        for block in blocks:
+            lines = [line.strip() for line in block.splitlines() if line.strip()]
+            if not lines:
+                continue
+
+            if len(lines) == 2 and re.fullmatch(r"={3,}", lines[1]):
+                output.append(f"<h2>{escape(lines[0])}</h2>")
+                continue
+
+            if len(lines) == 2 and re.fullmatch(r"-{3,}", lines[1]):
+                output.append(f"<h3>{escape(lines[0])}</h3>")
+                continue
+
+            if all(re.match(r"^[-*]\s+", line) for line in lines):
+                items = "".join(
+                    f"<li>{escape(re.sub(r'^[-*]\\s+', '', line))}</li>"
+                    for line in lines
+                )
+                output.append(f"<ul>{items}</ul>")
+                continue
+
+            paragraph = " ".join(lines)
+            output.append(f"<p>{escape(paragraph)}</p>")
+
+        return "".join(output)
 
     def _sanitize_tags(self, html: str) -> str:
         class TagSanitizer(HTMLParser):

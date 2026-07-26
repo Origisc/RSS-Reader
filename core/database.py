@@ -1,6 +1,7 @@
 import sqlite3
 import threading
 from datetime import datetime
+from urllib.parse import urlparse
 
 class DBManager:
     def __init__(self, db_path="database.db"):
@@ -149,6 +150,157 @@ class DBManager:
                 ON article_tags (tag_id, article_id)
                 """
             )
+            self._repair_legacy_swapped_article_fields()
+
+    def _repair_legacy_swapped_article_fields(self) -> int:
+        """Repair rows written by the legacy title/link parameter bug.
+
+        This helper runs inside ``create_tables`` while the database lock and
+        transaction are already held. Article IDs and user-owned state remain
+        unchanged.
+        """
+        repaired = 0
+        rows = self.conn.execute(
+            """
+            SELECT id, title, link
+            FROM articles
+            WHERE title IS NOT NULL AND link IS NOT NULL
+            """
+        ).fetchall()
+
+        for article_id, stored_title, stored_link in rows:
+            if not self._looks_like_http_url(stored_title):
+                continue
+            if self._looks_like_http_url(stored_link):
+                continue
+
+            link_conflict = self.conn.execute(
+                """
+                SELECT 1
+                FROM articles
+                WHERE id != ? AND link = ?
+                LIMIT 1
+                """,
+                (article_id, stored_title),
+            ).fetchone()
+            if link_conflict is not None:
+                self._reset_missing_article_processing_state(article_id)
+                continue
+
+            self.conn.execute(
+                """
+                UPDATE articles
+                SET
+                    title = ?,
+                    link = ?,
+                    fetched_at = CASE
+                        WHEN COALESCE(original_html, '') = ''
+                        THEN NULL
+                        ELSE fetched_at
+                    END,
+                    fetch_status = CASE
+                        WHEN COALESCE(original_html, '') = ''
+                        THEN 'pending'
+                        ELSE fetch_status
+                    END,
+                    fetch_error = CASE
+                        WHEN COALESCE(original_html, '') = ''
+                        THEN NULL
+                        ELSE fetch_error
+                    END,
+                    cleaned_at = CASE
+                        WHEN COALESCE(original_html, '') = ''
+                             AND COALESCE(cleaned_html, '') = ''
+                             AND COALESCE(cleaned_markdown, '') = ''
+                        THEN NULL
+                        ELSE cleaned_at
+                    END,
+                    clean_status = CASE
+                        WHEN COALESCE(original_html, '') = ''
+                             AND COALESCE(cleaned_html, '') = ''
+                             AND COALESCE(cleaned_markdown, '') = ''
+                        THEN 'pending'
+                        ELSE clean_status
+                    END,
+                    clean_error = CASE
+                        WHEN COALESCE(original_html, '') = ''
+                             AND COALESCE(cleaned_html, '') = ''
+                             AND COALESCE(cleaned_markdown, '') = ''
+                        THEN NULL
+                        ELSE clean_error
+                    END
+                WHERE id = ?
+                """,
+                (stored_link, stored_title, article_id),
+            )
+            repaired += 1
+
+        return repaired
+
+    def _reset_missing_article_processing_state(
+        self,
+        article_id: int,
+    ) -> None:
+        """Make an unfetched legacy row retryable without changing its keys."""
+        self.conn.execute(
+            """
+            UPDATE articles
+            SET
+                fetched_at = CASE
+                    WHEN COALESCE(original_html, '') = ''
+                    THEN NULL
+                    ELSE fetched_at
+                END,
+                fetch_status = CASE
+                    WHEN COALESCE(original_html, '') = ''
+                    THEN 'pending'
+                    ELSE fetch_status
+                END,
+                fetch_error = CASE
+                    WHEN COALESCE(original_html, '') = ''
+                    THEN NULL
+                    ELSE fetch_error
+                END,
+                cleaned_at = CASE
+                    WHEN COALESCE(original_html, '') = ''
+                         AND COALESCE(cleaned_html, '') = ''
+                         AND COALESCE(cleaned_markdown, '') = ''
+                    THEN NULL
+                    ELSE cleaned_at
+                END,
+                clean_status = CASE
+                    WHEN COALESCE(original_html, '') = ''
+                         AND COALESCE(cleaned_html, '') = ''
+                         AND COALESCE(cleaned_markdown, '') = ''
+                    THEN 'pending'
+                    ELSE clean_status
+                END,
+                clean_error = CASE
+                    WHEN COALESCE(original_html, '') = ''
+                         AND COALESCE(cleaned_html, '') = ''
+                         AND COALESCE(cleaned_markdown, '') = ''
+                    THEN NULL
+                    ELSE clean_error
+                END
+            WHERE id = ?
+            """,
+            (article_id,),
+        )
+
+    @staticmethod
+    def _looks_like_http_url(value) -> bool:
+        text = str(value or "").strip()
+        if not text or any(character.isspace() for character in text):
+            return False
+
+        try:
+            parsed = urlparse(text)
+            return (
+                parsed.scheme.lower() in {"http", "https"}
+                and bool(parsed.hostname)
+            )
+        except ValueError:
+            return False
 
     def add_feed(self, title, xml_url, html_url=""):
         try:

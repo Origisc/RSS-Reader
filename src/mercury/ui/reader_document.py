@@ -35,9 +35,17 @@ class ReaderDocument:
 
     @classmethod
     def from_article(cls, article: Article) -> "ReaderDocument":
-        """Expose persisted processing results while keeping a raw fallback."""
+        """Keep the RSS content stable while exposing processed results.
+
+        ``original_html`` is the fetched web page used as the input for
+        cleaning. Rendering that complete page inside the styled QTextBrowser
+        changes the Original view after background processing and cannot
+        reproduce the source site's CSS or scripts. Prefer the feed-provided
+        content for this view and use fetched HTML only as a last-resort
+        fallback.
+        """
         return cls(
-            raw_html=article.original_html or article.content_html,
+            raw_html=article.content_html or article.original_html,
             cleaned_html=article.cleaned_html or None,
             cleaned_markdown=article.cleaned_markdown or None,
             cleaning_error=article.clean_error,

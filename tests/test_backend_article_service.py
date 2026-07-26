@@ -2,6 +2,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
@@ -15,6 +16,7 @@ if str(SRC_DIR) not in sys.path:
 from core.database import DBManager
 from domain.feed.use_cases import FeedUseCase
 from mercury.llm.provider import MockLLMProvider
+from mercury.services.article_fetcher import FetchResult
 from mercury.services.backend_article_service import (
     BackendArticleService,
     FeedDeletionError,
@@ -59,6 +61,56 @@ class BackendArticleServiceTest(unittest.TestCase):
         self.assertIsNotNone(detail)
         self.assertEqual(detail.title, "Readable title")
         self.assertIn("https://example.com/article", detail.content_html)
+
+    def test_fetch_uses_url_from_legacy_swapped_title_link_row(self) -> None:
+        feed_id = self.db.add_feed(
+            "Legacy",
+            "https://example.com/feed",
+        )
+        with self.db.conn:
+            cursor = self.db.conn.execute(
+                """
+                INSERT INTO articles (
+                    feed_id,
+                    title,
+                    link,
+                    description,
+                    fetch_status
+                )
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    feed_id,
+                    "https://example.com/legacy",
+                    "Readable legacy title",
+                    "<p>Summary</p>",
+                    "failed",
+                ),
+            )
+            article_id = str(cursor.lastrowid)
+        self.service._fetcher.fetch = Mock(
+            return_value=FetchResult(
+                success=True,
+                content="<html><body>Fetched</body></html>",
+            )
+        )
+
+        result = self.service.fetch_article_content(
+            article_id,
+            force=True,
+        )
+
+        self.assertEqual(
+            result,
+            "Article content fetched successfully.",
+        )
+        self.service._fetcher.fetch.assert_called_once_with(
+            "https://example.com/legacy"
+        )
+        self.assertEqual(
+            self.service.get_article(article_id).fetch_status,
+            "success",
+        )
 
     def test_imports_opml_into_backend_database(self) -> None:
         opml_content = """<?xml version="1.0" encoding="UTF-8"?>
