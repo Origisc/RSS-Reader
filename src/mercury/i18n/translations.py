@@ -237,6 +237,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "summary.error.provider_not_configured": "请先配置 AI Provider。",
         "summary.error.provider_failure": "摘要生成失败，文章正文仍可正常阅读。",
         "summary.error.empty_response": "Provider 没有返回摘要内容。",
+        "summary.error.wrong_language": (
+            "Provider 未使用所选摘要语言；已自动校正重试，请检查模型设置。"
+        ),
         "summary.error.load_failed": "本地摘要读取失败，可以重新生成。",
         "summary.error.unexpected": "摘要操作失败，文章正文未受影响。",
         "translation.expand": "⌄ Translation",
@@ -600,6 +603,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "summary.error.empty_response": (
             "The Provider returned no summary content."
+        ),
+        "summary.error.wrong_language": (
+            "The Provider did not use the selected summary language after "
+            "automatic correction attempts."
         ),
         "summary.error.load_failed": (
             "The local summary could not be loaded; you can regenerate it."

@@ -13,7 +13,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from mercury.agents import SummaryOptions, SummarySource
+from mercury.agents import (
+    SummaryOptions,
+    SummarySource,
+    translation_matches_target_language,
+)
 from mercury.domain import (
     SummaryDetail,
     SummaryErrorCode,
@@ -83,6 +87,7 @@ class SummaryPanel(QFrame):
         ),
         SummaryErrorCode.PROVIDER_FAILURE: "summary.error.provider_failure",
         SummaryErrorCode.EMPTY_RESPONSE: "summary.error.empty_response",
+        SummaryErrorCode.WRONG_LANGUAGE: "summary.error.wrong_language",
         SummaryErrorCode.STORAGE_FAILURE: "summary.status.storage_warning",
     }
 
@@ -115,6 +120,9 @@ class SummaryPanel(QFrame):
         self.language_label.setObjectName("SummaryFieldLabel")
         self.language_combo = QComboBox()
         self.language_combo.setObjectName("SummaryControl")
+        self.language_combo.currentIndexChanged.connect(
+            self._handle_language_selection_changed
+        )
 
         self.detail_label = QLabel()
         self.detail_label.setObjectName("SummaryFieldLabel")
@@ -205,7 +213,11 @@ class SummaryPanel(QFrame):
                 self._render_state()
                 return
 
-        if result is not None and result.has_summary:
+        if (
+            result is not None
+            and result.has_summary
+            and self._result_matches_selected_language(result)
+        ):
             self._result_cache[source.article_id] = result
             self._show_result(result)
             return
@@ -319,6 +331,23 @@ class SummaryPanel(QFrame):
         self._workers[token] = worker
         self._thread_pool.start(worker)
 
+    @Slot()
+    def _handle_language_selection_changed(self) -> None:
+        result = self._displayed_result
+        if result is None or self._result_matches_selected_language(result):
+            return
+
+        self._displayed_result = None
+        self._last_error_code = None
+        self.summary_content.clear()
+        self.timestamp_label.clear()
+        self._state = (
+            "ready"
+            if self._current_source is not None and self._generator is not None
+            else "unavailable"
+        )
+        self._render_state()
+
     @Slot(int, object)
     def _handle_completed(self, token: int, value: object) -> None:
         self._workers.pop(token, None)
@@ -373,6 +402,19 @@ class SummaryPanel(QFrame):
             else "generated"
         )
         self._render_state()
+
+    def _result_matches_selected_language(
+        self,
+        result: SummaryResult,
+    ) -> bool:
+        selected_language = self.language_combo.currentData()
+        if selected_language is None:
+            return True
+
+        return translation_matches_target_language(
+            result.text,
+            str(selected_language),
+        )
 
     def _render_state(self) -> None:
         state_keys = {

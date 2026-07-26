@@ -196,6 +196,7 @@ class TranslatorTest(unittest.TestCase):
                 "summary.status.storage_warning",
                 "summary.error.provider_not_configured",
                 "summary.error.provider_failure",
+                "summary.error.wrong_language",
                 "summary.error.unexpected",
             ):
                 self.assertNotEqual(translator.text(key), key)

@@ -4,6 +4,10 @@
 
 - Provider 中立的 `SummaryAgent`。
 - 摘要语言、简略/标准/详细三级详细程度、自定义 Prompt。
+- 所选摘要语言作为强制系统约束；自定义 Prompt 只能调整内容和结构，不能
+  覆盖摘要语言。Provider 返回明显错误语言时，后续请求不再重新摘要，而是
+  移除自定义 Prompt 干扰并对已生成摘要做专用语言校正，整个流程最多三次
+  Provider 调用。
 - Cleaned Markdown → Cleaned HTML → raw HTML 内容优先级。
 - 结构化成功、生成但未保存、失败三种结果状态。
 - 未配置 Provider、Provider 异常、空响应、无正文、保存失败的 fallback。

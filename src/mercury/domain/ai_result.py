@@ -26,6 +26,7 @@ class SummaryErrorCode(StrEnum):
     PROVIDER_NOT_CONFIGURED = "provider_not_configured"
     PROVIDER_FAILURE = "provider_failure"
     EMPTY_RESPONSE = "empty_response"
+    WRONG_LANGUAGE = "wrong_language"
     STORAGE_FAILURE = "storage_failure"
 
 

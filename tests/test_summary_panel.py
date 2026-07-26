@@ -192,7 +192,7 @@ class SummaryPanelTest(unittest.TestCase):
         self._wait_for(spy)
 
     def test_options_from_controls_enter_agent_request(self) -> None:
-        provider = configured_provider()
+        provider = configured_provider(response_text="固定的中文摘要")
         panel = self._panel(
             Translator("en_US"),
             generator=SummaryAgent(provider).summarize,
@@ -213,9 +213,13 @@ class SummaryPanelTest(unittest.TestCase):
         request = provider.requests[0]
         self.assertIn("Summary language: Simplified Chinese", request.prompt)
         self.assertIn("Detail level: detailed", request.prompt)
-        self.assertEqual(
-            request.system_prompt,
+        self.assertIn(
             "Use evidence-first bullets.",
+            request.system_prompt,
+        )
+        self.assertIn(
+            "entire summary in Simplified Chinese",
+            request.system_prompt,
         )
 
     def test_regeneration_failure_keeps_previous_summary_visible(self) -> None:
@@ -251,6 +255,37 @@ class SummaryPanelTest(unittest.TestCase):
             "Previous summary",
         )
         self.assertIn("article remains readable", panel.status_label.text())
+
+    def test_chinese_selection_hides_stale_english_summary_on_failure(
+        self,
+    ) -> None:
+        provider = configured_provider(response_text="Old English summary")
+        panel = self._panel(
+            Translator("zh_CN"),
+            generator=SummaryAgent(provider).summarize,
+        )
+        panel.set_article(summary_source())
+
+        first_spy = QSignalSpy(panel.generation_completed)
+        panel.generate_button.click()
+        self._wait_for(first_spy)
+        self.assertEqual(
+            panel.summary_content.toPlainText(),
+            "Old English summary",
+        )
+
+        panel.language_combo.setCurrentIndex(
+            panel.language_combo.findData("Simplified Chinese")
+        )
+        self.assertEqual(panel.summary_content.toPlainText(), "")
+        self.assertEqual(panel.timestamp_label.text(), "")
+
+        second_spy = QSignalSpy(panel.generation_completed)
+        panel.generate_button.click()
+        self._wait_for(second_spy)
+
+        self.assertEqual(panel.summary_content.toPlainText(), "")
+        self.assertIn("未使用所选摘要语言", panel.status_label.text())
 
     def test_switching_article_ignores_stale_background_result(self) -> None:
         started = threading.Event()

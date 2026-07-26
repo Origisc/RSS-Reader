@@ -117,7 +117,7 @@ class SummaryAgentTest(unittest.TestCase):
         self.assertIn("Detail level: detailed", request.prompt)
         self.assertIn("thorough structured summary", request.prompt)
 
-    def test_custom_prompt_replaces_default_system_prompt(self) -> None:
+    def test_custom_prompt_keeps_mandatory_language_constraint(self) -> None:
         provider = configured_provider(response_text="Summary")
         options = SummaryOptions(
             custom_prompt="Use a neutral, evidence-first style."
@@ -125,9 +125,99 @@ class SummaryAgentTest(unittest.TestCase):
 
         SummaryAgent(provider).summarize(self.source, options)
 
-        self.assertEqual(
-            provider.requests[0].system_prompt,
+        system_prompt = provider.requests[0].system_prompt
+        self.assertIn(
             "Use a neutral, evidence-first style.",
+            system_prompt,
+        )
+        self.assertIn("same language as the supplied article", system_prompt)
+        self.assertNotIn("Create a faithful summary", system_prompt)
+
+    def test_custom_prompt_cannot_override_selected_chinese_language(
+        self,
+    ) -> None:
+        responses = iter(
+            (
+                "Certainly! Here is the requested English summary.",
+                "这是符合要求的简体中文摘要。",
+            )
+        )
+        provider = configured_provider(
+            responder=lambda _request: next(responses)
+        )
+        options = SummaryOptions(
+            language="Simplified Chinese",
+            custom_prompt="Use bullet points and answer in English.",
+        )
+
+        result = SummaryAgent(provider).summarize(self.source, options)
+
+        self.assertTrue(result.succeeded)
+        self.assertEqual(result.text, "这是符合要求的简体中文摘要。")
+        self.assertEqual(len(provider.requests), 2)
+        self.assertIn(
+            "entire summary in Simplified Chinese",
+            provider.requests[0].system_prompt,
+        )
+        self.assertIn(
+            "完整改写为简体中文",
+            provider.requests[1].system_prompt,
+        )
+        self.assertIn(
+            "Certainly! Here is the requested English summary.",
+            provider.requests[1].prompt,
+        )
+        self.assertNotIn(
+            "Use bullet points and answer in English.",
+            provider.requests[1].system_prompt,
+        )
+
+    def test_wrong_language_after_retry_returns_readable_failure(
+        self,
+    ) -> None:
+        provider = configured_provider(response_text="Still in English.")
+        options = SummaryOptions(
+            language="Simplified Chinese",
+            custom_prompt="先给结论，再列出重点，用中文",
+        )
+
+        result = SummaryAgent(provider).summarize(self.source, options)
+
+        self.assertFalse(result.has_summary)
+        self.assertEqual(result.error_code, SummaryErrorCode.WRONG_LANGUAGE)
+        self.assertEqual(len(provider.requests), 3)
+        self.assertIn("selected summary language", result.error_message)
+
+    def test_second_language_correction_can_recover_chinese_summary(
+        self,
+    ) -> None:
+        responses = iter(
+            (
+                "First English summary.",
+                "Second English summary.",
+                "第三次返回的简体中文摘要。",
+            )
+        )
+        provider = configured_provider(
+            responder=lambda _request: next(responses)
+        )
+
+        result = SummaryAgent(provider).summarize(
+            self.source,
+            SummaryOptions(
+                language="Simplified Chinese",
+                custom_prompt="先给结论，再列出重点",
+            ),
+        )
+
+        self.assertTrue(result.succeeded)
+        self.assertEqual(result.text, "第三次返回的简体中文摘要。")
+        self.assertEqual(len(provider.requests), 3)
+        self.assertTrue(
+            all(
+                "先给结论，再列出重点" not in request.system_prompt
+                for request in provider.requests[1:]
+            )
         )
 
     def test_unconfigured_provider_returns_failure_without_calling_it(
