@@ -676,6 +676,10 @@ class ArticleReader(QWidget):
         return re.sub(r'<img[^>]+>', replace_image, html)
 
     def _resolve_images_async(self, html: str) -> None:
+        if hasattr(self, '_is_resolving_images') and self._is_resolving_images:
+            print(f"[DEBUG] Already resolving images, skipping")
+            return
+
         import re
 
         img_urls = re.findall(r'src=["\']([^"\']+)["\']', html)
@@ -684,47 +688,83 @@ class ArticleReader(QWidget):
         if not http_urls:
             return
 
+        print(f"[DEBUG] Found {len(http_urls)} images to download")
+
+        self._is_resolving_images = True
         self._pending_images = len(http_urls)
         self._resolved_html = html
         self._image_replacements = {}
 
         for url in http_urls:
+            print(f"[DEBUG] Starting download: {url[:50]}...")
             request = QNetworkRequest(QUrl(url))
+            request.setTransferTimeout(10000)
             reply = self._network_manager.get(request)
             reply.finished.connect(
                 lambda r=reply, u=url: self._on_image_downloaded(r, u)
             )
 
     def _on_image_downloaded(self, reply, url):
+        from PySide6.QtNetwork import QNetworkReply
+
         try:
-            if reply.error() == 0:
+            error = reply.error()
+            print(f"[DEBUG] Download completed for {url[:50]}..., error: {error}")
+
+            if error == QNetworkReply.NoError:
                 content = reply.readAll()
+                print(f"[DEBUG] Content size: {len(content)} bytes")
+
                 content_type = reply.header(QNetworkRequest.ContentTypeHeader)
                 if content_type is None:
                     content_type = 'image/jpeg'
+                print(f"[DEBUG] Content type: {content_type}")
 
                 import base64
                 encoded = base64.b64encode(bytes(content)).decode('utf-8')
                 self._image_replacements[url] = f'data:{content_type};base64,{encoded}'
-        except Exception:
-            pass
+                print(f"[DEBUG] Image added to replacements")
+            else:
+                print(f"[DEBUG] Download failed: {reply.errorString()}")
+        except Exception as e:
+            print(f"[DEBUG] Exception in _on_image_downloaded: {e}")
 
         reply.deleteLater()
 
         self._pending_images -= 1
+        print(f"[DEBUG] Pending images: {self._pending_images}")
         if self._pending_images == 0:
+            print(f"[DEBUG] All images downloaded, applying replacements")
             self._apply_image_replacements()
 
     def _apply_image_replacements(self):
+        print(f"[DEBUG] _apply_image_replacements called")
+        print(f"[DEBUG] _resolved_html exists: {hasattr(self, '_resolved_html')}")
+        print(f"[DEBUG] _image_replacements count: {len(self._image_replacements) if hasattr(self, '_image_replacements') else 0}")
+
         if not hasattr(self, '_resolved_html') or not self._image_replacements:
+            print(f"[DEBUG] Nothing to apply, returning")
             return
 
+        print(f"[DEBUG] HTML length before replacement: {len(self._resolved_html)}")
+        print(f"[DEBUG] URLs to replace: {list(self._image_replacements.keys())}")
+
         resolved_html = self._resolved_html
+        replaced_count = 0
         for url, data_url in self._image_replacements.items():
-            resolved_html = resolved_html.replace(url, data_url)
+            if url in resolved_html:
+                resolved_html = resolved_html.replace(url, data_url)
+                replaced_count += 1
+                print(f"[DEBUG] Replaced URL: {url[:30]}...")
+            else:
+                print(f"[DEBUG] URL not found in HTML: {url[:30]}...")
+
+        print(f"[DEBUG] Total replacements made: {replaced_count}")
+        print(f"[DEBUG] HTML length after replacement: {len(resolved_html)}")
 
         article = self._current_article
         if article is None:
+            print(f"[DEBUG] No current article, returning")
             return
 
         safe_title = escape(article.title)
@@ -742,7 +782,11 @@ class ArticleReader(QWidget):
             <div class="reader-article">{resolved_html}</div>
             <div class="reader-note">{safe_note}</div>
         """
+        print(f"[DEBUG] Setting HTML content...")
         self.content.setHtml(self._wrap_html(body))
+        print(f"[DEBUG] HTML content set successfully")
+
+        self._is_resolving_images = False
 
     def _wrap_html(self, body: str) -> str:
         return f"""
