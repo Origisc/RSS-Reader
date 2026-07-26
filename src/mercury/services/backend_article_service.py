@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime
 from html import escape
 from urllib.parse import urlparse
@@ -9,10 +10,12 @@ from domain.feed.opml_parser import import_opml as import_opml_file
 from domain.feed.use_cases import FeedUseCase
 
 from mercury.models.article import Article, Feed
+from mercury.models.tag import Tag
 from mercury.services.article_fetcher import ArticleFetcher
 from mercury.services.article_service import StarredEntryError
 from mercury.services.markdown_converter import MarkdownConverter
 from mercury.services.reader_cleaner import ReaderCleaner
+from mercury.services.tag_service import TagServiceError
 from mercury.services.translation_service import TranslationService
 
 
@@ -145,6 +148,100 @@ class BackendArticleService:
 
     def count_starred_articles(self) -> int:
         return self._db.count_starred_articles()
+
+    def list_tags(self) -> list[Tag]:
+        return [
+            Tag(
+                id=str(tag_id),
+                name=name,
+                article_count=int(article_count),
+            )
+            for tag_id, name, article_count in self._db.list_tags()
+        ]
+
+    def list_article_tags(self, article_id: str) -> list[Tag]:
+        article_id_int = self._tag_numeric_id(
+            article_id,
+            "article",
+        )
+        if self.get_article(article_id) is None:
+            raise TagServiceError("Article not found.")
+
+        return [
+            Tag(id=str(tag_id), name=name)
+            for tag_id, name in self._db.get_article_tags(article_id_int)
+        ]
+
+    def create_tag(self, name: str) -> Tag:
+        normalized_name = self._normalized_tag_name(name)
+        row = self._db.create_or_get_tag(normalized_name)
+        if row is None:
+            raise TagServiceError("Tag could not be created.")
+
+        stored = self._db.get_tag(int(row[0]))
+        if stored is None:
+            raise TagServiceError("Tag could not be loaded.")
+        return self._tag_from_row(stored)
+
+    def rename_tag(self, tag_id: str, new_name: str) -> Tag:
+        tag_id_int = self._tag_numeric_id(tag_id, "tag")
+        normalized_name = self._normalized_tag_name(new_name)
+
+        try:
+            updated = self._db.rename_tag(tag_id_int, normalized_name)
+        except sqlite3.IntegrityError as exc:
+            raise TagServiceError(
+                "A tag with that name already exists."
+            ) from exc
+
+        if not updated:
+            raise TagServiceError("Tag not found.")
+
+        row = self._db.get_tag(tag_id_int)
+        if row is None:
+            raise TagServiceError("Tag not found.")
+        return self._tag_from_row(row)
+
+    def delete_tag(self, tag_id: str) -> None:
+        tag_id_int = self._tag_numeric_id(tag_id, "tag")
+        if not self._db.delete_tag(tag_id_int):
+            raise TagServiceError("Tag not found.")
+
+    def add_tag_to_article(
+        self,
+        article_id: str,
+        tag_id: str,
+    ) -> None:
+        article_id_int = self._tag_numeric_id(article_id, "article")
+        tag_id_int = self._tag_numeric_id(tag_id, "tag")
+        self._ensure_tag_targets(article_id, tag_id_int)
+        self._db.add_article_tag(article_id_int, tag_id_int)
+
+    def remove_tag_from_article(
+        self,
+        article_id: str,
+        tag_id: str,
+    ) -> None:
+        article_id_int = self._tag_numeric_id(article_id, "article")
+        tag_id_int = self._tag_numeric_id(tag_id, "tag")
+        self._ensure_tag_targets(article_id, tag_id_int)
+        self._db.remove_article_tag(article_id_int, tag_id_int)
+
+    def list_articles_by_tags(
+        self,
+        tag_ids: list[str],
+    ) -> list[Article]:
+        if not tag_ids:
+            return []
+
+        numeric_ids = [
+            self._tag_numeric_id(tag_id, "tag")
+            for tag_id in dict.fromkeys(tag_ids)
+        ]
+        return [
+            self._article_from_collection_row(row)
+            for row in self._db.get_articles_by_tag_ids(numeric_ids)
+        ]
 
     def fetch_article_content(self, article_id: str, force: bool = False) -> str:
         article = self.get_article(article_id)
@@ -446,6 +543,66 @@ class BackendArticleService:
             return safe_link, safe_title
 
         return safe_title, safe_link
+
+    def _article_from_collection_row(self, row) -> Article:
+        (
+            article_id,
+            feed_id,
+            stored_title,
+            stored_link,
+            published,
+            is_starred,
+            source_title,
+        ) = row
+        title, _link = self._normalise_title_and_link(
+            stored_title,
+            stored_link,
+        )
+        meta = escape(published or "")
+        return Article(
+            id=str(article_id),
+            feed_id=str(feed_id),
+            title=title,
+            source_title=source_title or "",
+            content_html=f"<p>{meta}</p>" if meta else "",
+            is_starred=bool(is_starred),
+        )
+
+    @staticmethod
+    def _tag_numeric_id(value: str, label: str) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError) as exc:
+            raise TagServiceError(
+                f"Invalid {label} identifier."
+            ) from exc
+
+    @staticmethod
+    def _normalized_tag_name(name: str) -> str:
+        normalized = " ".join(str(name).split())
+        if not normalized:
+            raise TagServiceError("Tag name cannot be empty.")
+        if len(normalized) > 64:
+            raise TagServiceError("Tag name is too long.")
+        return normalized
+
+    @staticmethod
+    def _tag_from_row(row) -> Tag:
+        return Tag(
+            id=str(row[0]),
+            name=str(row[1]),
+            article_count=int(row[2]),
+        )
+
+    def _ensure_tag_targets(
+        self,
+        article_id: str,
+        tag_id: int,
+    ) -> None:
+        if self.get_article(article_id) is None:
+            raise TagServiceError("Article not found.")
+        if self._db.get_tag(tag_id) is None:
+            raise TagServiceError("Tag not found.")
 
     def _detail_html(self, description: str | None, link: str) -> str:
         description_html = description or ""

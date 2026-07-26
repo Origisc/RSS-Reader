@@ -1,7 +1,9 @@
 from dataclasses import replace
 
 from mercury.models.article import Article, Feed
+from mercury.models.tag import Tag
 from mercury.services.article_service import StarredEntryError
+from mercury.services.tag_service import TagServiceError
 
 
 class MockArticleService:
@@ -45,6 +47,11 @@ class MockArticleService:
                 ),
             ),
         ]
+        self._tags: list[Tag] = []
+        self._article_tag_ids: dict[str, set[str]] = {
+            article.id: set() for article in self._articles
+        }
+        self._next_tag_id = 1
 
     def list_feeds(self) -> list[Feed]:
         return list(self._feeds)
@@ -86,6 +93,106 @@ class MockArticleService:
 
     def count_starred_articles(self) -> int:
         return sum(article.is_starred for article in self._articles)
+
+    def list_tags(self) -> list[Tag]:
+        counts = {
+            tag.id: sum(
+                tag.id in assigned_ids
+                for assigned_ids in self._article_tag_ids.values()
+            )
+            for tag in self._tags
+        }
+        return [
+            replace(tag, article_count=counts[tag.id])
+            for tag in self._tags
+        ]
+
+    def list_article_tags(self, article_id: str) -> list[Tag]:
+        assigned_ids = self._article_tags_for(article_id)
+        return [
+            tag for tag in self.list_tags() if tag.id in assigned_ids
+        ]
+
+    def create_tag(self, name: str) -> Tag:
+        normalized = self._normalized_tag_name(name)
+        existing = next(
+            (
+                tag
+                for tag in self._tags
+                if tag.name.casefold() == normalized.casefold()
+            ),
+            None,
+        )
+        if existing is not None:
+            return next(
+                tag for tag in self.list_tags() if tag.id == existing.id
+            )
+
+        tag = Tag(id=str(self._next_tag_id), name=normalized)
+        self._next_tag_id += 1
+        self._tags.append(tag)
+        return tag
+
+    def rename_tag(self, tag_id: str, new_name: str) -> Tag:
+        normalized = self._normalized_tag_name(new_name)
+        tag_index = self._tag_index(tag_id)
+        if any(
+            tag.id != tag_id
+            and tag.name.casefold() == normalized.casefold()
+            for tag in self._tags
+        ):
+            raise TagServiceError(
+                "A tag with that name already exists."
+            )
+
+        self._tags[tag_index] = replace(
+            self._tags[tag_index],
+            name=normalized,
+        )
+        return next(
+            tag for tag in self.list_tags() if tag.id == tag_id
+        )
+
+    def delete_tag(self, tag_id: str) -> None:
+        tag_index = self._tag_index(tag_id)
+        self._tags.pop(tag_index)
+        for assigned_ids in self._article_tag_ids.values():
+            assigned_ids.discard(tag_id)
+
+    def add_tag_to_article(
+        self,
+        article_id: str,
+        tag_id: str,
+    ) -> None:
+        assigned_ids = self._article_tags_for(article_id)
+        self._tag_index(tag_id)
+        assigned_ids.add(tag_id)
+
+    def remove_tag_from_article(
+        self,
+        article_id: str,
+        tag_id: str,
+    ) -> None:
+        assigned_ids = self._article_tags_for(article_id)
+        self._tag_index(tag_id)
+        assigned_ids.discard(tag_id)
+
+    def list_articles_by_tags(
+        self,
+        tag_ids: list[str],
+    ) -> list[Article]:
+        selected_ids = set(tag_ids)
+        if not selected_ids:
+            return []
+        for tag_id in selected_ids:
+            self._tag_index(tag_id)
+        return [
+            article
+            for article in self._articles
+            if selected_ids.issubset(
+                self._article_tag_ids.get(article.id, set())
+            )
+        ]
 
     def fetch_article_content(
         self,
@@ -136,3 +243,23 @@ class MockArticleService:
 
     def refresh_all(self) -> str:
         return "Mock feeds refreshed."
+
+    @staticmethod
+    def _normalized_tag_name(name: str) -> str:
+        normalized = " ".join(str(name).split())
+        if not normalized:
+            raise TagServiceError("Tag name cannot be empty.")
+        if len(normalized) > 64:
+            raise TagServiceError("Tag name is too long.")
+        return normalized
+
+    def _tag_index(self, tag_id: str) -> int:
+        for index, tag in enumerate(self._tags):
+            if tag.id == str(tag_id):
+                return index
+        raise TagServiceError("Tag not found.")
+
+    def _article_tags_for(self, article_id: str) -> set[str]:
+        if self.get_article(article_id) is None:
+            raise TagServiceError("Article not found.")
+        return self._article_tag_ids.setdefault(article_id, set())

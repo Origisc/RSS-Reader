@@ -1,7 +1,7 @@
-# 第四阶段验收：星标收藏
+# 第四阶段验收：星标收藏与手动标签
 
-当前第四阶段先交付星标收藏。标签、筛选和导出将在后续子任务完成；
-笔记面板按项目约定暂缓。
+当前第四阶段已交付星标收藏、手动标签和组合筛选；导出将在后续子任务完成，
+笔记面板按项目约定暂缓，Tag Agent 仍为选做增强。
 
 ## 自动验证
 
@@ -9,6 +9,7 @@
 
 ```powershell
 uv run python -m unittest tests.test_starred_entries -v
+uv run python -m unittest tests.test_tags -v
 uv run python -m unittest discover -s tests -p "test_*.py" -q
 ```
 
@@ -16,6 +17,7 @@ uv run python -m unittest discover -s tests -p "test_*.py" -q
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tests.test_starred_entries -v
+.\.venv\Scripts\python.exe -m unittest tests.test_tags -v
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py" -q
 ```
 
@@ -47,11 +49,29 @@ uv run python main.py
 10. 刷新 Feed，确认已有星标不会被覆盖。
 11. 切换英文/简体中文，确认“全部文章”“星标”、按钮提示和状态消息即时更新。
 
+## 手动标签人工验证
+
+1. 打开任意文章并展开 Reader 的“标签”浮层。
+2. 输入 `Python, 本地优先` 并点击“添加”，确认两个标签立即出现且为选中状态。
+3. 关闭并重启应用，再次打开该文章，确认标签仍然存在。
+4. 打开另一篇文章，只添加 `Python` 标签。
+5. 切换侧栏“标签”页并勾选 `Python`，确认两篇文章都出现，列表标题显示当前标签。
+6. 再勾选 `本地优先`，确认只剩同时拥有两个标签的文章。
+7. 点击“清除标签筛选”，确认返回原先的全部文章、星标或具体 Feed 集合。
+8. 在标签上打开右键菜单并重命名，确认 Reader 标签浮层、侧栏名称和筛选标题同步更新。
+9. 在标签上选择删除：
+   - 取消确认时标签和文章关系保持不变；
+   - 确认后标签从所有文章移除，但文章不会被删除。
+10. 切换英文/简体中文，确认标签标题、按钮、右键菜单、确认对话框和状态消息即时更新。
+
 ## 验收门
 
 - 星标只保存在本地，不产生额外网络请求。
+- 手动标签只保存在本地，不产生网络请求，也不依赖 Tag Agent。
+- 多标签筛选使用“同时包含全部所选标签”的语义。
+- 删除标签必须确认，且不能删除任何文章。
 - 旧数据库迁移不丢失订阅源、文章或 AI 结果。
 - 星标/取消星标不会误改文章选择。
 - Feed 刷新、去重、抓取、清洗和翻译不会覆盖星标。
 - 无 AI 配置时星标及基础阅读功能完整可用。
-- 星标测试和全量测试全部通过。
+- 星标、标签测试和全量测试全部通过。

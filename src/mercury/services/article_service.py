@@ -1,6 +1,7 @@
 from typing import Protocol
 
 from mercury.models.article import Article, Feed
+from mercury.services.tag_service import TagService
 
 
 class StarredEntryError(RuntimeError):
@@ -23,7 +24,7 @@ class StarredEntryService(Protocol):
         ...
 
 
-class ArticleService(StarredEntryService, Protocol):
+class ArticleService(StarredEntryService, TagService, Protocol):
     """UI 获取订阅源和文章时使用的统一接口。"""
 
     def list_feeds(self) -> list[Feed]:

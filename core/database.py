@@ -6,6 +6,7 @@ class DBManager:
     def __init__(self, db_path="database.db"):
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self._lock = threading.Lock()
+        self.conn.execute("PRAGMA foreign_keys = ON")
         self.create_tables()
 
     def create_tables(self):
@@ -117,6 +118,35 @@ class DBManager:
                 """
                 CREATE INDEX IF NOT EXISTS idx_articles_starred_published
                 ON articles (is_starred, published DESC, id DESC)
+                """
+            )
+            self.conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tags (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            self.conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS article_tags (
+                    article_id INTEGER NOT NULL,
+                    tag_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (article_id, tag_id),
+                    FOREIGN KEY(article_id)
+                        REFERENCES articles(id) ON DELETE CASCADE,
+                    FOREIGN KEY(tag_id)
+                        REFERENCES tags(id) ON DELETE CASCADE
+                )
+                """
+            )
+            self.conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_article_tags_tag_article
+                ON article_tags (tag_id, article_id)
                 """
             )
 
@@ -255,6 +285,153 @@ class DBManager:
                 (1 if is_starred else 0, article_id),
             )
             return cursor.rowcount > 0
+
+    def create_or_get_tag(self, name: str):
+        now = datetime.now().isoformat()
+        with self._lock, self.conn:
+            self.conn.execute(
+                """
+                INSERT OR IGNORE INTO tags (name, created_at)
+                VALUES (?, ?)
+                """,
+                (name, now),
+            )
+            cursor = self.conn.execute(
+                """
+                SELECT id, name
+                FROM tags
+                WHERE name = ? COLLATE NOCASE
+                """,
+                (name,),
+            )
+            return cursor.fetchone()
+
+    def list_tags(self):
+        with self._lock:
+            cursor = self.conn.execute(
+                """
+                SELECT
+                    tags.id,
+                    tags.name,
+                    COUNT(article_tags.article_id)
+                FROM tags
+                LEFT JOIN article_tags ON article_tags.tag_id = tags.id
+                GROUP BY tags.id, tags.name
+                ORDER BY tags.name COLLATE NOCASE, tags.id
+                """
+            )
+            return cursor.fetchall()
+
+    def get_tag(self, tag_id: int):
+        with self._lock:
+            cursor = self.conn.execute(
+                """
+                SELECT
+                    tags.id,
+                    tags.name,
+                    COUNT(article_tags.article_id)
+                FROM tags
+                LEFT JOIN article_tags ON article_tags.tag_id = tags.id
+                WHERE tags.id = ?
+                GROUP BY tags.id, tags.name
+                """,
+                (tag_id,),
+            )
+            return cursor.fetchone()
+
+    def get_article_tags(self, article_id: int):
+        with self._lock:
+            cursor = self.conn.execute(
+                """
+                SELECT tags.id, tags.name
+                FROM tags
+                JOIN article_tags ON article_tags.tag_id = tags.id
+                WHERE article_tags.article_id = ?
+                ORDER BY tags.name COLLATE NOCASE, tags.id
+                """,
+                (article_id,),
+            )
+            return cursor.fetchall()
+
+    def rename_tag(self, tag_id: int, new_name: str) -> bool:
+        with self._lock, self.conn:
+            cursor = self.conn.execute(
+                "UPDATE tags SET name = ? WHERE id = ?",
+                (new_name, tag_id),
+            )
+            return cursor.rowcount > 0
+
+    def delete_tag(self, tag_id: int) -> bool:
+        with self._lock, self.conn:
+            cursor = self.conn.execute(
+                "DELETE FROM tags WHERE id = ?",
+                (tag_id,),
+            )
+            return cursor.rowcount > 0
+
+    def add_article_tag(self, article_id: int, tag_id: int) -> bool:
+        now = datetime.now().isoformat()
+        with self._lock, self.conn:
+            cursor = self.conn.execute(
+                """
+                INSERT OR IGNORE INTO article_tags (
+                    article_id,
+                    tag_id,
+                    created_at
+                )
+                VALUES (?, ?, ?)
+                """,
+                (article_id, tag_id, now),
+            )
+            return cursor.rowcount > 0
+
+    def remove_article_tag(self, article_id: int, tag_id: int) -> bool:
+        with self._lock, self.conn:
+            cursor = self.conn.execute(
+                """
+                DELETE FROM article_tags
+                WHERE article_id = ? AND tag_id = ?
+                """,
+                (article_id, tag_id),
+            )
+            return cursor.rowcount > 0
+
+    def get_articles_by_tag_ids(self, tag_ids: list[int]):
+        if not tag_ids:
+            return []
+
+        placeholders = ", ".join("?" for _tag_id in tag_ids)
+        query = f"""
+            SELECT
+                articles.id,
+                articles.feed_id,
+                articles.title,
+                articles.link,
+                articles.published,
+                articles.is_starred,
+                COALESCE(feeds.title, feeds.xml_url, '')
+            FROM articles
+            JOIN article_tags ON article_tags.article_id = articles.id
+            LEFT JOIN feeds ON feeds.id = articles.feed_id
+            WHERE article_tags.tag_id IN ({placeholders})
+            GROUP BY
+                articles.id,
+                articles.feed_id,
+                articles.title,
+                articles.link,
+                articles.published,
+                articles.is_starred,
+                feeds.title,
+                feeds.xml_url
+            HAVING COUNT(DISTINCT article_tags.tag_id) = ?
+            ORDER BY articles.published DESC, articles.id DESC
+        """
+        with self._lock:
+            cursor = self.conn.execute(
+                query,
+                (*tag_ids, len(tag_ids)),
+            )
+            return cursor.fetchall()
 
     def save_article_cleaned(self, article_id, cleaned_html, cleaned_markdown, cleaned_at, status="success", error=None):
         try:

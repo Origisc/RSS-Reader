@@ -642,12 +642,18 @@
   - 支持给文章添加/移除标签。
   - 支持按标签筛选文章。
 - **Affected Files**：
-  - `src/mercury/domain/tag.py`
-  - `src/mercury/storage/repositories.py`
+  - `src/mercury/models/tag.py`
+  - `src/mercury/services/tag_service.py`
+  - `src/mercury/services/backend_article_service.py`
+  - `core/database.py`
   - `src/mercury/ui/tag_panel.py`
+  - `src/mercury/ui/sidebar.py`
+  - `src/mercury/ui/main_window.py`
   - `tests/test_tags.py`
 - **Key Design**：
   - 标签系统本身不依赖 AI。
+  - 标签数据默认保存在本地；UI 只调用 `TagService`，不直接执行 SQL。
+  - 多标签筛选使用“同时包含全部所选标签”的组合语义。
   - 删除标签前避免误删。
 - **Verification**：
   - 手动标签增删改查通过自动测试。

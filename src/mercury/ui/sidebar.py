@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 
 from PySide6.QtCore import QRectF, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from mercury.models.article import Feed
+from mercury.models.tag import Tag
 from mercury.ui.star_icon import draw_star
 
 
@@ -26,6 +27,9 @@ FEED_TITLE_ROLE = Qt.ItemDataRole.UserRole + 1
 UNREAD_COUNT_ROLE = Qt.ItemDataRole.UserRole + 2
 IS_VIRTUAL_ROLE = Qt.ItemDataRole.UserRole + 3
 STARRED_COUNT_ROLE = Qt.ItemDataRole.UserRole + 4
+TAG_ID_ROLE = Qt.ItemDataRole.UserRole + 5
+TAG_NAME_ROLE = Qt.ItemDataRole.UserRole + 6
+TAG_COUNT_ROLE = Qt.ItemDataRole.UserRole + 7
 
 ALL_FEEDS_ID = "__all__"
 STARRED_FEED_ID = "__starred__"
@@ -39,6 +43,9 @@ class Sidebar(QWidget):
     import_opml_requested = Signal()
     refresh_requested = Signal()
     delete_feed_requested = Signal(str)
+    tag_filter_changed = Signal(object)
+    rename_tag_requested = Signal(str)
+    delete_tag_requested = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
@@ -52,6 +59,9 @@ class Sidebar(QWidget):
         self._feed_count = 0
         self._unread_total = 0
         self._starred_total = 0
+        self._clear_tag_filter_text = "Clear filter"
+        self._rename_tag_text = "Rename"
+        self._delete_tag_text = "Delete"
 
         self.feeds_tab = QPushButton()
         self.feeds_tab.setObjectName("PrimarySegment")
@@ -157,6 +167,18 @@ class Sidebar(QWidget):
         self.tag_browser_hint.setWordWrap(True)
         self.tag_list = QListWidget()
         self.tag_list.setObjectName("SidebarTagList")
+        self.tag_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.tag_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.tag_list.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.clear_tag_filter_button = QPushButton()
+        self.clear_tag_filter_button.setObjectName("ClearTagFilterButton")
+        self.clear_tag_filter_button.clicked.connect(
+            self.clear_tag_filter
+        )
 
         tags_page = QFrame()
         tags_page.setObjectName("SidebarPage")
@@ -166,6 +188,7 @@ class Sidebar(QWidget):
         tags_layout.addWidget(self.tag_browser_title)
         tags_layout.addWidget(self.tag_browser_hint)
         tags_layout.addWidget(self.tag_list, 1)
+        tags_layout.addWidget(self.clear_tag_filter_button)
 
         self.pages = QStackedWidget()
         self.pages.setObjectName("SidebarPages")
@@ -185,6 +208,12 @@ class Sidebar(QWidget):
         )
         self.feed_list.customContextMenuRequested.connect(
             self._show_feed_context_menu
+        )
+        self.tag_list.itemChanged.connect(
+            self._on_tag_check_state_changed
+        )
+        self.tag_list.customContextMenuRequested.connect(
+            self._show_tag_context_menu
         )
 
     def set_feeds(
@@ -273,13 +302,74 @@ class Sidebar(QWidget):
         self.feeds_tab.setText(feeds_text)
         self.tags_tab.setText(tags_text)
 
-    def set_tag_browser_texts(self, title: str, hint: str) -> None:
+    def set_tag_browser_texts(
+        self,
+        title: str,
+        hint: str,
+        *,
+        clear_filter: str,
+        rename: str,
+        delete: str,
+    ) -> None:
         self.tag_browser_title.setText(title)
         self.tag_browser_hint.setText(hint)
+        self._clear_tag_filter_text = clear_filter
+        self._rename_tag_text = rename
+        self._delete_tag_text = delete
+        self.clear_tag_filter_button.setText(clear_filter)
 
-    def set_tags(self, tags: list[str]) -> None:
+    def set_tags(
+        self,
+        tags: list[Tag],
+        selected_tag_ids: Collection[str] = (),
+    ) -> None:
+        selected_ids = {str(tag_id) for tag_id in selected_tag_ids}
+        blocker = QSignalBlocker(self.tag_list)
         self.tag_list.clear()
-        self.tag_list.addItems(tags)
+        for tag in tags:
+            item = QListWidgetItem(
+                f"{tag.name}  \N{MIDDLE DOT}  {tag.article_count}"
+            )
+            item.setData(TAG_ID_ROLE, tag.id)
+            item.setData(TAG_NAME_ROLE, tag.name)
+            item.setData(TAG_COUNT_ROLE, tag.article_count)
+            item.setToolTip(tag.name)
+            item.setFlags(
+                item.flags() | Qt.ItemFlag.ItemIsUserCheckable
+            )
+            item.setCheckState(
+                Qt.CheckState.Checked
+                if tag.id in selected_ids
+                else Qt.CheckState.Unchecked
+            )
+            self.tag_list.addItem(item)
+        del blocker
+        self.clear_tag_filter_button.setEnabled(
+            bool(self.selected_tag_ids())
+        )
+
+    def selected_tag_ids(self) -> tuple[str, ...]:
+        return tuple(
+            str(item.data(TAG_ID_ROLE))
+            for row in range(self.tag_list.count())
+            if (item := self.tag_list.item(row)).checkState()
+            == Qt.CheckState.Checked
+        )
+
+    def clear_tag_filter(self) -> None:
+        blocker = QSignalBlocker(self.tag_list)
+        for row in range(self.tag_list.count()):
+            self.tag_list.item(row).setCheckState(
+                Qt.CheckState.Unchecked
+            )
+        del blocker
+        self.clear_tag_filter_button.setEnabled(False)
+        self.tag_filter_changed.emit(())
+
+    def _on_tag_check_state_changed(self, _item) -> None:
+        selected_ids = self.selected_tag_ids()
+        self.clear_tag_filter_button.setEnabled(bool(selected_ids))
+        self.tag_filter_changed.emit(selected_ids)
 
     def set_action_texts(
         self,
@@ -396,6 +486,25 @@ class Sidebar(QWidget):
             lambda checked=False: self.delete_feed_requested.emit(feed_id)
         )
         return menu
+
+    def _show_tag_context_menu(self, position) -> None:
+        item = self.tag_list.itemAt(position)
+        if item is None:
+            return
+
+        tag_id = str(item.data(TAG_ID_ROLE))
+        menu = QMenu(self)
+        rename_action = menu.addAction(self._rename_tag_text)
+        rename_action.setObjectName("ContextRenameTagAction")
+        rename_action.triggered.connect(
+            lambda checked=False: self.rename_tag_requested.emit(tag_id)
+        )
+        delete_action = menu.addAction(self._delete_tag_text)
+        delete_action.setObjectName("ContextDeleteTagAction")
+        delete_action.triggered.connect(
+            lambda checked=False: self.delete_tag_requested.emit(tag_id)
+        )
+        menu.exec(self.tag_list.viewport().mapToGlobal(position))
 
     def _update_feed_item_text(self, item: QListWidgetItem) -> None:
         title = str(item.data(FEED_TITLE_ROLE) or "")

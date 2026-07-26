@@ -140,6 +140,37 @@ class TranslatorTest(unittest.TestCase):
             ):
                 self.assertNotEqual(translator.text(key), key)
 
+    def test_manual_tag_messages_are_available_in_both_languages(
+        self,
+    ) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "article_list.tags_title",
+                "tags.existing",
+                "tags.empty",
+                "tags.no_article",
+                "tags.filter_clear",
+                "tags.rename",
+                "tags.delete",
+                "tags.rename_dialog.title",
+                "tags.rename_dialog.label",
+                "tags.delete_dialog.title",
+                "status.tags_added",
+                "status.tag_assigned",
+                "status.tag_removed",
+                "status.tag_renamed",
+                "status.tag_deleted",
+                "status.tag_failed",
+            ):
+                self.assertNotEqual(translator.text(key), key)
+
+            self.assertIn(
+                "{name}",
+                translator.text("tags.delete_dialog.body"),
+            )
+
     def test_summary_panel_messages_are_available_in_both_languages(self) -> None:
         for language in ("zh_CN", "en_US"):
             translator = Translator(language)

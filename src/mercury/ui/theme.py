@@ -167,12 +167,20 @@ QToolButton#TagPanelCloseButton {
     font-size: 15px;
 }
 
-QLabel[chip="true"] {
+QLabel[chip="true"],
+QPushButton[chip="true"] {
     background: #dcecf8;
+    border: 1px solid #c4dae9;
     border-radius: 8px;
     color: #24445d;
     font-size: 10px;
     padding: 3px 6px;
+}
+
+QPushButton[chip="true"]:checked {
+    background: #0f68d8;
+    border-color: #0f68d8;
+    color: #ffffff;
 }
 
 QStatusBar {
@@ -757,12 +765,20 @@ QToolButton#TagPanelCloseButton:hover {
     color: #ffffff;
 }
 
-QLabel[chip="true"] {
+QLabel[chip="true"],
+QPushButton[chip="true"] {
     background: #1b4665;
+    border: 1px solid #2b5d7f;
     border-radius: 9px;
     color: #d6e5f2;
     font-size: 11px;
     padding: 4px 8px;
+}
+
+QPushButton[chip="true"]:checked {
+    background: #0f68d8;
+    border-color: #3b8df0;
+    color: #ffffff;
 }
 
 QFrame#SummarySection,

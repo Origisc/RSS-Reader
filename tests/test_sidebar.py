@@ -21,6 +21,7 @@ from mercury.ui.sidebar import (
     STARRED_FEED_ID,
     Sidebar,
 )
+from mercury.models.tag import Tag
 
 
 class SidebarTest(unittest.TestCase):
@@ -60,7 +61,12 @@ class SidebarTest(unittest.TestCase):
         )
 
     def test_feeds_and_tags_use_the_same_sidebar_space(self) -> None:
-        self.sidebar.set_tags(["AI", "Programming"])
+        self.sidebar.set_tags(
+            [
+                Tag(id="1", name="AI", article_count=2),
+                Tag(id="2", name="Programming", article_count=1),
+            ]
+        )
 
         self.assertEqual(self.sidebar.pages.currentIndex(), 0)
         self.sidebar.tags_tab.click()
@@ -68,6 +74,10 @@ class SidebarTest(unittest.TestCase):
         self.assertEqual(self.sidebar.pages.currentIndex(), 1)
         self.assertTrue(self.sidebar.tags_tab.isChecked())
         self.assertEqual(self.sidebar.tag_list.count(), 2)
+        self.assertEqual(
+            self.sidebar.tag_list.horizontalScrollBarPolicy(),
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
+        )
 
         self.sidebar.feeds_tab.click()
         self.assertEqual(self.sidebar.pages.currentIndex(), 0)

@@ -94,6 +94,23 @@ class TestDBManager(unittest.TestCase):
             for row in connection.execute("PRAGMA index_list(articles)")
         }
         self.assertIn("idx_articles_starred_published", indexes)
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        self.assertTrue({"tags", "article_tags"}.issubset(tables))
+        article_tag_indexes = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA index_list(article_tags)"
+            )
+        }
+        self.assertIn(
+            "idx_article_tags_tag_article",
+            article_tag_indexes,
+        )
         connection.close()
 
 if __name__ == "__main__":

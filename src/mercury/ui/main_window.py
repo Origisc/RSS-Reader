@@ -20,6 +20,7 @@ from mercury.i18n import Translator
 from mercury.i18n.translations import SUPPORTED_LANGUAGES
 from mercury.llm import InMemoryProviderConfigStore, ProviderConfigStore
 from mercury.models.article import Article, Feed
+from mercury.models.tag import Tag
 from mercury.services.article_service import ArticleService
 from mercury.ui.ai_settings import AISettingsDialog, ConnectionTester
 from mercury.ui.article_list import ArticleList
@@ -89,6 +90,8 @@ class MainWindow(QMainWindow):
         self._translation_result_loader = translation_result_loader
         self._active_workers = set()
         self._selected_feed_id = ALL_FEEDS_ID
+        self._selected_tag_ids: set[str] = set()
+        self._tags: list[Tag] = []
         self._system_selected_article_id: str | None = None
 
         self.resize(1320, 820)
@@ -352,6 +355,9 @@ class MainWindow(QMainWindow):
         self.sidebar.import_opml_requested.connect(self._import_opml)
         self.sidebar.refresh_requested.connect(self._refresh_feeds)
         self.sidebar.delete_feed_requested.connect(self._delete_feed)
+        self.sidebar.tag_filter_changed.connect(self._show_tagged_articles)
+        self.sidebar.rename_tag_requested.connect(self._rename_tag)
+        self.sidebar.delete_tag_requested.connect(self._delete_tag)
         self.article_list.article_selected.connect(self._show_article)
         self.article_list.star_toggled.connect(self._set_starred_state)
         self.article_reader.read_state_change_requested.connect(
@@ -378,6 +384,12 @@ class MainWindow(QMainWindow):
         self.translation_panel.generation_completed.connect(
             self._show_translation_result
         )
+        self.tag_editor.add_tag_requested.connect(
+            self._create_and_assign_tags
+        )
+        self.tag_editor.tag_assignment_changed.connect(
+            self._set_article_tag_assignment
+        )
 
     def _load_initial_data(self) -> None:
         feeds = self.article_service.list_feeds()
@@ -391,7 +403,6 @@ class MainWindow(QMainWindow):
             self._selected_feed_id = ALL_FEEDS_ID
 
         articles = self._articles_for_selection(self._selected_feed_id)
-        read_article_ids = self._read_article_ids(articles)
         unread_counts = self._unread_counts(feeds, all_articles)
 
         self.sidebar.set_feeds(
@@ -400,6 +411,15 @@ class MainWindow(QMainWindow):
             self._safe_starred_count(),
         )
         self.sidebar.select_feed(self._selected_feed_id)
+        self._reload_tags()
+        if self._selected_tag_ids:
+            try:
+                articles = self.article_service.list_articles_by_tags(
+                    sorted(self._selected_tag_ids)
+                )
+            except Exception:
+                articles = []
+        read_article_ids = self._read_article_ids(articles)
         self._update_article_list_title()
         self.article_list.set_articles(articles, read_article_ids)
 
@@ -407,9 +427,12 @@ class MainWindow(QMainWindow):
             self.article_reader.show_welcome()
             self.summary_panel.clear_article()
             self.translation_panel.clear_article()
+            self._refresh_tag_editor()
 
     def _show_feed_articles(self, feed_id: str) -> None:
         self._selected_feed_id = feed_id
+        self._selected_tag_ids.clear()
+        self.sidebar.set_tags(self._tags)
         articles = self._articles_for_selection(feed_id)
         self._update_article_list_title()
         self.article_list.set_articles(
@@ -419,6 +442,7 @@ class MainWindow(QMainWindow):
         self.article_reader.show_welcome()
         self.summary_panel.clear_article()
         self.translation_panel.clear_article()
+        self._refresh_tag_editor()
 
     def _articles_for_selection(self, feed_id: str) -> list[Article]:
         if feed_id == STARRED_FEED_ID:
@@ -435,12 +459,268 @@ class MainWindow(QMainWindow):
         return self.article_service.list_articles(feed_id)
 
     def _update_article_list_title(self) -> None:
+        if self._selected_tag_ids:
+            selected_names = [
+                tag.name
+                for tag in self._tags
+                if tag.id in self._selected_tag_ids
+            ]
+            self.article_list.set_title(
+                self.translator.text("article_list.tags_title").format(
+                    tags=", ".join(selected_names),
+                )
+            )
+            return
+
         key = (
             "article_list.starred_title"
             if self._selected_feed_id == STARRED_FEED_ID
             else "article_list.title"
         )
         self.article_list.set_title(self.translator.text(key))
+
+    def _reload_tags(self) -> None:
+        try:
+            self._tags = self.article_service.list_tags()
+        except Exception:
+            self._tags = []
+            self._selected_tag_ids.clear()
+
+        available_ids = {tag.id for tag in self._tags}
+        self._selected_tag_ids.intersection_update(available_ids)
+        self.sidebar.set_tags(self._tags, self._selected_tag_ids)
+        self._refresh_tag_editor(
+            self.article_reader.current_article_id
+        )
+
+    def _refresh_tag_editor(
+        self,
+        article_id: str | None = None,
+    ) -> None:
+        if article_id is None:
+            self.tag_editor.set_article_tags(
+                self._tags,
+                set(),
+                article_available=False,
+            )
+            return
+
+        try:
+            assigned_ids = {
+                tag.id
+                for tag in self.article_service.list_article_tags(
+                    article_id
+                )
+            }
+        except Exception:
+            assigned_ids = set()
+
+        self.tag_editor.set_article_tags(
+            self._tags,
+            assigned_ids,
+            article_available=True,
+        )
+
+    def _show_tagged_articles(
+        self,
+        tag_ids: tuple[str, ...],
+    ) -> None:
+        self._selected_tag_ids = {
+            str(tag_id) for tag_id in tag_ids
+        }
+        if self._selected_tag_ids:
+            try:
+                articles = self.article_service.list_articles_by_tags(
+                    sorted(self._selected_tag_ids)
+                )
+            except Exception:
+                self.statusBar().showMessage(
+                    self.translator.text("status.tag_failed"),
+                    8000,
+                )
+                articles = []
+        else:
+            articles = self._articles_for_selection(
+                self._selected_feed_id
+            )
+
+        self._update_article_list_title()
+        self.article_list.set_articles(
+            articles,
+            self._read_article_ids(articles),
+        )
+        self.article_reader.show_welcome()
+        self.summary_panel.clear_article()
+        self.translation_panel.clear_article()
+        self._refresh_tag_editor()
+
+    def _create_and_assign_tags(self, raw_names: str) -> None:
+        article_id = self.article_reader.current_article_id
+        if article_id is None:
+            return
+
+        names = [
+            value.strip()
+            for value in raw_names.replace("\N{FULLWIDTH COMMA}", ",").split(
+                ","
+            )
+            if value.strip()
+        ]
+        if not names:
+            return
+
+        try:
+            for name in names:
+                tag = self.article_service.create_tag(name)
+                self.article_service.add_tag_to_article(
+                    article_id,
+                    tag.id,
+                )
+        except Exception:
+            self.statusBar().showMessage(
+                self.translator.text("status.tag_failed"),
+                8000,
+            )
+            self._reload_tags()
+            return
+
+        self.tag_editor.clear_input()
+        self._reload_tags()
+        self._refresh_tagged_article_list()
+        self.statusBar().showMessage(
+            self.translator.text("status.tags_added"),
+            5000,
+        )
+
+    def _set_article_tag_assignment(
+        self,
+        tag_id: str,
+        assigned: bool,
+    ) -> None:
+        article_id = self.article_reader.current_article_id
+        if article_id is None:
+            return
+
+        try:
+            if assigned:
+                self.article_service.add_tag_to_article(
+                    article_id,
+                    tag_id,
+                )
+            else:
+                self.article_service.remove_tag_from_article(
+                    article_id,
+                    tag_id,
+                )
+        except Exception:
+            self.statusBar().showMessage(
+                self.translator.text("status.tag_failed"),
+                8000,
+            )
+            self._refresh_tag_editor(article_id)
+            return
+
+        self._reload_tags()
+        self._refresh_tagged_article_list()
+        status_key = (
+            "status.tag_assigned"
+            if assigned
+            else "status.tag_removed"
+        )
+        self.statusBar().showMessage(
+            self.translator.text(status_key),
+            5000,
+        )
+
+    def _rename_tag(self, tag_id: str) -> None:
+        tag = next(
+            (current for current in self._tags if current.id == tag_id),
+            None,
+        )
+        if tag is None:
+            return
+
+        new_name, accepted = QInputDialog.getText(
+            self,
+            self.translator.text("tags.rename_dialog.title"),
+            self.translator.text("tags.rename_dialog.label"),
+            QLineEdit.EchoMode.Normal,
+            tag.name,
+        )
+        if not accepted or not new_name.strip():
+            return
+
+        try:
+            self.article_service.rename_tag(tag_id, new_name)
+        except Exception:
+            self.statusBar().showMessage(
+                self.translator.text("status.tag_failed"),
+                8000,
+            )
+            return
+
+        self._reload_tags()
+        self._update_article_list_title()
+        self.statusBar().showMessage(
+            self.translator.text("status.tag_renamed"),
+            5000,
+        )
+
+    def _delete_tag(self, tag_id: str) -> None:
+        tag = next(
+            (current for current in self._tags if current.id == tag_id),
+            None,
+        )
+        if tag is None or not self._confirm_tag_deletion(tag.name):
+            return
+
+        was_filtering = bool(self._selected_tag_ids)
+        try:
+            self.article_service.delete_tag(tag_id)
+        except Exception:
+            self.statusBar().showMessage(
+                self.translator.text("status.tag_failed"),
+                8000,
+            )
+            return
+
+        self._selected_tag_ids.discard(tag_id)
+        self._reload_tags()
+        if was_filtering:
+            self._show_tagged_articles(tuple(self._selected_tag_ids))
+        self.statusBar().showMessage(
+            self.translator.text("status.tag_deleted"),
+            5000,
+        )
+
+    def _confirm_tag_deletion(self, tag_name: str) -> bool:
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Icon.Warning)
+        dialog.setWindowTitle(
+            self.translator.text("tags.delete_dialog.title")
+        )
+        dialog.setText(
+            self.translator.text("tags.delete_dialog.body").format(
+                name=tag_name,
+            )
+        )
+        delete_button = dialog.addButton(
+            self.translator.text("tags.delete"),
+            QMessageBox.ButtonRole.DestructiveRole,
+        )
+        cancel_button = dialog.addButton(
+            self.translator.text("settings.cancel"),
+            QMessageBox.ButtonRole.RejectRole,
+        )
+        dialog.setDefaultButton(cancel_button)
+        dialog.setEscapeButton(cancel_button)
+        dialog.exec()
+        return dialog.clickedButton() is delete_button
+
+    def _refresh_tagged_article_list(self) -> None:
+        if not self._selected_tag_ids:
+            return
+        self._show_tagged_articles(tuple(self._selected_tag_ids))
 
     def _ensure_article_processed(self, article_id: str) -> None:
         class _ArticleProcessorSignals(QObject):
@@ -519,6 +799,7 @@ class MainWindow(QMainWindow):
             self.article_reader.show_welcome()
             self.summary_panel.clear_article()
             self.translation_panel.clear_article()
+            self._refresh_tag_editor()
             return
 
         self._ensure_article_processed(article_id)
@@ -546,6 +827,7 @@ class MainWindow(QMainWindow):
         self.article_reader.set_translation_result(
             self.translation_panel.displayed_result
         )
+        self._refresh_tag_editor(article.id)
         if not system_selected:
             self._set_read_state(article.id, True, article)
 
@@ -582,6 +864,7 @@ class MainWindow(QMainWindow):
                     self.article_reader.show_welcome()
                     self.summary_panel.clear_article()
                     self.translation_panel.clear_article()
+                    self._refresh_tag_editor()
                 else:
                     self._system_selected_article_id = fallback_id
                     if not self.article_list.select_article(fallback_id):
@@ -1031,8 +1314,11 @@ class MainWindow(QMainWindow):
         self.sidebar.set_tag_browser_texts(
             self.translator.text("tags.title"),
             self.translator.text("tags.browser_hint"),
+            clear_filter=self.translator.text("tags.filter_clear"),
+            rename=self.translator.text("tags.rename"),
+            delete=self.translator.text("tags.delete"),
         )
-        self.sidebar.set_tags(list(TagEditorPanel.tag_names()))
+        self.sidebar.set_tags(self._tags, self._selected_tag_ids)
         self._update_article_list_title()
         self.article_list.set_filter_text(
             self.translator.text("article_list.unread_filter")
@@ -1110,9 +1396,9 @@ class MainWindow(QMainWindow):
             title=self.translator.text("tags.title"),
             input_placeholder=self.translator.text("tags.input_placeholder"),
             add=self.translator.text("tags.add"),
-            suggested=self.translator.text("tags.suggested"),
             existing=self.translator.text("tags.existing"),
             empty=self.translator.text("tags.empty"),
+            no_article=self.translator.text("tags.no_article"),
             close_tooltip=self.translator.text("tags.close"),
         )
 
