@@ -10,6 +10,7 @@ from domain.feed.use_cases import FeedUseCase
 
 from mercury.models.article import Article, Feed
 from mercury.services.article_fetcher import ArticleFetcher
+from mercury.services.article_service import StarredEntryError
 from mercury.services.markdown_converter import MarkdownConverter
 from mercury.services.reader_cleaner import ReaderCleaner
 from mercury.services.translation_service import TranslationService
@@ -74,6 +75,7 @@ class BackendArticleService:
             translate_status,
             translate_error,
             target_language,
+            is_starred,
         ) = detail
         feed_id, source_title = self._find_feed_for_article(article_id)
         title, link = self._normalise_title_and_link(stored_title, stored_link)
@@ -99,7 +101,50 @@ class BackendArticleService:
             translate_status=translate_status or "pending",
             translate_error=translate_error,
             target_language=target_language or "zh",
+            is_starred=bool(is_starred),
         )
+
+    def set_starred(self, article_id: str, is_starred: bool) -> None:
+        try:
+            article_id_int = int(article_id)
+        except (TypeError, ValueError) as exc:
+            raise StarredEntryError("Invalid article identifier.") from exc
+
+        if not self._db.set_article_starred(article_id_int, is_starred):
+            raise StarredEntryError("Article not found.")
+
+    def list_starred_articles(self) -> list[Article]:
+        articles: list[Article] = []
+
+        for (
+            article_id,
+            feed_id,
+            stored_title,
+            stored_link,
+            published,
+            is_starred,
+            source_title,
+        ) in self._db.get_starred_articles():
+            title, _link = self._normalise_title_and_link(
+                stored_title,
+                stored_link,
+            )
+            meta = escape(published or "")
+            articles.append(
+                Article(
+                    id=str(article_id),
+                    feed_id=str(feed_id),
+                    title=title,
+                    source_title=source_title or "",
+                    content_html=f"<p>{meta}</p>" if meta else "",
+                    is_starred=bool(is_starred),
+                )
+            )
+
+        return articles
+
+    def count_starred_articles(self) -> int:
+        return self._db.count_starred_articles()
 
     def fetch_article_content(self, article_id: str, force: bool = False) -> str:
         article = self.get_article(article_id)
@@ -351,7 +396,12 @@ class BackendArticleService:
             source_title = self._feed_title(feed_id)
 
         articles: list[Article] = []
-        for article_id, stored_title, published in self._db.get_articles_by_feed(feed_id_int):
+        for (
+            article_id,
+            stored_title,
+            published,
+            is_starred,
+        ) in self._db.get_articles_by_feed(feed_id_int):
             detail = self._db.get_article_detail(article_id)
             stored_link = detail[2] if detail is not None else ""
             title, _link = self._normalise_title_and_link(stored_title, stored_link)
@@ -363,6 +413,7 @@ class BackendArticleService:
                     title=title,
                     source_title=source_title or "",
                     content_html=f"<p>{meta}</p>" if meta else "",
+                    is_starred=bool(is_starred),
                 )
             )
 

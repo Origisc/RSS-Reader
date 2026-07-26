@@ -34,7 +34,7 @@ from mercury.ui.reader_style import (
 )
 from mercury.ui.settings_dialog import SettingsDialog
 from mercury.ui.shortcut_help import ShortcutEntry, ShortcutHelpDialog
-from mercury.ui.sidebar import Sidebar
+from mercury.ui.sidebar import ALL_FEEDS_ID, STARRED_FEED_ID, Sidebar
 from mercury.ui.summary_panel import (
     SummaryGenerator,
     SummaryPanel,
@@ -88,6 +88,8 @@ class MainWindow(QMainWindow):
         self._translation_generator = translation_generator
         self._translation_result_loader = translation_result_loader
         self._active_workers = set()
+        self._selected_feed_id = ALL_FEEDS_ID
+        self._system_selected_article_id: str | None = None
 
         self.resize(1320, 820)
 
@@ -351,6 +353,7 @@ class MainWindow(QMainWindow):
         self.sidebar.refresh_requested.connect(self._refresh_feeds)
         self.sidebar.delete_feed_requested.connect(self._delete_feed)
         self.article_list.article_selected.connect(self._show_article)
+        self.article_list.star_toggled.connect(self._set_starred_state)
         self.article_reader.read_state_change_requested.connect(
             self._set_read_state
         )
@@ -378,11 +381,26 @@ class MainWindow(QMainWindow):
 
     def _load_initial_data(self) -> None:
         feeds = self.article_service.list_feeds()
-        articles = self.article_service.list_articles()
-        read_article_ids = self._read_article_ids(articles)
-        unread_counts = self._unread_counts(feeds, articles)
+        all_articles = self.article_service.list_articles()
+        feed_ids = {feed.id for feed in feeds}
+        if (
+            self._selected_feed_id
+            not in {ALL_FEEDS_ID, STARRED_FEED_ID}
+            and self._selected_feed_id not in feed_ids
+        ):
+            self._selected_feed_id = ALL_FEEDS_ID
 
-        self.sidebar.set_feeds(feeds, unread_counts)
+        articles = self._articles_for_selection(self._selected_feed_id)
+        read_article_ids = self._read_article_ids(articles)
+        unread_counts = self._unread_counts(feeds, all_articles)
+
+        self.sidebar.set_feeds(
+            feeds,
+            unread_counts,
+            self._safe_starred_count(),
+        )
+        self.sidebar.select_feed(self._selected_feed_id)
+        self._update_article_list_title()
         self.article_list.set_articles(articles, read_article_ids)
 
         if not articles:
@@ -391,7 +409,9 @@ class MainWindow(QMainWindow):
             self.translation_panel.clear_article()
 
     def _show_feed_articles(self, feed_id: str) -> None:
-        articles = self.article_service.list_articles(feed_id)
+        self._selected_feed_id = feed_id
+        articles = self._articles_for_selection(feed_id)
+        self._update_article_list_title()
         self.article_list.set_articles(
             articles,
             self._read_article_ids(articles),
@@ -399,6 +419,28 @@ class MainWindow(QMainWindow):
         self.article_reader.show_welcome()
         self.summary_panel.clear_article()
         self.translation_panel.clear_article()
+
+    def _articles_for_selection(self, feed_id: str) -> list[Article]:
+        if feed_id == STARRED_FEED_ID:
+            try:
+                return self.article_service.list_starred_articles()
+            except Exception:
+                self.statusBar().showMessage(
+                    self.translator.text("status.star_failed"),
+                    8000,
+                )
+                return []
+        if feed_id == ALL_FEEDS_ID:
+            return self.article_service.list_articles()
+        return self.article_service.list_articles(feed_id)
+
+    def _update_article_list_title(self) -> None:
+        key = (
+            "article_list.starred_title"
+            if self._selected_feed_id == STARRED_FEED_ID
+            else "article_list.title"
+        )
+        self.article_list.set_title(self.translator.text(key))
 
     def _ensure_article_processed(self, article_id: str) -> None:
         class _ArticleProcessorSignals(QObject):
@@ -469,6 +511,8 @@ class MainWindow(QMainWindow):
         )
 
     def _show_article(self, article_id: str) -> None:
+        system_selected = self._system_selected_article_id == article_id
+        self._system_selected_article_id = None
         article = self.article_service.get_article(article_id)
 
         if article is None:
@@ -502,7 +546,88 @@ class MainWindow(QMainWindow):
         self.article_reader.set_translation_result(
             self.translation_panel.displayed_result
         )
-        self._set_read_state(article.id, True, article)
+        if not system_selected:
+            self._set_read_state(article.id, True, article)
+
+    def _set_starred_state(
+        self,
+        article_id: str,
+        is_starred: bool,
+    ) -> None:
+        visible_ids = self.article_list.visible_article_ids()
+        selected_id = self.article_list.current_article_id()
+        fallback_id = self._starred_selection_fallback(
+            visible_ids,
+            article_id,
+            selected_id,
+        )
+
+        try:
+            self.article_service.set_starred(article_id, is_starred)
+        except Exception:
+            self.statusBar().showMessage(
+                self.translator.text("status.star_failed"),
+                8000,
+            )
+            return
+
+        if (
+            self._selected_feed_id == STARRED_FEED_ID
+            and not is_starred
+        ):
+            self.article_list.remove_article(article_id)
+
+            if selected_id == article_id:
+                if fallback_id is None:
+                    self.article_reader.show_welcome()
+                    self.summary_panel.clear_article()
+                    self.translation_panel.clear_article()
+                else:
+                    self._system_selected_article_id = fallback_id
+                    if not self.article_list.select_article(fallback_id):
+                        self._system_selected_article_id = None
+        else:
+            self.article_list.set_starred_state(
+                article_id,
+                is_starred,
+            )
+
+        self.sidebar.update_starred_count(
+            self._safe_starred_count()
+        )
+        status_key = (
+            "status.article_starred"
+            if is_starred
+            else "status.article_unstarred"
+        )
+        self.statusBar().showMessage(
+            self.translator.text(status_key),
+            5000,
+        )
+
+    def _safe_starred_count(self) -> int:
+        try:
+            return self.article_service.count_starred_articles()
+        except Exception:
+            return 0
+
+    @staticmethod
+    def _starred_selection_fallback(
+        entry_ids: list[str],
+        removing_entry_id: str,
+        selected_entry_id: str | None,
+    ) -> str | None:
+        if selected_entry_id != removing_entry_id:
+            return None
+        if removing_entry_id not in entry_ids:
+            return None
+
+        index = entry_ids.index(removing_entry_id)
+        if index + 1 < len(entry_ids):
+            return entry_ids[index + 1]
+        if index > 0:
+            return entry_ids[index - 1]
+        return None
 
     def _show_translation_progress(self, value: object) -> None:
         if not isinstance(value, TranslationResult):
@@ -896,16 +1021,25 @@ class MainWindow(QMainWindow):
         self.sidebar.set_feed_detail_text(
             self.translator.text("sidebar.feed_detail")
         )
+        self.sidebar.set_virtual_feed_texts(
+            all_feeds=self.translator.text("sidebar.all_feeds"),
+            starred=self.translator.text("sidebar.starred"),
+            starred_detail=self.translator.text(
+                "sidebar.starred_detail"
+            ),
+        )
         self.sidebar.set_tag_browser_texts(
             self.translator.text("tags.title"),
             self.translator.text("tags.browser_hint"),
         )
         self.sidebar.set_tags(list(TagEditorPanel.tag_names()))
-        self.article_list.set_title(
-            self.translator.text("article_list.title")
-        )
+        self._update_article_list_title()
         self.article_list.set_filter_text(
             self.translator.text("article_list.unread_filter")
+        )
+        self.article_list.set_star_texts(
+            star=self.translator.text("action.star"),
+            unstar=self.translator.text("action.unstar"),
         )
         self.article_list.set_entry_meta_text(
             self.translator.text("article_list.entry_meta")

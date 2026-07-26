@@ -1,4 +1,7 @@
+from dataclasses import replace
+
 from mercury.models.article import Article, Feed
+from mercury.services.article_service import StarredEntryError
 
 
 class MockArticleService:
@@ -62,6 +65,27 @@ class MockArticleService:
                 return article
 
         return None
+
+    def set_starred(self, article_id: str, is_starred: bool) -> None:
+        for index, article in enumerate(self._articles):
+            if article.id != article_id:
+                continue
+
+            self._articles[index] = replace(
+                article,
+                is_starred=is_starred,
+            )
+            return
+
+        raise StarredEntryError("Article not found.")
+
+    def list_starred_articles(self) -> list[Article]:
+        return [
+            article for article in self._articles if article.is_starred
+        ]
+
+    def count_starred_articles(self) -> int:
+        return sum(article.is_starred for article in self._articles)
 
     def fetch_article_content(
         self,

@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -17,7 +18,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from mercury.models.article import Article, Feed
 from mercury.ui.main_window import MainWindow
-from mercury.ui.sidebar import FEED_ID_ROLE
+from mercury.ui.sidebar import FEED_ID_ROLE, IS_VIRTUAL_ROLE
 
 
 class MutableArticleService:
@@ -56,6 +57,56 @@ class MutableArticleService:
         return next(
             (article for article in self.articles if article.id == article_id),
             None,
+        )
+
+    def set_starred(self, article_id: str, is_starred: bool) -> None:
+        self.articles = [
+            (
+                replace(article, is_starred=is_starred)
+                if article.id == article_id
+                else article
+            )
+            for article in self.articles
+        ]
+
+    def list_starred_articles(self) -> list[Article]:
+        return [
+            article for article in self.articles if article.is_starred
+        ]
+
+    def count_starred_articles(self) -> int:
+        return sum(article.is_starred for article in self.articles)
+
+    def fetch_article_content(
+        self,
+        article_id: str,
+        force: bool = False,
+    ) -> str:
+        return f"Fetched {article_id}, force={force}"
+
+    def clean_article_content(
+        self,
+        article_id: str,
+        force: bool = False,
+    ) -> str:
+        return f"Cleaned {article_id}, force={force}"
+
+    def convert_to_markdown(
+        self,
+        article_id: str,
+        force: bool = False,
+    ) -> str:
+        return f"Converted {article_id}, force={force}"
+
+    def translate_article_content(
+        self,
+        article_id: str,
+        target_language: str = "zh",
+        force: bool = False,
+    ) -> str:
+        return (
+            f"Translated {article_id} to {target_language}, "
+            f"force={force}"
         )
 
     def add_feed(self, xml_url: str) -> str:
@@ -158,9 +209,18 @@ class FeedDeletionTest(unittest.TestCase):
             [article.id for article in self.article_service.list_articles()],
             ["article-2"],
         )
-        self.assertEqual(self.window.sidebar.feed_list.count(), 1)
+        real_feed_items = [
+            self.window.sidebar.feed_list.item(row)
+            for row in range(self.window.sidebar.feed_list.count())
+            if not bool(
+                self.window.sidebar.feed_list.item(row).data(
+                    IS_VIRTUAL_ROLE
+                )
+            )
+        ]
+        self.assertEqual(len(real_feed_items), 1)
         self.assertEqual(
-            self.window.sidebar.feed_list.item(0).data(FEED_ID_ROLE),
+            real_feed_items[0].data(FEED_ID_ROLE),
             "feed-2",
         )
         self.assertEqual(self.window.article_list.list_widget.count(), 1)

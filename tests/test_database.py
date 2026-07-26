@@ -74,8 +74,26 @@ class TestDBManager(unittest.TestCase):
                 "translate_status",
                 "translate_error",
                 "target_language",
+                "is_starred",
             }.issubset(columns)
         )
+        connection.execute(
+            """
+            INSERT INTO articles (title, link)
+            VALUES ('Migrated article', 'https://example.com/migrated')
+            """
+        )
+        self.assertEqual(
+            connection.execute(
+                "SELECT is_starred FROM articles"
+            ).fetchone()[0],
+            0,
+        )
+        indexes = {
+            row[1]
+            for row in connection.execute("PRAGMA index_list(articles)")
+        }
+        self.assertIn("idx_articles_starred_published", indexes)
         connection.close()
 
 if __name__ == "__main__":

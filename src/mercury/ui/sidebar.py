@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QRectF, QSignalBlocker, Qt, Signal
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -18,11 +18,17 @@ from PySide6.QtWidgets import (
 )
 
 from mercury.models.article import Feed
+from mercury.ui.star_icon import draw_star
 
 
 FEED_ID_ROLE = Qt.ItemDataRole.UserRole
 FEED_TITLE_ROLE = Qt.ItemDataRole.UserRole + 1
 UNREAD_COUNT_ROLE = Qt.ItemDataRole.UserRole + 2
+IS_VIRTUAL_ROLE = Qt.ItemDataRole.UserRole + 3
+STARRED_COUNT_ROLE = Qt.ItemDataRole.UserRole + 4
+
+ALL_FEEDS_ID = "__all__"
+STARRED_FEED_ID = "__starred__"
 
 
 class Sidebar(QWidget):
@@ -39,9 +45,13 @@ class Sidebar(QWidget):
 
         self.setObjectName("SidebarPanel")
         self._feed_detail_text = "{count} unread"
+        self._starred_detail_text = "{count} starred"
         self._footer_template = "Feeds: {feeds} · Unread: {unread}"
+        self._all_feeds_text = "All Feeds"
+        self._starred_text = "Starred"
         self._feed_count = 0
         self._unread_total = 0
+        self._starred_total = 0
 
         self.feeds_tab = QPushButton()
         self.feeds_tab.setObjectName("PrimarySegment")
@@ -181,12 +191,27 @@ class Sidebar(QWidget):
         self,
         feeds: list[Feed],
         unread_counts: Mapping[str, int] | None = None,
+        starred_count: int = 0,
     ) -> None:
+        selected_feed_id = self.current_feed_id() or ALL_FEEDS_ID
+        blocker = QSignalBlocker(self.feed_list)
         self.feed_list.clear()
         self.menu_delete_feed_action.setEnabled(False)
         counts = unread_counts or {}
         self._feed_count = len(feeds)
         self._unread_total = sum(max(int(value), 0) for value in counts.values())
+        self._starred_total = max(int(starred_count), 0)
+
+        self._add_virtual_feed_item(
+            ALL_FEEDS_ID,
+            self._all_feeds_text,
+            unread_count=self._unread_total,
+        )
+        self._add_virtual_feed_item(
+            STARRED_FEED_ID,
+            self._starred_text,
+            starred_count=self._starred_total,
+        )
 
         for feed in feeds:
             unread_count = max(int(counts.get(feed.id, 0)), 0)
@@ -194,10 +219,18 @@ class Sidebar(QWidget):
             item.setData(FEED_ID_ROLE, feed.id)
             item.setData(FEED_TITLE_ROLE, feed.title)
             item.setData(UNREAD_COUNT_ROLE, unread_count)
+            item.setData(IS_VIRTUAL_ROLE, False)
             item.setToolTip(feed.title)
             self._update_feed_item_text(item)
             self.feed_list.addItem(item)
 
+        self.select_feed(selected_feed_id)
+        del blocker
+        selected_item = self.feed_list.currentItem()
+        self.menu_delete_feed_action.setEnabled(
+            selected_item is not None
+            and not bool(selected_item.data(IS_VIRTUAL_ROLE))
+        )
         self._update_footer()
 
     def update_unread_count(self, feed_id: str, unread_count: int) -> None:
@@ -212,9 +245,26 @@ class Sidebar(QWidget):
             self._unread_total = sum(
                 int(self.feed_list.item(row).data(UNREAD_COUNT_ROLE) or 0)
                 for row in range(self.feed_list.count())
+                if not bool(
+                    self.feed_list.item(row).data(IS_VIRTUAL_ROLE)
+                )
             )
+            all_item = self._item_for_feed_id(ALL_FEEDS_ID)
+            if all_item is not None:
+                all_item.setData(UNREAD_COUNT_ROLE, self._unread_total)
+                self._update_feed_item_text(all_item)
             self._update_footer()
             return
+
+    def update_starred_count(self, starred_count: int) -> None:
+        self._starred_total = max(int(starred_count), 0)
+        item = self._item_for_feed_id(STARRED_FEED_ID)
+
+        if item is None:
+            return
+
+        item.setData(STARRED_COUNT_ROLE, self._starred_total)
+        self._update_feed_item_text(item)
 
     def set_title(self, title: str) -> None:
         self.title_label.setText(title)
@@ -258,10 +308,52 @@ class Sidebar(QWidget):
         for index in range(self.feed_list.count()):
             self._update_feed_item_text(self.feed_list.item(index))
 
+    def set_virtual_feed_texts(
+        self,
+        *,
+        all_feeds: str,
+        starred: str,
+        starred_detail: str,
+    ) -> None:
+        self._all_feeds_text = all_feeds
+        self._starred_text = starred
+        self._starred_detail_text = starred_detail
+
+        all_item = self._item_for_feed_id(ALL_FEEDS_ID)
+        if all_item is not None:
+            all_item.setData(FEED_TITLE_ROLE, all_feeds)
+            all_item.setToolTip(all_feeds)
+            self._update_feed_item_text(all_item)
+
+        starred_item = self._item_for_feed_id(STARRED_FEED_ID)
+        if starred_item is not None:
+            starred_item.setData(FEED_TITLE_ROLE, starred)
+            starred_item.setToolTip(starred)
+            self._update_feed_item_text(starred_item)
+
+    def current_feed_id(self) -> str | None:
+        item = self.feed_list.currentItem()
+        if item is None:
+            return None
+        return str(item.data(FEED_ID_ROLE))
+
+    def select_feed(self, feed_id: str) -> bool:
+        item = self._item_for_feed_id(feed_id)
+        if item is None:
+            item = self._item_for_feed_id(ALL_FEEDS_ID)
+        if item is None:
+            return False
+
+        self.feed_list.setCurrentItem(item)
+        return True
+
     def _on_current_item_changed(self, current, previous) -> None:
         del previous
 
-        self.menu_delete_feed_action.setEnabled(current is not None)
+        self.menu_delete_feed_action.setEnabled(
+            current is not None
+            and not bool(current.data(IS_VIRTUAL_ROLE))
+        )
 
         if current is None:
             return
@@ -274,6 +366,8 @@ class Sidebar(QWidget):
 
         if current is None:
             return
+        if bool(current.data(IS_VIRTUAL_ROLE)):
+            return
 
         self.delete_feed_requested.emit(str(current.data(FEED_ID_ROLE)))
 
@@ -282,11 +376,16 @@ class Sidebar(QWidget):
 
         if item is None:
             return
+        if bool(item.data(IS_VIRTUAL_ROLE)):
+            return
 
         menu = self._build_feed_context_menu(item)
         menu.exec(self.feed_list.viewport().mapToGlobal(position))
 
     def _build_feed_context_menu(self, item: QListWidgetItem) -> QMenu:
+        if bool(item.data(IS_VIRTUAL_ROLE)):
+            return QMenu(self)
+
         feed_id = str(item.data(FEED_ID_ROLE))
         menu = QMenu(self)
         delete_action = menu.addAction(
@@ -300,9 +399,63 @@ class Sidebar(QWidget):
 
     def _update_feed_item_text(self, item: QListWidgetItem) -> None:
         title = str(item.data(FEED_TITLE_ROLE) or "")
+        if item.data(FEED_ID_ROLE) == STARRED_FEED_ID:
+            starred_count = int(item.data(STARRED_COUNT_ROLE) or 0)
+            detail = self._starred_detail_text.format(
+                count=starred_count
+            )
+            item.setText(f"{title}  ·  {detail}")
+            return
+
         unread_count = int(item.data(UNREAD_COUNT_ROLE) or 0)
         detail = self._feed_detail_text.format(count=unread_count)
         item.setText(f"{title}  ·  {detail}")
+
+    def _add_virtual_feed_item(
+        self,
+        feed_id: str,
+        title: str,
+        *,
+        unread_count: int = 0,
+        starred_count: int = 0,
+    ) -> None:
+        item = QListWidgetItem()
+        item.setData(FEED_ID_ROLE, feed_id)
+        item.setData(FEED_TITLE_ROLE, title)
+        item.setData(UNREAD_COUNT_ROLE, unread_count)
+        item.setData(STARRED_COUNT_ROLE, starred_count)
+        item.setData(IS_VIRTUAL_ROLE, True)
+        item.setToolTip(title)
+
+        if feed_id == STARRED_FEED_ID:
+            item.setIcon(self._starred_icon())
+
+        self._update_feed_item_text(item)
+        self.feed_list.addItem(item)
+
+    def _item_for_feed_id(
+        self,
+        feed_id: str,
+    ) -> QListWidgetItem | None:
+        for row in range(self.feed_list.count()):
+            item = self.feed_list.item(row)
+            if str(item.data(FEED_ID_ROLE)) == str(feed_id):
+                return item
+        return None
+
+    @staticmethod
+    def _starred_icon() -> QIcon:
+        pixmap = QPixmap(18, 18)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        draw_star(
+            painter,
+            QRectF(2, 2, 14, 14),
+            filled=True,
+            color=QColor("#f4c542"),
+        )
+        painter.end()
+        return QIcon(pixmap)
 
     def _update_footer(self) -> None:
         self.footer_label.setText(

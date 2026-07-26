@@ -121,6 +121,25 @@ class TranslatorTest(unittest.TestCase):
             ):
                 self.assertNotEqual(translator.text(key), key)
 
+    def test_starred_entry_messages_are_available_in_both_languages(
+        self,
+    ) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "action.star",
+                "action.unstar",
+                "sidebar.all_feeds",
+                "sidebar.starred",
+                "sidebar.starred_detail",
+                "article_list.starred_title",
+                "status.article_starred",
+                "status.article_unstarred",
+                "status.star_failed",
+            ):
+                self.assertNotEqual(translator.text(key), key)
+
     def test_summary_panel_messages_are_available_in_both_languages(self) -> None:
         for language in ("zh_CN", "en_US"):
             translator = Translator(language)

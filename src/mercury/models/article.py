@@ -28,3 +28,4 @@ class Article:
     translate_status: str = "pending"
     translate_error: str | None = None
     target_language: str = "zh"
+    is_starred: bool = False

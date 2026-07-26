@@ -1,7 +1,16 @@
 from collections.abc import Collection
+from dataclasses import replace
 
-from PySide6.QtCore import QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFontMetrics
+from PySide6.QtCore import (
+    QEvent,
+    QRect,
+    QRectF,
+    QSignalBlocker,
+    QSize,
+    Qt,
+    Signal,
+)
+from PySide6.QtGui import QColor, QFontMetrics, QMouseEvent, QPainter
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -9,27 +18,35 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
 
 from mercury.models.article import Article
+from mercury.ui.star_icon import draw_star
 
 
 ARTICLE_ID_ROLE = Qt.ItemDataRole.UserRole
 READ_STATE_ROLE = Qt.ItemDataRole.UserRole + 1
 ARTICLE_TITLE_ROLE = Qt.ItemDataRole.UserRole + 2
 ARTICLE_SOURCE_ROLE = Qt.ItemDataRole.UserRole + 3
+STARRED_STATE_ROLE = Qt.ItemDataRole.UserRole + 4
 
 
 class WrappingArticleDelegate(QStyledItemDelegate):
     """Measure entry text against the current viewport width."""
 
+    star_toggled = Signal(str, bool)
+
     def __init__(self, article_list: QListWidget) -> None:
         super().__init__(article_list)
         self._article_list = article_list
+        self._star_text = "Star"
+        self._unstar_text = "Unstar"
 
     def sizeHint(
         self,
@@ -39,7 +56,7 @@ class WrappingArticleDelegate(QStyledItemDelegate):
         wrapped_option = QStyleOptionViewItem(option)
         self.initStyleOption(wrapped_option, index)
 
-        horizontal_padding = 24
+        horizontal_padding = 60
         available_width = max(
             self._article_list.viewport().width() - horizontal_padding,
             80,
@@ -61,11 +78,102 @@ class WrappingArticleDelegate(QStyledItemDelegate):
             max(default_size.height(), text_bounds.height() + 16),
         )
 
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index,
+    ) -> None:
+        content_option = QStyleOptionViewItem(option)
+        content_option.rect = content_option.rect.adjusted(0, 0, -36, 0)
+        super().paint(painter, content_option, index)
+
+        is_starred = bool(index.data(STARRED_STATE_ROLE))
+        is_hovered = bool(
+            option.state & QStyle.StateFlag.State_MouseOver
+        )
+        is_selected = bool(
+            option.state & QStyle.StateFlag.State_Selected
+        )
+
+        if not (is_starred or is_hovered or is_selected):
+            return
+
+        painter.save()
+        star_rect = self._star_rect(option)
+        icon_size = 15.0
+        draw_star(
+            painter,
+            QRectF(
+                star_rect.center().x() - icon_size / 2,
+                star_rect.center().y() - icon_size / 2,
+                icon_size,
+                icon_size,
+            ),
+            filled=is_starred,
+            color=(
+                QColor("#f4c542")
+                if is_starred
+                else QColor("#8a949e")
+            ),
+        )
+        painter.restore()
+
+    def editorEvent(
+        self,
+        event: QEvent,
+        model,
+        option: QStyleOptionViewItem,
+        index,
+    ) -> bool:
+        if (
+            isinstance(event, QMouseEvent)
+            and event.button() == Qt.MouseButton.LeftButton
+            and self._star_rect(option).contains(
+                event.position().toPoint()
+            )
+        ):
+            if event.type() == QEvent.Type.MouseButtonRelease:
+                article_id = str(index.data(ARTICLE_ID_ROLE))
+                self.star_toggled.emit(
+                    article_id,
+                    not bool(index.data(STARRED_STATE_ROLE)),
+                )
+            return True
+
+        return super().editorEvent(event, model, option, index)
+
+    def helpEvent(self, event, view, option, index) -> bool:
+        if self._star_rect(option).contains(event.pos()):
+            text = (
+                self._unstar_text
+                if bool(index.data(STARRED_STATE_ROLE))
+                else self._star_text
+            )
+            QToolTip.showText(event.globalPos(), text, view)
+            return True
+
+        return super().helpEvent(event, view, option, index)
+
+    def set_star_texts(self, star: str, unstar: str) -> None:
+        self._star_text = star
+        self._unstar_text = unstar
+
+    @staticmethod
+    def _star_rect(option: QStyleOptionViewItem) -> QRect:
+        return QRect(
+            option.rect.right() - 35,
+            option.rect.top(),
+            36,
+            option.rect.height(),
+        )
+
 
 class ArticleList(QWidget):
     """中间文章列表区域。"""
 
     article_selected = Signal(str)
+    star_toggled = Signal(str, bool)
 
     def __init__(self) -> None:
         super().__init__()
@@ -101,9 +209,10 @@ class ArticleList(QWidget):
         )
         self.list_widget.setUniformItemSizes(False)
         self.list_widget.setResizeMode(QListView.ResizeMode.Adjust)
-        self.list_widget.setItemDelegate(
-            WrappingArticleDelegate(self.list_widget)
-        )
+        self.list_widget.setMouseTracking(True)
+        self._delegate = WrappingArticleDelegate(self.list_widget)
+        self._delegate.star_toggled.connect(self.star_toggled.emit)
+        self.list_widget.setItemDelegate(self._delegate)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -137,6 +246,7 @@ class ArticleList(QWidget):
             item.setData(READ_STATE_ROLE, is_read)
             item.setData(ARTICLE_TITLE_ROLE, article.title)
             item.setData(ARTICLE_SOURCE_ROLE, article.source_title)
+            item.setData(STARRED_STATE_ROLE, article.is_starred)
             item.setToolTip(article.title)
             self._update_item_text(item)
             self._apply_read_style(item)
@@ -171,6 +281,8 @@ class ArticleList(QWidget):
         for index in range(self.list_widget.count()):
             self._apply_read_style(self.list_widget.item(index))
 
+        self.list_widget.viewport().update()
+
     def set_title(self, title: str) -> None:
         self.title_label.setText(title)
 
@@ -184,6 +296,80 @@ class ArticleList(QWidget):
             self._update_item_text(self.list_widget.item(index))
 
         self.list_widget.doItemsLayout()
+
+    def set_star_texts(self, *, star: str, unstar: str) -> None:
+        self._delegate.set_star_texts(star, unstar)
+
+    def set_starred_state(
+        self,
+        article_id: str,
+        is_starred: bool,
+    ) -> None:
+        self._articles = [
+            (
+                replace(article, is_starred=is_starred)
+                if article.id == article_id
+                else article
+            )
+            for article in self._articles
+        ]
+
+        for row in range(self.list_widget.count()):
+            item = self.list_widget.item(row)
+            if str(item.data(ARTICLE_ID_ROLE)) != article_id:
+                continue
+
+            item.setData(STARRED_STATE_ROLE, is_starred)
+            self.list_widget.viewport().update(
+                self.list_widget.visualItemRect(item)
+            )
+            return
+
+    def remove_article(self, article_id: str) -> None:
+        selected_id = self.current_article_id()
+        self._articles = [
+            article
+            for article in self._articles
+            if article.id != article_id
+        ]
+        blocker = QSignalBlocker(self.list_widget)
+
+        for row in range(self.list_widget.count()):
+            item = self.list_widget.item(row)
+            if str(item.data(ARTICLE_ID_ROLE)) == article_id:
+                self.list_widget.takeItem(row)
+                break
+
+        if selected_id == article_id:
+            self.list_widget.setCurrentItem(None)
+            self.list_widget.clearSelection()
+        elif selected_id is not None:
+            self.select_article(selected_id)
+
+        del blocker
+
+    def visible_article_ids(self) -> list[str]:
+        return [
+            str(self.list_widget.item(row).data(ARTICLE_ID_ROLE))
+            for row in range(self.list_widget.count())
+        ]
+
+    def current_article_id(self) -> str | None:
+        item = self.list_widget.currentItem()
+        if item is None:
+            return None
+        return str(item.data(ARTICLE_ID_ROLE))
+
+    def select_article(self, article_id: str) -> bool:
+        for row in range(self.list_widget.count()):
+            item = self.list_widget.item(row)
+            if str(item.data(ARTICLE_ID_ROLE)) != article_id:
+                continue
+
+            self.list_widget.setCurrentItem(item)
+            return True
+
+        return False
 
     def _on_current_item_changed(self, current, previous) -> None:
         del previous

@@ -3,7 +3,27 @@ from typing import Protocol
 from mercury.models.article import Article, Feed
 
 
-class ArticleService(Protocol):
+class StarredEntryError(RuntimeError):
+    """A local starred-state write failure suitable for UI fallback."""
+
+
+class StarredEntryService(Protocol):
+    """Local-first starred entry boundary used by the UI."""
+
+    def set_starred(self, article_id: str, is_starred: bool) -> None:
+        """Persist an article's starred state."""
+        ...
+
+    def list_starred_articles(self) -> list[Article]:
+        """Return starred articles across every feed."""
+        ...
+
+    def count_starred_articles(self) -> int:
+        """Return the global number of starred articles."""
+        ...
+
+
+class ArticleService(StarredEntryService, Protocol):
     """UI 获取订阅源和文章时使用的统一接口。"""
 
     def list_feeds(self) -> list[Feed]:

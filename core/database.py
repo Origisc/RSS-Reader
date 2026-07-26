@@ -37,6 +37,7 @@ class DBManager:
                     cleaned_at TEXT,
                     clean_status TEXT DEFAULT 'pending',
                     clean_error TEXT,
+                    is_starred INTEGER NOT NULL DEFAULT 0,
                     FOREIGN KEY(feed_id) REFERENCES feeds(id) ON DELETE CASCADE
                 )
             """)
@@ -105,6 +106,19 @@ class DBManager:
                 self.conn.execute("ALTER TABLE articles ADD COLUMN target_language TEXT DEFAULT 'zh'")
             except sqlite3.OperationalError:
                 pass
+            try:
+                self.conn.execute(
+                    "ALTER TABLE articles "
+                    "ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0"
+                )
+            except sqlite3.OperationalError:
+                pass
+            self.conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_articles_starred_published
+                ON articles (is_starred, published DESC, id DESC)
+                """
+            )
 
     def add_feed(self, title, xml_url, html_url=""):
         try:
@@ -151,7 +165,13 @@ class DBManager:
     def get_articles_by_feed(self, feed_id):
         with self._lock:
             cursor = self.conn.execute(
-                "SELECT id, title, published FROM articles WHERE feed_id = ? ORDER BY id DESC", (feed_id,)
+                """
+                SELECT id, title, published, is_starred
+                FROM articles
+                WHERE feed_id = ?
+                ORDER BY id DESC
+                """,
+                (feed_id,),
             )
             return cursor.fetchall()
 
@@ -165,10 +185,76 @@ class DBManager:
     def get_article_full_detail(self, article_id):
         with self._lock:
             cursor = self.conn.execute(
-                "SELECT title, description, link, original_html, fetched_at, fetch_status, fetch_error, cleaned_html, cleaned_markdown, cleaned_at, clean_status, clean_error, translated_text, translated_at, translate_status, translate_error, target_language FROM articles WHERE id = ?",
+                """
+                SELECT
+                    title,
+                    description,
+                    link,
+                    original_html,
+                    fetched_at,
+                    fetch_status,
+                    fetch_error,
+                    cleaned_html,
+                    cleaned_markdown,
+                    cleaned_at,
+                    clean_status,
+                    clean_error,
+                    translated_text,
+                    translated_at,
+                    translate_status,
+                    translate_error,
+                    target_language,
+                    is_starred
+                FROM articles
+                WHERE id = ?
+                """,
                 (article_id,),
             )
             return cursor.fetchone()
+
+    def get_starred_articles(self):
+        """Return the global local starred collection in stable order."""
+        with self._lock:
+            cursor = self.conn.execute(
+                """
+                SELECT
+                    articles.id,
+                    articles.feed_id,
+                    articles.title,
+                    articles.link,
+                    articles.published,
+                    articles.is_starred,
+                    COALESCE(feeds.title, feeds.xml_url, '')
+                FROM articles
+                LEFT JOIN feeds ON feeds.id = articles.feed_id
+                WHERE articles.is_starred = 1
+                ORDER BY
+                    articles.published DESC,
+                    articles.id DESC
+                """
+            )
+            return cursor.fetchall()
+
+    def count_starred_articles(self) -> int:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT COUNT(*) FROM articles WHERE is_starred = 1"
+            )
+            row = cursor.fetchone()
+            return int(row[0]) if row is not None else 0
+
+    def set_article_starred(
+        self,
+        article_id: int,
+        is_starred: bool,
+    ) -> bool:
+        """Persist user-owned starred state without touching feed data."""
+        with self._lock, self.conn:
+            cursor = self.conn.execute(
+                "UPDATE articles SET is_starred = ? WHERE id = ?",
+                (1 if is_starred else 0, article_id),
+            )
+            return cursor.rowcount > 0
 
     def save_article_cleaned(self, article_id, cleaned_html, cleaned_markdown, cleaned_at, status="success", error=None):
         try:

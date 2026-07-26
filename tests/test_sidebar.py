@@ -15,7 +15,12 @@ if str(SRC_DIR) not in sys.path:
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QApplication, QToolButton
 
-from mercury.ui.sidebar import Sidebar
+from mercury.ui.sidebar import (
+    ALL_FEEDS_ID,
+    FEED_ID_ROLE,
+    STARRED_FEED_ID,
+    Sidebar,
+)
 
 
 class SidebarTest(unittest.TestCase):
@@ -111,7 +116,7 @@ class SidebarTest(unittest.TestCase):
 
         self.assertFalse(self.sidebar.menu_delete_feed_action.isEnabled())
 
-        self.sidebar.feed_list.setCurrentRow(0)
+        self.sidebar.select_feed("feed-1")
         self.sidebar.menu_delete_feed_action.trigger()
 
         self.assertTrue(self.sidebar.menu_delete_feed_action.isEnabled())
@@ -133,9 +138,13 @@ class SidebarTest(unittest.TestCase):
             ]
         )
 
-        menu = self.sidebar._build_feed_context_menu(
-            self.sidebar.feed_list.item(1)
+        second_feed_item = next(
+            self.sidebar.feed_list.item(row)
+            for row in range(self.sidebar.feed_list.count())
+            if self.sidebar.feed_list.item(row).data(FEED_ID_ROLE)
+            == "feed-2"
         )
+        menu = self.sidebar._build_feed_context_menu(second_feed_item)
         delete_action = menu.actions()[0]
         delete_action.trigger()
 
@@ -149,6 +158,47 @@ class SidebarTest(unittest.TestCase):
             self.sidebar.feed_list.contextMenuPolicy(),
             Qt.ContextMenuPolicy.CustomContextMenu,
         )
+
+    def test_virtual_all_and_starred_rows_precede_real_feeds(self) -> None:
+        from mercury.models.article import Feed
+
+        self.sidebar.set_virtual_feed_texts(
+            all_feeds="All Feeds",
+            starred="Starred",
+            starred_detail="{count}",
+        )
+        self.sidebar.set_feeds(
+            [Feed(id="feed-1", title="Example")],
+            {"feed-1": 2},
+            starred_count=3,
+        )
+
+        self.assertEqual(
+            self.sidebar.feed_list.item(0).data(FEED_ID_ROLE),
+            ALL_FEEDS_ID,
+        )
+        self.assertEqual(
+            self.sidebar.feed_list.item(1).data(FEED_ID_ROLE),
+            STARRED_FEED_ID,
+        )
+        self.assertIn("3", self.sidebar.feed_list.item(1).text())
+        self.assertFalse(self.sidebar.feed_list.item(1).icon().isNull())
+
+    def test_virtual_rows_emit_selection_but_cannot_be_deleted(self) -> None:
+        from mercury.models.article import Feed
+
+        selections: list[str] = []
+        deletions: list[str] = []
+        self.sidebar.feed_selected.connect(selections.append)
+        self.sidebar.delete_feed_requested.connect(deletions.append)
+        self.sidebar.set_feeds([Feed(id="feed-1", title="Example")])
+
+        self.sidebar.select_feed(STARRED_FEED_ID)
+        self.sidebar.menu_delete_feed_action.trigger()
+
+        self.assertEqual(selections, [STARRED_FEED_ID])
+        self.assertFalse(self.sidebar.menu_delete_feed_action.isEnabled())
+        self.assertEqual(deletions, [])
 
     def test_context_menu_is_not_built_for_blank_space(self) -> None:
         with patch.object(

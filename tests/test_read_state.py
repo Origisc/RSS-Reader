@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication
 from mercury.services.mock_article_service import MockArticleService
 from mercury.ui.main_window import MainWindow
 from mercury.ui.read_state import InMemoryReadStateStore
+from mercury.ui.sidebar import FEED_ID_ROLE
 
 
 class ReadStateTest(unittest.TestCase):
@@ -38,10 +39,16 @@ class ReadStateTest(unittest.TestCase):
             MockArticleService(),
             read_state_store=store,
         )
+        feed_item = next(
+            window.sidebar.feed_list.item(row)
+            for row in range(window.sidebar.feed_list.count())
+            if window.sidebar.feed_list.item(row).data(FEED_ID_ROLE)
+            == "openai"
+        )
 
         first_item = window.article_list.list_widget.item(0)
         self.assertTrue(first_item.font().bold())
-        self.assertIn("1 未读", window.sidebar.feed_list.item(0).text())
+        self.assertIn("1 未读", feed_item.text())
 
         window._show_article("mercury-start")
 
@@ -51,7 +58,7 @@ class ReadStateTest(unittest.TestCase):
             first_item.foreground().color().name().lower(),
             "#778391",
         )
-        self.assertIn("0 未读", window.sidebar.feed_list.item(0).text())
+        self.assertIn("0 未读", feed_item.text())
 
         window.article_list.set_color_scheme("light")
         self.assertEqual(
@@ -69,12 +76,18 @@ class ReadStateTest(unittest.TestCase):
             MockArticleService(),
             read_state_store=store,
         )
+        feed_item = next(
+            window.sidebar.feed_list.item(row)
+            for row in range(window.sidebar.feed_list.count())
+            if window.sidebar.feed_list.item(row).data(FEED_ID_ROLE)
+            == "openai"
+        )
         window._show_article("mercury-start")
 
         window.article_reader.read_state_button.click()
 
         self.assertFalse(store.is_read("mercury-start"))
-        self.assertIn("1 未读", window.sidebar.feed_list.item(0).text())
+        self.assertIn("1 未读", feed_item.text())
         self.assertEqual(
             window.article_reader.read_state_button.text(),
             "标记为已读",
