@@ -624,25 +624,38 @@ class ArticleReader(QWidget):
         if self._current_article is None:
             return
 
-        markdown = self._resolve_markdown_images(markdown)
-        title = self._current_article.title.replace("\n", " ")
-        source = self._current_article.source_title.replace("\n", " ")
-        note = self._reader_note.replace("\n", " ")
-        document = (
-            f"# {title}\n\n"
-            f"*{self._source_label}: {source}*\n\n"
-            f"{markdown}\n\n"
-            f"> {note}"
-        )
-        self.content.document().setDefaultStyleSheet(
-            "body { color: #d7e3ed; font-family: Georgia, serif; "
-            f"font-size: {self._reader_style.font_size}px; "
-            f"line-height: {self._reader_style.line_height}; "
-            f"max-width: {self._reader_style.content_width}px; "
-            "margin: 32px auto 72px; } "
-            "a { color: #69aefc; } pre, code { background: #0f2a3d; }"
-        )
-        self.content.setMarkdown(document)
+        article = self._current_article
+        safe_title = escape(article.title)
+        safe_source = escape(article.source_title)
+        safe_source_label = escape(self._source_label)
+        safe_note = escape(self._reader_note)
+
+        md_document = QTextDocument()
+        md_document.setMarkdown(markdown)
+        content_html = md_document.toHtml()
+        lowered = content_html.lower()
+        body_start = lowered.find("<body")
+        body_open_end = content_html.find(">", body_start)
+        body_end = lowered.rfind("</body>")
+
+        if body_start >= 0 and body_open_end >= 0 and body_end >= 0:
+            content_html = content_html[body_open_end + 1 : body_end]
+        else:
+            content_html = f"<p>{escape(markdown)}</p>"
+
+        content_html = self._resolve_images(content_html)
+
+        body = f"""
+            <h1>{safe_title}</h1>
+            <p class="byline">{safe_source}</p>
+            <div class="reader-card">
+                <span>{safe_source_label}</span>
+                <strong>{safe_source}</strong>
+            </div>
+            <div class="reader-article">{content_html}</div>
+            <div class="reader-note">{safe_note}</div>
+        """
+        self.content.setHtml(self._wrap_html(body))
 
     def set_texts(
         self,
