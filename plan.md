@@ -19,7 +19,7 @@
 | 第一阶段 | 基础阅读器原型 | 完成本地优先 RSS 阅读器最小闭环 | 可导入 OPML / 添加 Feed、刷新订阅、查看文章列表与详情、本地缓存可复用 |
 | 第二阶段 | 阅读体验增强 | 完成 Reader 模式、内容清洗、Markdown / HTML 转换、多语言 UI 与基础跨平台验证 | 可展示 Cleaned HTML / Cleaned Markdown，切换中英界面，无 AI 配置也可完整阅读 |
 | 第三阶段 | AI 功能接入 | 完成 LLM Provider 抽象、Summary Agent、Translation Agent 与失败 fallback | 使用 Mock Provider 可自动测试摘要/翻译，使用用户配置 Provider 可人工验证真实调用 |
-| 第四阶段 | 信息整理与导出 | 完成星标收藏、标签、筛选、单篇/多篇导出；笔记面板暂缓，Tag Agent 作为选做增强 | 可收藏、整理、筛选与导出文章；即使不启用 AI，星标、手动标签和导出仍可使用 |
+| 第四阶段 | 信息整理 | 完成星标收藏、标签与筛选；笔记面板暂缓，Tag Agent 作为选做增强 | 可收藏、整理与筛选文章；即使不启用 AI，星标和手动标签仍可使用 |
 
 ---
 
@@ -31,7 +31,7 @@
 
 ## Completion Definition
 
-本阶段完成后，即使没有 Reader 清洗、AI、导出和标签功能，用户也可以完成“添加订阅源 → 刷新 → 浏览文章列表 → 打开文章详情 → 安全删除不再需要的订阅源 → 关闭并重启应用后数据状态正确”的完整流程。
+本阶段完成后，即使没有 Reader 清洗、AI 和标签功能，用户也可以完成“添加订阅源 → 刷新 → 浏览文章列表 → 打开文章详情 → 安全删除不再需要的订阅源 → 关闭并重启应用后数据状态正确”的完整流程。
 
 ## Sub-phases
 
@@ -548,15 +548,15 @@
 
 ---
 
-# 第四阶段｜信息整理与导出
+# 第四阶段｜信息整理
 
 ## Overall Goal
 
-在核心阅读和 AI 能力稳定后，增加信息整理能力：星标收藏、标签、筛选、单篇与多篇导出。星标交互参考 [`neolee/mercury` 的 Starred Entries 设计](https://github.com/neolee/mercury/blob/main/docs/features/star.md)保持行为一致；笔记面板当前暂缓，Tag Agent 作为选做增强，不得为了它提前复杂化核心架构。
+在核心阅读和 AI 能力稳定后，增加信息整理能力：星标收藏、标签与筛选。星标交互参考 [`neolee/mercury` 的 Starred Entries 设计](https://github.com/neolee/mercury/blob/main/docs/features/star.md)保持行为一致；笔记面板当前暂缓，Tag Agent 作为选做增强，不得为了它提前复杂化核心架构。
 
 ## Completion Definition
 
-本阶段完成后，用户可以收藏文章、从全局星标入口重新找到收藏内容、给文章添加标签、按标签筛选文章，并导出单篇或多篇文章。即使不启用任何 AI，星标、手动标签、筛选和导出也必须可用。
+本阶段完成后，用户可以收藏文章、从全局星标入口重新找到收藏内容、给文章添加标签并按标签筛选文章。即使不启用任何 AI，星标、手动标签和筛选也必须可用。
 
 ## Sub-phases
 
@@ -679,53 +679,14 @@
   - 用户拒绝建议时不修改文章标签。
   - 未实现或未启用 Tag Agent 时，手动标签功能不受影响。
 
-### 4.4 单篇与多篇导出
+### 4.4 第四阶段验收文档
 
-#### Task 4.4.1 单篇文章导出
-
-- **Overall Goal**：用户可以导出当前文章。
-- **Task Detail**：
-  - 支持导出 Cleaned Markdown。
-  - 可选择包含摘要、翻译、笔记、标签。
-  - 文件写出使用 UTF-8。
-- **Affected Files**：
-  - `src/mercury/services/export_service.py`
-  - `src/mercury/ui/export_dialog.py`
-  - `tests/test_export_single.py`
-- **Key Design**：
-  - 导出逻辑不依赖 UI。
-  - 缺少摘要或翻译时不阻塞导出。
-- **Verification**：
-  - 导出的 Markdown 可包含标题、链接、正文、笔记等选项。
-  - UTF-8 内容正确保存。
-
-#### Task 4.4.2 多篇文章批量导出
-
-- **Overall Goal**：用户可以批量导出筛选后的文章。
-- **Task Detail**：
-  - 支持按选中文章、订阅源、标签范围导出。
-  - 支持导出为多个 Markdown 文件或合并文件。
-  - 处理文件名冲突。
-- **Affected Files**：
-  - `src/mercury/services/export_service.py`
-  - `src/mercury/ui/export_dialog.py`
-  - `tests/test_export_batch.py`
-- **Key Design**：
-  - 批量导出过程可取消或至少有进度提示。
-  - 文件名做跨平台安全处理。
-- **Verification**：
-  - 多篇导出数量正确。
-  - 同标题文章不会互相覆盖。
-  - Windows/Linux/macOS 非法文件名字符被安全处理。
-
-### 4.5 第四阶段验收文档
-
-#### Task 4.5.1 信息整理与导出验收脚本
+#### Task 4.4.1 信息整理验收脚本
 
 - **Overall Goal**：独立验证第四阶段功能。
 - **Task Detail**：
   - 编写 `docs/verification/stage-4.md`。
-  - 覆盖星标、标签、筛选、单篇导出、多篇导出。
+  - 覆盖星标、标签和筛选。
   - 笔记作为暂缓项单独说明，不进入当前验收门。
   - Tag Agent 写入选做验收项。
 - **Affected Files**：
@@ -734,17 +695,16 @@
   - 基础验收不依赖 AI。
   - 选做验收单独列出。
 - **Verification**：
-  - 按文档可完成星标收藏、手动整理和导出。
+  - 按文档可完成星标收藏、手动标签管理和组合筛选。
   - 可选验证 Tag Agent，不影响基础验收结论。
 
 ## Stage 4 Verification Gate
 
-- `uv run pytest tests/test_starred_entries.py tests/test_tags.py tests/test_export_single.py tests/test_export_batch.py`
+- `uv run pytest tests/test_starred_entries.py tests/test_tags.py`
 - 星标、标签、配置默认本地保存。
 - Feed 刷新、去重和内容修复不会覆盖用户星标。
 - 删除标签前有防误删机制。
-- 单篇和多篇导出文件使用 UTF-8。
-- 未启用 AI 时，星标、手动标签、筛选、导出仍可用。
+- 未启用 AI 时，星标、手动标签和筛选仍可用。
 - Tag Agent 如实现，必须复用统一 LLM Provider 和 Prompt 配置机制。
 
 ---
@@ -811,9 +771,7 @@ mercury/
     ├── test_translation_agent.py
     ├── test_starred_entries.py
     ├── test_notes.py
-    ├── test_tags.py
-    ├── test_export_single.py
-    └── test_export_batch.py
+    └── test_tags.py
 ```
 
 
@@ -829,14 +787,14 @@ mercury/
 - `ArticleReadService`：根据文章 ID 返回原始内容、Cleaned HTML、Cleaned Markdown、阅读状态。
 - `ReaderService`：触发抓取、清洗、Markdown 转换，返回状态与 fallback 信息。
 - `LLMProvider` / `SummaryAgent` / `TranslationAgent`：使用 Mock Provider 也能运行。
-- `StarredEntryService` / `TagService` / `ExportService`：UI 只调用 service，不直接操作数据库或文件写出细节；`NoteService` 当前暂缓。
+- `StarredEntryService` / `TagService`：UI 只调用 service，不直接操作数据库；`NoteService` 当前暂缓。
 
 ## 3.2 修改后的人员分工
 
 | 成员 | 主要边界 | 负责内容 | 不负责内容 | 独立验证方式 |
 | --- | --- | --- | --- | --- |
-| 成员 A：核心功能与数据处理（dy） | `domain/`、`services/`、`storage/`、核心测试 fixture | Feed / Atom / JSON Feed 解析；OPML 导入与导出；订阅源、文章、详情、阅读状态、本地缓存；文章去重；文章抓取；Reader 清洗；Cleaned HTML / Markdown 转换；星标持久化与查询；导出后端；数据库迁移；自动化测试；UTF-8 与跨平台文件名处理 | PySide6 页面布局、按钮交互、AI 面板、i18n 文案、验收文档主编写 | `uv run pytest` 可在无 GUI、无真实网络、无真实 LLM 环境下通过；服务接口可用 fixture 或 Mock 独立验证 |
-| 成员 B：界面交互与 AI 功能（csm） | `ui/`、`i18n/`、`llm/`、`agents/`、验收文档 | PySide6 主窗口；订阅源列表、文章列表、文章详情交互；Reader 模式展示和视图切换；阅读样式设置；中英文切换；AI 设置页；LLM Provider 配置与 Mock Provider；Summary Agent / Translation Agent 工作流；摘要与翻译 UI；原文译文段落对照；星标入口与列表交互；标签、导出入口与确认交互 | 数据库 schema、Feed/OPML 解析、文章抓取、清洗算法、Markdown 转换、真实文件批量导出细节 | UI 可用 Mock Service 独立运行；AI 工作流可用 Mock Provider 自动测试；人工验收文档可复现阶段功能 |
+| 成员 A：核心功能与数据处理（dy） | `domain/`、`services/`、`storage/`、核心测试 fixture | Feed / Atom / JSON Feed 解析；OPML 导入与导出；订阅源、文章、详情、阅读状态、本地缓存；文章去重；文章抓取；Reader 清洗；Cleaned HTML / Markdown 转换；星标和标签持久化与查询；数据库迁移；自动化测试；UTF-8 与跨平台兼容 | PySide6 页面布局、按钮交互、AI 面板、i18n 文案、验收文档主编写 | `uv run pytest` 可在无 GUI、无真实网络、无真实 LLM 环境下通过；服务接口可用 fixture 或 Mock 独立验证 |
+| 成员 B：界面交互与 AI 功能（csm） | `ui/`、`i18n/`、`llm/`、`agents/`、验收文档 | PySide6 主窗口；订阅源列表、文章列表、文章详情交互；Reader 模式展示和视图切换；阅读样式设置；中英文切换；AI 设置页；LLM Provider 配置与 Mock Provider；Summary Agent / Translation Agent 工作流；摘要与翻译 UI；原文译文段落对照；星标入口与列表交互；标签管理、筛选和确认交互 | 数据库 schema、Feed/OPML 解析、文章抓取、清洗算法、Markdown 转换 | UI 可用 Mock Service 独立运行；AI 工作流可用 Mock Provider 自动测试；人工验收文档可复现阶段功能 |
 
 ## 3.3 分阶段并行方式
 
@@ -861,13 +819,13 @@ mercury/
 - 集成点：AI 输入只读取 `ArticleReadService` 给出的文章快照；AI 输出只通过约定接口保存，不直接改文章核心数据。
 - 阶段验收：B 用 Mock Provider 完成摘要/翻译自动测试；A 确认 Provider 失败或未配置时基础阅读仍可用。
 
-### 第四阶段：信息整理与导出
+### 第四阶段：信息整理
 
-- 执行顺序：先完成星标收藏，再实现标签与筛选，最后完成单篇/多篇导出；笔记面板暂缓。
-- 成员 A：星标/标签/导出所需的本地数据结构、查询接口、同步不覆盖星标的约束、ExportService 文件生成、批量导出、文件名冲突与跨平台安全处理。
-- 成员 B：星标虚拟入口、星标按钮与选择接续交互、标签管理界面、筛选交互、导出对话框、Tag Agent 选做入口、验收文档。
-- 集成点：先冻结 `StarredEntryService`，再冻结 `TagService`、`ExportService` 后联调；Tag Agent 只生成建议，必须由用户确认后应用。
-- 阶段验收：A 验证星标持久化与同步不覆盖、标签数据增删改查、筛选和导出文件；B 验证星标/标签 UI 流程、选择接续、防误删确认和人工验收脚本。
+- 执行顺序：先完成星标收藏，再实现标签与筛选；笔记面板暂缓。
+- 成员 A：星标/标签所需的本地数据结构、查询接口，以及同步不覆盖星标的约束。
+- 成员 B：星标虚拟入口、星标按钮与选择接续交互、标签管理界面、筛选交互、Tag Agent 选做入口和验收文档。
+- 集成点：先冻结 `StarredEntryService`，再冻结 `TagService` 后联调；Tag Agent 只生成建议，必须由用户确认后应用。
+- 阶段验收：A 验证星标持久化与同步不覆盖、标签数据增删改查和筛选；B 验证星标/标签 UI 流程、选择接续、防误删确认和人工验收脚本。
 
 ## 3.4 为避免等待的执行规则
 
@@ -887,7 +845,6 @@ mercury/
 - 订阅刷新、文章去重、数据库迁移
 - 文章抓取、Reader 清洗、Cleaned HTML / Markdown 转换
 - 星标持久化、全局星标查询与同步状态保护
-- ExportService 后端、批量导出、跨平台文件处理
 - 自动化测试、fixture、核心服务验收
 
 ### 成员 B｜界面交互与 AI 功能（csm）
@@ -899,7 +856,7 @@ mercury/
 - Summary Agent、Translation Agent、摘要/翻译 UI
 - 原文译文段落对照、Tag Agent 选做入口
 - 星标虚拟入口、文章行星标与选择接续交互
-- 标签、筛选、导出入口与验收文档
+- 标签、筛选与验收文档
 
 **协作重点**：先冻结 service 接口；A 用测试独立验证核心能力，B 用 Mock Service 独立完成界面与 AI 交互，最后按阶段验收门集成。
 
