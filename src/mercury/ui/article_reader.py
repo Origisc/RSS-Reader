@@ -582,7 +582,6 @@ class ArticleReader(QWidget):
                 f'<div class="reader-warning">{escape(fallback_status)}</div>'
             )
 
-        content_html = self._resolve_images(content_html)
         body = f"""
             <h1>{safe_title}</h1>
             <p class="byline">{safe_source}</p>
@@ -595,6 +594,7 @@ class ArticleReader(QWidget):
             <div class="reader-note">{safe_note}</div>
         """
         self.content.setHtml(self._wrap_html(body))
+        self._resolve_images_async(content_html)
 
     def _resolve_markdown_images(self, markdown: str) -> str:
         import re
@@ -643,8 +643,6 @@ class ArticleReader(QWidget):
         else:
             content_html = f"<p>{escape(markdown)}</p>"
 
-        content_html = self._resolve_images(content_html)
-
         body = f"""
             <h1>{safe_title}</h1>
             <p class="byline">{safe_source}</p>
@@ -656,6 +654,7 @@ class ArticleReader(QWidget):
             <div class="reader-note">{safe_note}</div>
         """
         self.content.setHtml(self._wrap_html(body))
+        self._resolve_images_async(content_html)
 
     def set_texts(
         self,
@@ -704,6 +703,75 @@ class ArticleReader(QWidget):
             return img_tag
 
         return re.sub(r'<img[^>]+>', replace_image, html)
+
+    def _resolve_images_async(self, html: str) -> None:
+        import re
+
+        img_urls = re.findall(r'src=["\']([^"\']+)["\']', html)
+        http_urls = [url for url in img_urls if url.startswith('http')]
+
+        if not http_urls:
+            return
+
+        self._pending_images = len(http_urls)
+        self._resolved_html = html
+        self._image_replacements = {}
+
+        for url in http_urls:
+            request = QNetworkRequest(QUrl(url))
+            reply = self._network_manager.get(request)
+            reply.finished.connect(
+                lambda r=reply, u=url: self._on_image_downloaded(r, u)
+            )
+
+    def _on_image_downloaded(self, reply, url):
+        try:
+            if reply.error() == 0:
+                content = reply.readAll()
+                content_type = reply.header(QNetworkRequest.ContentTypeHeader)
+                if content_type is None:
+                    content_type = 'image/jpeg'
+
+                import base64
+                encoded = base64.b64encode(bytes(content)).decode('utf-8')
+                self._image_replacements[url] = f'data:{content_type};base64,{encoded}'
+        except Exception:
+            pass
+
+        reply.deleteLater()
+
+        self._pending_images -= 1
+        if self._pending_images == 0:
+            self._apply_image_replacements()
+
+    def _apply_image_replacements(self):
+        if not hasattr(self, '_resolved_html') or not self._image_replacements:
+            return
+
+        resolved_html = self._resolved_html
+        for url, data_url in self._image_replacements.items():
+            resolved_html = resolved_html.replace(url, data_url)
+
+        article = self._current_article
+        if article is None:
+            return
+
+        safe_title = escape(article.title)
+        safe_source = escape(article.source_title)
+        safe_source_label = escape(self._source_label)
+        safe_note = escape(self._reader_note)
+
+        body = f"""
+            <h1>{safe_title}</h1>
+            <p class="byline">{safe_source}</p>
+            <div class="reader-card">
+                <span>{safe_source_label}</span>
+                <strong>{safe_source}</strong>
+            </div>
+            <div class="reader-article">{resolved_html}</div>
+            <div class="reader-note">{safe_note}</div>
+        """
+        self.content.setHtml(self._wrap_html(body))
 
     def _wrap_html(self, body: str) -> str:
         return f"""
