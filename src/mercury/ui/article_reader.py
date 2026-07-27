@@ -533,6 +533,8 @@ class ArticleReader(QWidget):
         if self._current_article is None:
             return
 
+        scroll_pos = self.content.verticalScrollBar().value()
+
         article = self._current_article
         safe_title = escape(article.title)
         safe_source = escape(article.source_title)
@@ -551,6 +553,7 @@ class ArticleReader(QWidget):
             <div class="reader-note">{safe_note}</div>
         """
         self.content.setHtml(self._wrap_html(body))
+        self.content.verticalScrollBar().setValue(scroll_pos)
 
     @staticmethod
     def _text_to_html(text: str) -> str:
@@ -574,6 +577,8 @@ class ArticleReader(QWidget):
     def _show_html(self, content_html: str, fallback_status: str) -> None:
         if self._current_article is None:
             return
+
+        scroll_pos = self.content.verticalScrollBar().value()
 
         article = self._current_article
         safe_title = escape(article.title)
@@ -599,6 +604,7 @@ class ArticleReader(QWidget):
             <div class="reader-note">{safe_note}</div>
         """
         self.content.setHtml(self._wrap_html(body))
+        self.content.verticalScrollBar().setValue(scroll_pos)
         self._resolve_images_async(content_html)
 
     def _resolve_markdown_images(self, markdown: str) -> str:
@@ -751,6 +757,8 @@ class ArticleReader(QWidget):
             print(f"[DEBUG] Nothing to apply, returning")
             return
 
+        scroll_pos = self.content.verticalScrollBar().value()
+
         print(f"[DEBUG] HTML length before replacement: {len(self._resolved_html)}")
         print(f"[DEBUG] URLs to replace: {list(self._image_replacements.keys())}")
 
@@ -789,6 +797,7 @@ class ArticleReader(QWidget):
         """
         print(f"[DEBUG] Setting HTML content...")
         self.content.setHtml(self._wrap_html(body))
+        self.content.verticalScrollBar().setValue(scroll_pos)
         print(f"[DEBUG] HTML content set successfully")
 
         self._is_resolving_images = False
