@@ -1045,6 +1045,7 @@ class MainWindow(QMainWindow):
             lambda: self.article_service.add_feed(xml_url.strip()),
             self.translator.text("status.add_feed_started"),
         )
+        self._refresh_feeds()
 
     def _import_opml(self) -> None:
         file_path, _selected_filter = QFileDialog.getOpenFileName(
@@ -1061,6 +1062,7 @@ class MainWindow(QMainWindow):
             lambda: self.article_service.import_opml(file_path),
             self.translator.text("status.import_opml_started"),
         )
+        self._refresh_feeds()
 
     def _refresh_feeds(self) -> None:
         self._run_service_action(
