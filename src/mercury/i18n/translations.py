@@ -293,6 +293,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "translation.paragraph.failed": "段落 {number}：{error}",
         "translation.paragraph.unavailable": "译文暂不可用",
+        "translation.paragraph.translating": "正在翻译...",
         "translation.error.invalid_input": (
             "当前文章没有可用于翻译的正文；原文未受影响。"
         ),
@@ -677,6 +678,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "translation.paragraph.failed": "Paragraph {number}: {error}",
         "translation.paragraph.unavailable": "Translation unavailable",
+        "translation.paragraph.translating": "Translating...",
         "translation.error.invalid_input": (
             "This article has no readable content to translate; the original "
             "was not affected."

@@ -48,12 +48,20 @@ class InterleavedHTML:
 def translation_card_html(
     paragraph: TranslationParagraph,
     unavailable_text: str,
+    translating_text: str = "",
 ) -> str:
-    translated_text = (
-        paragraph.translated_text.strip()
-        if paragraph.translated_text.strip()
-        else unavailable_text
-    )
+    if (
+        not paragraph.translated_text.strip()
+        and paragraph.status is TranslationParagraphStatus.PARTIAL
+        and paragraph.translated_segment_count == 0
+    ):
+        translated_text = translating_text or unavailable_text
+    else:
+        translated_text = (
+            paragraph.translated_text.strip()
+            if paragraph.translated_text.strip()
+            else unavailable_text
+        )
     classes = ["translation-block"]
     if paragraph.status is TranslationParagraphStatus.FAILED:
         classes.append("translation-unavailable")
@@ -73,10 +81,12 @@ class _HTMLTranslationInterleaver(HTMLParser):
         self,
         paragraphs: tuple[TranslationParagraph, ...],
         unavailable_text: str,
+        translating_text: str = "",
     ) -> None:
         super().__init__(convert_charrefs=False)
         self._paragraphs = paragraphs
         self._unavailable_text = unavailable_text
+        self._translating_text = translating_text
         self._paragraph_index = 0
         self._output: list[str] = []
         self._parts: list[str] = []
@@ -209,7 +219,7 @@ class _HTMLTranslationInterleaver(HTMLParser):
             return ""
 
         self._paragraph_index += 1
-        return translation_card_html(paragraph, self._unavailable_text)
+        return translation_card_html(paragraph, self._unavailable_text, self._translating_text)
 
     def _reset_candidate(self) -> None:
         self._parts.clear()
@@ -239,6 +249,7 @@ def interleave_html_translations(
     source_html: str,
     paragraphs: tuple[TranslationParagraph, ...],
     unavailable_text: str,
+    translating_text: str = "",
 ) -> InterleavedHTML:
     """Preserve source markup and insert each translation after its block."""
     ordered_paragraphs = tuple(
@@ -259,6 +270,7 @@ def interleave_html_translations(
     parser = _HTMLTranslationInterleaver(
         ordered_paragraphs,
         unavailable_text,
+        translating_text,
     )
     try:
         parser.feed(source_html)

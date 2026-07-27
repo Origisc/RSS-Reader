@@ -1386,6 +1386,9 @@ class MainWindow(QMainWindow):
             translation_unavailable=self.translator.text(
                 "translation.paragraph.unavailable"
             ),
+            translation_translating=self.translator.text(
+                "translation.paragraph.translating"
+            ),
         )
         self.article_reader.set_tag_toggle_texts(
             text=self.translator.text("reader.tags_toggle"),

@@ -65,6 +65,7 @@ class ArticleReader(QWidget):
         )
         self._bilingual_status = "Showing paragraph bilingual reading"
         self._translation_unavailable = "Translation unavailable"
+        self._translation_translating = "Translating..."
         self._mark_read_text = "Mark read"
         self._mark_unread_text = "Mark unread"
         self._view_labels = {
@@ -344,6 +345,7 @@ class ArticleReader(QWidget):
         unavailable_tooltip: str,
         status: str,
         translation_unavailable: str,
+        translation_translating: str,
     ) -> None:
         self._bilingual_show_text = show_bilingual
         self._bilingual_hide_text = show_original
@@ -351,6 +353,7 @@ class ArticleReader(QWidget):
         self._bilingual_unavailable_tooltip = unavailable_tooltip
         self._bilingual_status = status
         self._translation_unavailable = translation_unavailable
+        self._translation_translating = translation_translating
         self._update_bilingual_button()
 
         if self._bilingual_visible:
@@ -496,6 +499,7 @@ class ArticleReader(QWidget):
                     source_html,
                     result.paragraphs,
                     self._translation_unavailable,
+                    self._translation_translating,
                 )
                 if interleaved.fully_aligned:
                     self._show_bilingual_html(interleaved.html)
@@ -518,6 +522,7 @@ class ArticleReader(QWidget):
                 f"{translation_card_html(
                     paragraph,
                     self._translation_unavailable,
+                    self._translation_translating,
                 )}"
                 "</div>"
             )

@@ -254,6 +254,7 @@ class ArticleReaderTest(unittest.TestCase):
             unavailable_tooltip="请先翻译",
             status="双语模式",
             translation_unavailable="译文暂不可用",
+            translation_translating="正在翻译...",
         )
         result = self._translation_result(
             (
