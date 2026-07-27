@@ -241,27 +241,28 @@ class ArticleList(QWidget):
         self._render_articles()
 
     def _render_articles(self) -> None:
-        self.list_widget.clear()
+        with QSignalBlocker(self.list_widget):
+            self.list_widget.clear()
 
-        for article in self._articles:
-            is_read = article.id in self._read_article_ids
-            if self.unread_filter_button.isChecked() and is_read:
-                continue
+            for article in self._articles:
+                is_read = article.id in self._read_article_ids
+                if self.unread_filter_button.isChecked() and is_read:
+                    continue
 
-            display_title = article.translated_title or article.title
+                display_title = article.translated_title or article.title
 
-            item = QListWidgetItem()
-            item.setData(ARTICLE_ID_ROLE, article.id)
-            item.setData(READ_STATE_ROLE, is_read)
-            item.setData(ARTICLE_TITLE_ROLE, display_title)
-            item.setData(ARTICLE_SOURCE_ROLE, article.source_title)
-            item.setData(STARRED_STATE_ROLE, article.is_starred)
-            item.setToolTip(display_title)
-            self._update_item_text(item)
-            self._apply_read_style(item)
-            self.list_widget.addItem(item)
+                item = QListWidgetItem()
+                item.setData(ARTICLE_ID_ROLE, article.id)
+                item.setData(READ_STATE_ROLE, is_read)
+                item.setData(ARTICLE_TITLE_ROLE, display_title)
+                item.setData(ARTICLE_SOURCE_ROLE, article.source_title)
+                item.setData(STARRED_STATE_ROLE, article.is_starred)
+                item.setToolTip(display_title)
+                self._update_item_text(item)
+                self._apply_read_style(item)
+                self.list_widget.addItem(item)
 
-        self.list_widget.doItemsLayout()
+            self.list_widget.doItemsLayout()
 
     def set_read_state(self, article_id: str, is_read: bool) -> None:
         if is_read:
