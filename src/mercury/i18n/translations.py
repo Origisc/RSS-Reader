@@ -41,6 +41,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "article_list.starred_title": "星标",
         "article_list.tags_title": "标签：{tags}",
         "article_list.unread_filter": "未读",
+        "article_list.translate": "翻译",
+        "article_list.translate.no_article": "请选中一个条目",
         "article_list.entry_meta": "本地缓存条目",
         "article_reader.title": "Reader",
         "article_reader.welcome_title": "欢迎使用 Mercury",
@@ -157,6 +159,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status.article_starred": "已添加星标",
         "status.article_unstarred": "已取消星标",
         "status.star_failed": "无法更新星标，原状态已保留。",
+        "status.translate_failed": "翻译失败：{message}",
         "status.tags_added": "标签已添加到文章。",
         "status.tag_assigned": "标签已添加到文章。",
         "status.tag_removed": "已从文章移除标签。",
@@ -354,6 +357,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "article_list.starred_title": "Starred",
         "article_list.tags_title": "Tags: {tags}",
         "article_list.unread_filter": "Unread",
+        "article_list.translate": "Translate",
+        "article_list.translate.no_article": "Please select an entry",
         "article_list.entry_meta": "Local cached entry",
         "article_reader.title": "Reader",
         "article_reader.welcome_title": "Welcome to Mercury",
@@ -496,6 +501,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "The starred state could not be updated. "
             "The previous state was kept."
         ),
+        "status.translate_failed": "Translation failed: {message}",
         "status.tags_added": "Tags added to the article.",
         "status.tag_assigned": "Tag added to the article.",
         "status.tag_removed": "Tag removed from the article.",

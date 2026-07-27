@@ -29,3 +29,4 @@ class Article:
     translate_error: str | None = None
     target_language: str = "zh"
     is_starred: bool = False
+    translated_title: str = ""

@@ -79,6 +79,7 @@ class BackendArticleService:
             translate_error,
             target_language,
             is_starred,
+            translated_title,
         ) = detail
         feed_id, source_title = self._find_feed_for_article(article_id)
         title, link = self._normalise_title_and_link(stored_title, stored_link)
@@ -105,6 +106,7 @@ class BackendArticleService:
             translate_error=translate_error,
             target_language=target_language or "zh",
             is_starred=bool(is_starred),
+            translated_title=translated_title or "",
         )
 
     def set_starred(self, article_id: str, is_starred: bool) -> None:
@@ -127,20 +129,23 @@ class BackendArticleService:
             published,
             is_starred,
             source_title,
+            translated_title,
         ) in self._db.get_starred_articles():
             title, _link = self._normalise_title_and_link(
                 stored_title,
                 stored_link,
             )
+            display_title = translated_title or title
             meta = escape(published or "")
             articles.append(
                 Article(
                     id=str(article_id),
                     feed_id=str(feed_id),
-                    title=title,
+                    title=display_title,
                     source_title=source_title or "",
                     content_html=f"<p>{meta}</p>" if meta else "",
                     is_starred=bool(is_starred),
+                    translated_title=translated_title or "",
                 )
             )
 
@@ -486,6 +491,44 @@ class BackendArticleService:
             )
             return f"Failed to translate article content: {result.error_message}"
 
+    def translate_article_title(
+        self,
+        article_id: str,
+        target_language: str = "zh",
+        force: bool = False,
+    ) -> str:
+        article = self.get_article(article_id)
+        if article is None:
+            return "Article not found."
+
+        if not force and article.translated_title:
+            return "Article title already translated."
+
+        if self._translator is None:
+            return "Translation service is not configured."
+
+        if not article.title:
+            return "Article has no title to translate."
+
+        result = self._translator.translate(article.title, target_language)
+
+        if result.success:
+            self._db.save_article_translated_title(
+                int(article_id),
+                result.translated_text,
+                status="success",
+                error=None,
+            )
+            return f"Article title translated to {target_language} successfully."
+        else:
+            self._db.save_article_translated_title(
+                int(article_id),
+                "",
+                status="failed",
+                error=result.error_message,
+            )
+            return f"Failed to translate article title: {result.error_message}"
+
     def _list_articles_for_feed(
         self,
         feed_id: str,
@@ -502,19 +545,22 @@ class BackendArticleService:
             stored_title,
             published,
             is_starred,
+            translated_title,
         ) in self._db.get_articles_by_feed(feed_id_int):
             detail = self._db.get_article_detail(article_id)
             stored_link = detail[2] if detail is not None else ""
             title, _link = self._normalise_title_and_link(stored_title, stored_link)
+            display_title = translated_title or title
             meta = escape(published or "")
             articles.append(
                 Article(
                     id=str(article_id),
                     feed_id=str(feed_id),
-                    title=title,
+                    title=display_title,
                     source_title=source_title or "",
                     content_html=f"<p>{meta}</p>" if meta else "",
                     is_starred=bool(is_starred),
+                    translated_title=translated_title or "",
                 )
             )
 

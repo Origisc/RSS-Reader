@@ -19,6 +19,7 @@ from mercury.agents import (
 )
 from mercury.llm import HTTPChatCompletionsProvider
 from mercury.services.backend_article_service import BackendArticleService
+from mercury.services.translation_service import TranslationService
 from mercury.storage import (
     SQLiteProviderConfigStore,
     SQLiteSummaryResultStore,
@@ -33,9 +34,10 @@ def main() -> int:
     db_path = Path.cwd() / "database.db"
     db = DBManager(str(db_path))
     feed_use_case = FeedUseCase(db)
-    article_service = BackendArticleService(db, feed_use_case)
     provider_config_store = SQLiteProviderConfigStore(db_path)
     provider = HTTPChatCompletionsProvider(provider_config_store)
+    translation_service = TranslationService(provider)
+    article_service = BackendArticleService(db, feed_use_case, translation_service)
     summary_result_store = SQLiteSummaryResultStore(db_path)
     translation_result_store = SQLiteTranslationResultStore(db_path)
     summary_agent = SummaryAgent(provider, summary_result_store)

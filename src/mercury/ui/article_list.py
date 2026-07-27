@@ -174,6 +174,8 @@ class ArticleList(QWidget):
 
     article_selected = Signal(str)
     star_toggled = Signal(str, bool)
+    translate_requested = Signal(str)
+    translate_no_article = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -194,11 +196,16 @@ class ArticleList(QWidget):
             lambda _checked: self._render_articles()
         )
 
+        self.translate_button = QPushButton()
+        self.translate_button.setObjectName("EntryFilterButton")
+        self.translate_button.clicked.connect(self._on_translate_clicked)
+
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(12, 7, 10, 6)
         header_layout.addWidget(self.title_label)
         header_layout.addStretch(1)
         header_layout.addWidget(self.unread_filter_button)
+        header_layout.addWidget(self.translate_button)
 
         self.list_widget = QListWidget()
         self.list_widget.setObjectName("EntryList")
@@ -241,13 +248,15 @@ class ArticleList(QWidget):
             if self.unread_filter_button.isChecked() and is_read:
                 continue
 
+            display_title = article.translated_title or article.title
+
             item = QListWidgetItem()
             item.setData(ARTICLE_ID_ROLE, article.id)
             item.setData(READ_STATE_ROLE, is_read)
-            item.setData(ARTICLE_TITLE_ROLE, article.title)
+            item.setData(ARTICLE_TITLE_ROLE, display_title)
             item.setData(ARTICLE_SOURCE_ROLE, article.source_title)
             item.setData(STARRED_STATE_ROLE, article.is_starred)
-            item.setToolTip(article.title)
+            item.setToolTip(display_title)
             self._update_item_text(item)
             self._apply_read_style(item)
             self.list_widget.addItem(item)
@@ -288,6 +297,9 @@ class ArticleList(QWidget):
 
     def set_filter_text(self, unread: str) -> None:
         self.unread_filter_button.setText(unread)
+
+    def set_translate_text(self, translate: str) -> None:
+        self.translate_button.setText(translate)
 
     def set_entry_meta_text(self, text: str) -> None:
         self._entry_meta_text = text
@@ -379,6 +391,13 @@ class ArticleList(QWidget):
 
         article_id = current.data(ARTICLE_ID_ROLE)
         self.article_selected.emit(article_id)
+
+    def _on_translate_clicked(self) -> None:
+        article_id = self.current_article_id()
+        if article_id is not None:
+            self.translate_requested.emit(article_id)
+        else:
+            self.translate_no_article.emit()
 
     def _apply_read_style(self, item: QListWidgetItem) -> None:
         is_read = bool(item.data(READ_STATE_ROLE))

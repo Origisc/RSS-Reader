@@ -360,6 +360,8 @@ class MainWindow(QMainWindow):
         self.sidebar.delete_tag_requested.connect(self._delete_tag)
         self.article_list.article_selected.connect(self._show_article)
         self.article_list.star_toggled.connect(self._set_starred_state)
+        self.article_list.translate_requested.connect(self._translate_current_article)
+        self.article_list.translate_no_article.connect(self._show_translate_no_article)
         self.article_reader.read_state_change_requested.connect(
             self._set_read_state
         )
@@ -830,6 +832,59 @@ class MainWindow(QMainWindow):
         self._refresh_tag_editor(article.id)
         if not system_selected:
             self._set_read_state(article.id, True, article)
+
+    def _translate_current_article(self, article_id: str) -> None:
+        article = self.article_service.get_article(article_id)
+        if article is None:
+            return
+
+        if article.translated_title:
+            return
+
+        class _TitleTranslatorSignals(QObject):
+            completed = Signal(str, bool, str)
+
+        class _TitleTranslator(QRunnable):
+            def __init__(self, service, article_id):
+                super().__init__()
+                self.service = service
+                self.article_id = article_id
+                self.signals = _TitleTranslatorSignals()
+
+            def run(self):
+                try:
+                    result = self.service.translate_article_title(self.article_id)
+                    success = "successfully" in result
+                    self.signals.completed.emit(self.article_id, success, result)
+                except Exception as e:
+                    self.signals.completed.emit(self.article_id, False, str(e))
+
+        worker = _TitleTranslator(self.article_service, article_id)
+        worker.signals.completed.connect(self._on_title_translated)
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_title_translated(self, article_id: str, success: bool, message: str) -> None:
+        if self._selected_feed_id:
+            articles = self._articles_for_selection(self._selected_feed_id)
+            self.article_list.set_articles(
+                articles,
+                self._read_article_ids(articles),
+            )
+            current_id = self.article_list.current_article_id()
+            if current_id:
+                self._show_article(current_id)
+        if not success:
+            self.statusBar().showMessage(
+                self.translator.text("status.translate_failed").format(message=message),
+                8000,
+            )
+
+    def _show_translate_no_article(self) -> None:
+        QMessageBox.information(
+            self,
+            self.translator.text("action.translate"),
+            self.translator.text("article_list.translate.no_article"),
+        )
 
     def _set_starred_state(
         self,
@@ -1322,6 +1377,9 @@ class MainWindow(QMainWindow):
         self._update_article_list_title()
         self.article_list.set_filter_text(
             self.translator.text("article_list.unread_filter")
+        )
+        self.article_list.set_translate_text(
+            self.translator.text("article_list.translate")
         )
         self.article_list.set_star_texts(
             star=self.translator.text("action.star"),

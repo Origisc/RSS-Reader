@@ -109,6 +109,10 @@ class DBManager:
             except sqlite3.OperationalError:
                 pass
             try:
+                self.conn.execute("ALTER TABLE articles ADD COLUMN translated_title TEXT")
+            except sqlite3.OperationalError:
+                pass
+            try:
                 self.conn.execute(
                     "ALTER TABLE articles "
                     "ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0"
@@ -348,7 +352,7 @@ class DBManager:
         with self._lock:
             cursor = self.conn.execute(
                 """
-                SELECT id, title, published, is_starred
+                SELECT id, title, published, is_starred, translated_title
                 FROM articles
                 WHERE feed_id = ?
                 ORDER BY id DESC
@@ -386,7 +390,8 @@ class DBManager:
                     translate_status,
                     translate_error,
                     target_language,
-                    is_starred
+                    is_starred,
+                    translated_title
                 FROM articles
                 WHERE id = ?
                 """,
@@ -406,7 +411,8 @@ class DBManager:
                     articles.link,
                     articles.published,
                     articles.is_starred,
-                    COALESCE(feeds.title, feeds.xml_url, '')
+                    COALESCE(feeds.title, feeds.xml_url, ''),
+                    articles.translated_title
                 FROM articles
                 LEFT JOIN feeds ON feeds.id = articles.feed_id
                 WHERE articles.is_starred = 1
@@ -619,6 +625,18 @@ class DBManager:
                 return True
         except Exception as e:
             print(f"保存文章翻译结果失败: {e}")
+            return False
+
+    def save_article_translated_title(self, article_id, translated_title, status="success", error=None):
+        try:
+            with self._lock, self.conn:
+                self.conn.execute(
+                    "UPDATE articles SET translated_title = ?, translate_status = ?, translate_error = ? WHERE id = ?",
+                    (translated_title, status, error, article_id),
+                )
+                return True
+        except Exception as e:
+            print(f"保存文章标题翻译失败: {e}")
             return False
 
     def delete_feed(self, feed_id: int) -> bool:
