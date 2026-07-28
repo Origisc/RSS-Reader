@@ -44,8 +44,22 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "article_list.starred_title": "星标",
         "article_list.tags_title": "标签：{tags}",
         "article_list.unread_filter": "未读",
-        "article_list.translate": "翻译",
+        "article_list.translate": "翻译标题",
+        "article_list.translate.current": "翻译选中标题",
+        "article_list.translate.all": "翻译当前列表全部标题",
+        "article_list.translate.clear_current": "取消选中标题翻译",
+        "article_list.translate.clear_all": "取消当前列表全部标题翻译",
         "article_list.translate.no_article": "请选中一个条目",
+        "article_list.translate_all.confirm_title": "翻译全部标题",
+        "article_list.translate_all.confirm_body": (
+            "将当前 Entries 中 {count} 个尚无译文的标题发送给已配置的 "
+            "Translation Provider，并按顺序翻译。是否继续？"
+        ),
+        "article_list.clear_all.confirm_title": "取消全部标题翻译",
+        "article_list.clear_all.confirm_body": (
+            "将清除当前 Entries 中 {count} 个标题的本地译文并恢复原标题。"
+            "此操作不会调用 Provider。是否继续？"
+        ),
         "article_list.entry_meta": "本地缓存条目",
         "article_reader.title": "Reader",
         "article_reader.welcome_title": "欢迎使用 Mercury",
@@ -179,6 +193,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status.article_unstarred": "已取消星标",
         "status.star_failed": "无法更新星标，原状态已保留。",
         "status.translate_failed": "翻译失败：{message}",
+        "status.title_translated": "标题翻译完成。",
+        "status.title_translation_running": "正在依次翻译 {count} 个标题……",
+        "status.title_translation_complete": (
+            "标题翻译完成：成功 {success} 个，失败 {failed} 个。"
+        ),
+        "status.title_translation_none": "当前 Entries 中的标题均已有译文。",
+        "status.title_translation_cleared": "已恢复原标题。",
+        "status.title_translation_clear_complete": (
+            "已恢复 {count} 个 Entries 原标题。"
+        ),
+        "status.title_translation_clear_none": (
+            "当前 Entries 中没有可以取消的标题译文。"
+        ),
+        "status.title_translation_clear_failed": "无法清除本地标题译文。",
         "status.tags_added": "标签已添加到文章。",
         "status.tag_assigned": "标签已添加到文章。",
         "status.tag_removed": "已从文章移除标签。",
@@ -405,8 +433,30 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "article_list.starred_title": "Starred",
         "article_list.tags_title": "Tags: {tags}",
         "article_list.unread_filter": "Unread",
-        "article_list.translate": "Translate",
+        "article_list.translate": "Translate title",
+        "article_list.translate.current": "Translate selected title",
+        "article_list.translate.all": "Translate all titles in this list",
+        "article_list.translate.clear_current": (
+            "Remove selected title translation"
+        ),
+        "article_list.translate.clear_all": (
+            "Remove all title translations in this list"
+        ),
         "article_list.translate.no_article": "Please select an entry",
+        "article_list.translate_all.confirm_title": "Translate all titles",
+        "article_list.translate_all.confirm_body": (
+            "Send the {count} untranslated titles currently shown in Entries "
+            "to the configured Translation Provider and translate them "
+            "sequentially?"
+        ),
+        "article_list.clear_all.confirm_title": (
+            "Remove all title translations"
+        ),
+        "article_list.clear_all.confirm_body": (
+            "Remove {count} locally stored title translations from the "
+            "current Entries list and restore the original titles? "
+            "This does not call the Provider."
+        ),
         "article_list.entry_meta": "Local cached entry",
         "article_reader.title": "Reader",
         "article_reader.welcome_title": "Welcome to Mercury",
@@ -566,6 +616,27 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "The previous state was kept."
         ),
         "status.translate_failed": "Translation failed: {message}",
+        "status.title_translated": "Title translation completed.",
+        "status.title_translation_running": (
+            "Translating {count} titles sequentially…"
+        ),
+        "status.title_translation_complete": (
+            "Title translation completed: {success} succeeded and "
+            "{failed} failed."
+        ),
+        "status.title_translation_none": (
+            "Every title currently shown in Entries already has a translation."
+        ),
+        "status.title_translation_cleared": "The original title was restored.",
+        "status.title_translation_clear_complete": (
+            "Restored {count} original Entry titles."
+        ),
+        "status.title_translation_clear_none": (
+            "There are no title translations to remove in the current Entries."
+        ),
+        "status.title_translation_clear_failed": (
+            "The local title translation could not be removed."
+        ),
         "status.tags_added": "Tags added to the article.",
         "status.tag_assigned": "Tag added to the article.",
         "status.tag_removed": "Tag removed from the article.",

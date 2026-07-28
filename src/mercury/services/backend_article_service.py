@@ -552,6 +552,18 @@ class BackendArticleService:
             )
             return f"Failed to translate article title: {result.error_message}"
 
+    def clear_article_title_translations(
+        self,
+        article_ids: Collection[str],
+    ) -> int:
+        normalized_ids: list[int] = []
+        for article_id in dict.fromkeys(str(value) for value in article_ids):
+            try:
+                normalized_ids.append(int(article_id))
+            except (TypeError, ValueError):
+                continue
+        return self._db.clear_article_translated_titles(normalized_ids)
+
     def _list_articles_for_feed(
         self,
         feed_id: str,

@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from typing import Protocol
 
 from mercury.models.article import Article, Feed
@@ -70,6 +71,22 @@ class ArticleService(StarredEntryService, TagService, Protocol):
         force: bool = False,
     ) -> str:
         """翻译文章内容，并返回结果说明。"""
+        ...
+
+    def translate_article_title(
+        self,
+        article_id: str,
+        target_language: str = "zh",
+        force: bool = False,
+    ) -> str:
+        """翻译文章标题，并返回结果说明。"""
+        ...
+
+    def clear_article_title_translations(
+        self,
+        article_ids: Collection[str],
+    ) -> int:
+        """清除指定文章的本地标题译文，并返回实际修改数量。"""
         ...
 
     def add_feed(self, xml_url: str) -> str:

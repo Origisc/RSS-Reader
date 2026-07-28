@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from dataclasses import replace
 
 from mercury.models.article import Article, Feed
@@ -72,6 +73,19 @@ class MockArticleService:
                 return article
 
         return None
+
+    def clear_article_title_translations(
+        self,
+        article_ids: Collection[str],
+    ) -> int:
+        selected_ids = {str(article_id) for article_id in article_ids}
+        changed = 0
+        for index, article in enumerate(self._articles):
+            if article.id not in selected_ids or not article.translated_title:
+                continue
+            self._articles[index] = replace(article, translated_title="")
+            changed += 1
+        return changed
 
     def set_starred(self, article_id: str, is_starred: bool) -> None:
         for index, article in enumerate(self._articles):

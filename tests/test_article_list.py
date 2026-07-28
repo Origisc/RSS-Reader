@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from PySide6.QtCore import Qt
+from PySide6.QtTest import QSignalSpy
 from PySide6.QtWidgets import QApplication, QStyleOptionViewItem
 
 from mercury.models.article import Article
@@ -86,6 +87,59 @@ class ArticleListTest(unittest.TestCase):
 
         self.panel.set_read_state("long-title", False)
         self.assertEqual(self.panel.list_widget.count(), 1)
+
+    def test_title_translation_menu_emits_current_and_all_entries(
+        self,
+    ) -> None:
+        self.panel.set_translate_text(
+            "Translate title",
+            current="Translate selected title",
+            all_visible="Translate all titles",
+            clear_current="Remove selected translation",
+            clear_all_visible="Remove all translations",
+        )
+        self.panel.list_widget.setCurrentRow(0)
+        current_spy = QSignalSpy(self.panel.translate_requested)
+        all_spy = QSignalSpy(self.panel.translate_all_requested)
+        clear_spy = QSignalSpy(
+            self.panel.clear_title_translation_requested
+        )
+        clear_all_spy = QSignalSpy(
+            self.panel.clear_all_title_translations_requested
+        )
+
+        self.panel.translate_current_action.trigger()
+        self.panel.translate_all_action.trigger()
+        self.panel.clear_translation_action.trigger()
+        self.panel.clear_all_translations_action.trigger()
+
+        self.assertEqual(current_spy.count(), 1)
+        self.assertEqual(current_spy.at(0)[0], "long-title")
+        self.assertEqual(all_spy.count(), 1)
+        self.assertEqual(tuple(all_spy.at(0)[0]), ("long-title",))
+        self.assertEqual(clear_spy.count(), 1)
+        self.assertEqual(clear_spy.at(0)[0], "long-title")
+        self.assertEqual(clear_all_spy.count(), 1)
+        self.assertEqual(
+            tuple(clear_all_spy.at(0)[0]),
+            ("long-title",),
+        )
+        self.assertEqual(
+            self.panel.translate_current_action.text(),
+            "Translate selected title",
+        )
+        self.assertEqual(
+            self.panel.translate_all_action.text(),
+            "Translate all titles",
+        )
+        self.assertEqual(
+            self.panel.clear_translation_action.text(),
+            "Remove selected translation",
+        )
+        self.assertEqual(
+            self.panel.clear_all_translations_action.text(),
+            "Remove all translations",
+        )
 
 
 if __name__ == "__main__":

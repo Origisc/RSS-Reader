@@ -197,6 +197,34 @@ class TranslatorTest(unittest.TestCase):
                 translator.text("tags.delete_dialog.body"),
             )
 
+    def test_title_translation_messages_are_available_in_both_languages(
+        self,
+    ) -> None:
+        keys = (
+            "article_list.translate",
+            "article_list.translate.current",
+            "article_list.translate.all",
+            "article_list.translate.clear_current",
+            "article_list.translate.clear_all",
+            "article_list.translate.no_article",
+            "article_list.translate_all.confirm_title",
+            "article_list.translate_all.confirm_body",
+            "article_list.clear_all.confirm_title",
+            "article_list.clear_all.confirm_body",
+            "status.title_translated",
+            "status.title_translation_running",
+            "status.title_translation_complete",
+            "status.title_translation_none",
+            "status.title_translation_cleared",
+            "status.title_translation_clear_complete",
+            "status.title_translation_clear_none",
+            "status.title_translation_clear_failed",
+        )
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+            for key in keys:
+                self.assertNotEqual(translator.text(key), key)
+
     def test_tag_agent_messages_are_available_in_both_languages(self) -> None:
         for language in ("zh_CN", "en_US"):
             translator = Translator(language)

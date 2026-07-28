@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QListView,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QPushButton,
     QStyle,
     QStyledItemDelegate,
@@ -175,6 +176,9 @@ class ArticleList(QWidget):
     article_selected = Signal(str)
     star_toggled = Signal(str, bool)
     translate_requested = Signal(str)
+    translate_all_requested = Signal(object)
+    clear_title_translation_requested = Signal(str)
+    clear_all_title_translations_requested = Signal(object)
     translate_no_article = Signal()
 
     def __init__(self) -> None:
@@ -198,7 +202,25 @@ class ArticleList(QWidget):
 
         self.translate_button = QPushButton()
         self.translate_button.setObjectName("EntryFilterButton")
-        self.translate_button.clicked.connect(self._on_translate_clicked)
+        self.translate_menu = QMenu(self.translate_button)
+        self.translate_current_action = self.translate_menu.addAction("")
+        self.translate_all_action = self.translate_menu.addAction("")
+        self.translate_menu.addSeparator()
+        self.clear_translation_action = self.translate_menu.addAction("")
+        self.clear_all_translations_action = self.translate_menu.addAction("")
+        self.translate_current_action.triggered.connect(
+            self._on_translate_clicked
+        )
+        self.translate_all_action.triggered.connect(
+            self._on_translate_all_clicked
+        )
+        self.clear_translation_action.triggered.connect(
+            self._on_clear_translation_clicked
+        )
+        self.clear_all_translations_action.triggered.connect(
+            self._on_clear_all_translations_clicked
+        )
+        self.translate_button.setMenu(self.translate_menu)
 
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(12, 7, 10, 6)
@@ -299,8 +321,22 @@ class ArticleList(QWidget):
     def set_filter_text(self, unread: str) -> None:
         self.unread_filter_button.setText(unread)
 
-    def set_translate_text(self, translate: str) -> None:
+    def set_translate_text(
+        self,
+        translate: str,
+        *,
+        current: str | None = None,
+        all_visible: str | None = None,
+        clear_current: str | None = None,
+        clear_all_visible: str | None = None,
+    ) -> None:
         self.translate_button.setText(translate)
+        self.translate_current_action.setText(current or translate)
+        self.translate_all_action.setText(all_visible or translate)
+        self.clear_translation_action.setText(clear_current or translate)
+        self.clear_all_translations_action.setText(
+            clear_all_visible or translate
+        )
 
     def set_entry_meta_text(self, text: str) -> None:
         self._entry_meta_text = text
@@ -397,6 +433,27 @@ class ArticleList(QWidget):
         article_id = self.current_article_id()
         if article_id is not None:
             self.translate_requested.emit(article_id)
+        else:
+            self.translate_no_article.emit()
+
+    def _on_translate_all_clicked(self) -> None:
+        article_ids = tuple(self.visible_article_ids())
+        if article_ids:
+            self.translate_all_requested.emit(article_ids)
+        else:
+            self.translate_no_article.emit()
+
+    def _on_clear_translation_clicked(self) -> None:
+        article_id = self.current_article_id()
+        if article_id is not None:
+            self.clear_title_translation_requested.emit(article_id)
+        else:
+            self.translate_no_article.emit()
+
+    def _on_clear_all_translations_clicked(self) -> None:
+        article_ids = tuple(self.visible_article_ids())
+        if article_ids:
+            self.clear_all_title_translations_requested.emit(article_ids)
         else:
             self.translate_no_article.emit()
 

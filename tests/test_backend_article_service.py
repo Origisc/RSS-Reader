@@ -453,6 +453,51 @@ class BackendArticleServiceTest(unittest.TestCase):
         self.assertEqual(article.translate_status, "success")
         self.assertEqual(article.target_language, "zh")
 
+    def test_translates_and_persists_article_title(self) -> None:
+        feed_id = self.db.add_feed("Example", "https://example.com/rss")
+        self.db.save_articles(
+            feed_id,
+            [
+                {
+                    "title": "My first tweet",
+                    "link": "https://example.com/first",
+                    "summary": "<p>Article body</p>",
+                    "published": "Today",
+                }
+            ],
+        )
+        article_id = self.service.list_articles(str(feed_id))[0].id
+        provider = MockLLMProvider(response_text="我的第一条推文")
+        service = BackendArticleService(
+            self.db,
+            FeedUseCase(self.db),
+            TranslationService(provider),
+        )
+
+        result = service.translate_article_title(article_id, "zh")
+        article = service.get_article(article_id)
+        listed_article = service.list_articles(str(feed_id))[0]
+
+        self.assertIn("translated to zh successfully", result)
+        self.assertIsNotNone(article)
+        self.assertEqual(article.translated_title, "我的第一条推文")
+        self.assertEqual(listed_article.title, "我的第一条推文")
+        self.assertIn("My first tweet", provider.requests[0].prompt)
+
+        changed = service.clear_article_title_translations((article_id,))
+        restored_article = service.get_article(article_id)
+        restored_listed_article = service.list_articles(str(feed_id))[0]
+
+        self.assertEqual(changed, 1)
+        self.assertIsNotNone(restored_article)
+        self.assertEqual(restored_article.translated_title, "")
+        self.assertEqual(restored_article.translate_status, "success")
+        self.assertEqual(restored_listed_article.title, "My first tweet")
+        self.assertEqual(
+            service.clear_article_title_translations((article_id,)),
+            0,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

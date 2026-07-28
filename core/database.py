@@ -640,6 +640,27 @@ class DBManager:
             print(f"保存文章标题翻译失败: {e}")
             return False
 
+    def clear_article_translated_titles(self, article_ids):
+        normalized_ids = tuple(
+            dict.fromkeys(int(article_id) for article_id in article_ids)
+        )
+        if not normalized_ids:
+            return 0
+
+        placeholders = ", ".join("?" for _ in normalized_ids)
+        try:
+            with self._lock, self.conn:
+                cursor = self.conn.execute(
+                    "UPDATE articles SET translated_title = '' "
+                    f"WHERE id IN ({placeholders}) "
+                    "AND COALESCE(translated_title, '') <> ''",
+                    normalized_ids,
+                )
+                return max(0, cursor.rowcount)
+        except Exception as e:
+            print(f"清除文章标题翻译失败: {e}")
+            return 0
+
     def delete_feed(self, feed_id: int) -> bool:
         """
         根据 feed_id 从数据库中彻底删除某个订阅源。

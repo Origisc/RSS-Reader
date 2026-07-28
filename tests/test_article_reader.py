@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -67,6 +68,20 @@ class ArticleReaderTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.reader.close()
         self.reader.deleteLater()
+
+    def test_reader_keeps_original_title_when_entry_title_is_translated(
+        self,
+    ) -> None:
+        self.reader.show_article(
+            replace(
+                self.article,
+                translated_title="已翻译标题",
+            )
+        )
+
+        reader_text = self.reader.content.toPlainText()
+        self.assertIn("Reader fixture", reader_text)
+        self.assertNotIn("已翻译标题", reader_text)
 
     def test_switches_between_structured_reader_views(self) -> None:
         document = ReaderDocument(

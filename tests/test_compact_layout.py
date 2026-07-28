@@ -43,7 +43,7 @@ class CompactLayoutTest(unittest.TestCase):
             self.window.view_menu.actions(),
         )
 
-    def test_each_main_menu_has_an_icon(self) -> None:
+    def test_main_menus_use_localized_text_without_icons(self) -> None:
         menus = (
             self.window.file_menu,
             self.window.settings_menu,
@@ -51,11 +51,11 @@ class CompactLayoutTest(unittest.TestCase):
             self.window.help_menu,
         )
 
-        self.assertTrue(all(not menu.icon().isNull() for menu in menus))
         self.assertEqual(
-            len({menu.icon().cacheKey() for menu in menus}),
-            len(menus),
+            tuple(menu.title() for menu in menus),
+            ("文件", "设置", "视图", "帮助"),
         )
+        self.assertTrue(all(menu.icon().isNull() for menu in menus))
 
     def test_tag_editor_is_a_compact_reader_overlay(self) -> None:
         self.assertIs(
