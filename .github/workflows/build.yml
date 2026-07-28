@@ -46,6 +46,12 @@ jobs:
       - name: Install locked application dependencies
         run: uv sync --locked
 
+      - name: Install Linux GUI runtime library
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libegl1
+
       - name: Run offline tests
         env:
           QT_QPA_PLATFORM: offscreen
