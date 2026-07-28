@@ -18,6 +18,10 @@ class ReaderStyleTest(unittest.TestCase):
         self.assertEqual(style.font_size, 18)
         self.assertEqual(style.line_height, 1.6)
         self.assertEqual(style.content_width, 820)
+        self.assertGreater(
+            style.paragraph_spacing_px,
+            style.font_size * style.line_height,
+        )
 
     def test_normalization_keeps_values_in_supported_ranges(self) -> None:
         style = ReaderStyle(
@@ -29,6 +33,7 @@ class ReaderStyleTest(unittest.TestCase):
         self.assertEqual(style.font_size, 32)
         self.assertEqual(style.line_height, 1.2)
         self.assertEqual(style.content_width, 480)
+        self.assertEqual(style.paragraph_spacing_px, 48.0)
 
     def test_in_memory_store_can_be_replaced_by_persistent_adapter(self) -> None:
         store = InMemoryReaderStyleStore()

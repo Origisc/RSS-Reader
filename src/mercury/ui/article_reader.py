@@ -1,7 +1,9 @@
+import re
+from dataclasses import dataclass
 from html import escape
 
 from PySide6.QtCore import Qt, Signal, QUrl
-from PySide6.QtGui import QTextDocument
+from PySide6.QtGui import QImage, QTextDocument
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -30,6 +32,44 @@ from mercury.ui.reader_document import (
     ReaderView,
 )
 from mercury.ui.reader_style import ReaderStyle
+
+
+_MARKDOWN_PARAGRAPH_STYLE_PATTERN = re.compile(
+    r"(<p\b[^>]*\bstyle\s*=\s*)"
+    r"(?P<quote>[\"'])(?P<style>.*?)(?P=quote)",
+    re.IGNORECASE | re.DOTALL,
+)
+_MARKDOWN_VERTICAL_MARGIN_PATTERN = re.compile(
+    r"\s*margin-(?:top|bottom)\s*:\s*[^;]+;?",
+    re.IGNORECASE,
+)
+_IMAGE_TAG_PATTERN = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
+_IMAGE_SOURCE_PATTERN = re.compile(
+    r"(?P<prefix>\bsrc\s*=\s*)(?P<quote>[\"'])"
+    r"(?P<source>.*?)(?P=quote)",
+    re.IGNORECASE | re.DOTALL,
+)
+_IMAGE_SIZE_ATTRIBUTE_PATTERN = re.compile(
+    r"\s+(?:width|height)\s*=\s*"
+    r"(?:[\"'][^\"']*[\"']|[^\s>]+)",
+    re.IGNORECASE,
+)
+_IMAGE_ONLY_PARAGRAPH_PATTERN = re.compile(
+    r"<p\b(?P<attrs>[^>]*)>(?P<body>.*?)</p>",
+    re.IGNORECASE | re.DOTALL,
+)
+_STYLE_ATTRIBUTE_PATTERN = re.compile(
+    r"(?P<prefix>\bstyle\s*=\s*)(?P<quote>[\"'])"
+    r"(?P<style>.*?)(?P=quote)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedImage:
+    data_url: str
+    width: int
+    height: int
 
 
 class ArticleReader(QWidget):
@@ -572,7 +612,20 @@ class ArticleReader(QWidget):
         if body_start < 0 or body_open_end < 0 or body_end < 0:
             return f"<p>{escape(markdown)}</p>"
 
-        return full_html[body_open_end + 1 : body_end]
+        fragment = full_html[body_open_end + 1 : body_end]
+
+        def restore_paragraph_spacing(match: re.Match[str]) -> str:
+            style = _MARKDOWN_VERTICAL_MARGIN_PATTERN.sub(
+                "",
+                match.group("style"),
+            )
+            quote = match.group("quote")
+            return f"{match.group(1)}{quote}{style}{quote}"
+
+        return _MARKDOWN_PARAGRAPH_STYLE_PATTERN.sub(
+            restore_paragraph_spacing,
+            fragment,
+        )
 
     def _show_html(self, content_html: str, fallback_status: str) -> None:
         if self._current_article is None:
@@ -688,10 +741,7 @@ class ArticleReader(QWidget):
 
     def _resolve_images_async(self, html: str) -> None:
         if hasattr(self, '_is_resolving_images') and self._is_resolving_images:
-            print(f"[DEBUG] Already resolving images, skipping")
             return
-
-        import re
 
         img_urls = re.findall(r'src=["\']([^"\']+)["\']', html)
         http_urls = [url for url in img_urls if url.startswith('http')]
@@ -699,15 +749,12 @@ class ArticleReader(QWidget):
         if not http_urls:
             return
 
-        print(f"[DEBUG] Found {len(http_urls)} images to download")
-
         self._is_resolving_images = True
         self._pending_images = len(http_urls)
         self._resolved_html = html
-        self._image_replacements = {}
+        self._image_replacements: dict[str, _ResolvedImage] = {}
 
         for url in http_urls:
-            print(f"[DEBUG] Starting download: {url[:50]}...")
             request = QNetworkRequest(QUrl(url))
             request.setTransferTimeout(10000)
             reply = self._network_manager.get(request)
@@ -720,64 +767,147 @@ class ArticleReader(QWidget):
 
         try:
             error = reply.error()
-            print(f"[DEBUG] Download completed for {url[:50]}..., error: {error}")
 
             if error == QNetworkReply.NoError:
                 content = reply.readAll()
-                print(f"[DEBUG] Content size: {len(content)} bytes")
+                image_bytes = bytes(content)
+                image = QImage.fromData(image_bytes)
 
                 content_type = reply.header(QNetworkRequest.ContentTypeHeader)
                 if content_type is None:
                     content_type = 'image/jpeg'
-                print(f"[DEBUG] Content type: {content_type}")
 
                 import base64
-                encoded = base64.b64encode(bytes(content)).decode('utf-8')
-                self._image_replacements[url] = f'data:{content_type};base64,{encoded}'
-                print(f"[DEBUG] Image added to replacements")
-            else:
-                print(f"[DEBUG] Download failed: {reply.errorString()}")
-        except Exception as e:
-            print(f"[DEBUG] Exception in _on_image_downloaded: {e}")
+                encoded = base64.b64encode(image_bytes).decode('utf-8')
+                if not image.isNull():
+                    width, height = self._scaled_image_size(
+                        image.width(),
+                        image.height(),
+                    )
+                    self._image_replacements[url] = _ResolvedImage(
+                        data_url=(
+                            f'data:{str(content_type).split(";", 1)[0]};'
+                            f'base64,{encoded}'
+                        ),
+                        width=width,
+                        height=height,
+                    )
+        except Exception:
+            # A failed image must never make the cached article unreadable.
+            pass
 
         reply.deleteLater()
 
         self._pending_images -= 1
-        print(f"[DEBUG] Pending images: {self._pending_images}")
         if self._pending_images == 0:
-            print(f"[DEBUG] All images downloaded, applying replacements")
             self._apply_image_replacements()
 
-    def _apply_image_replacements(self):
-        print(f"[DEBUG] _apply_image_replacements called")
-        print(f"[DEBUG] _resolved_html exists: {hasattr(self, '_resolved_html')}")
-        print(f"[DEBUG] _image_replacements count: {len(self._image_replacements) if hasattr(self, '_image_replacements') else 0}")
+    def _scaled_image_size(
+        self,
+        source_width: int,
+        source_height: int,
+    ) -> tuple[int, int]:
+        max_width = self._reader_style.normalized().content_width
+        if source_width <= 0 or source_height <= 0:
+            return 1, 1
 
-        if not hasattr(self, '_resolved_html') or not self._image_replacements:
-            print(f"[DEBUG] Nothing to apply, returning")
+        scale = min(1.0, max_width / source_width)
+        return (
+            max(1, round(source_width * scale)),
+            max(1, round(source_height * scale)),
+        )
+
+    @staticmethod
+    def _replace_resolved_images(
+        html: str,
+        replacements: dict[str, _ResolvedImage],
+    ) -> str:
+        def replace_tag(match: re.Match[str]) -> str:
+            tag = match.group(0)
+            source_match = _IMAGE_SOURCE_PATTERN.search(tag)
+            if source_match is None:
+                return tag
+
+            replacement = replacements.get(source_match.group("source"))
+            if replacement is None:
+                return tag
+
+            tag = _IMAGE_SIZE_ATTRIBUTE_PATTERN.sub("", tag)
+            tag = _IMAGE_SOURCE_PATTERN.sub(
+                lambda source: (
+                    f'{source.group("prefix")}{source.group("quote")}'
+                    f'{replacement.data_url}{source.group("quote")}'
+                ),
+                tag,
+                count=1,
+            )
+            size_attributes = (
+                f' width="{replacement.width}"'
+                f' height="{replacement.height}"'
+            )
+            if tag.endswith("/>"):
+                return f"{tag[:-2].rstrip()}{size_attributes} />"
+            return f"{tag[:-1].rstrip()}{size_attributes}>"
+
+        resolved_html = _IMAGE_TAG_PATTERN.sub(replace_tag, html)
+        return ArticleReader._normalize_image_paragraphs(resolved_html)
+
+    @staticmethod
+    def _normalize_image_paragraphs(html: str) -> str:
+        """Prevent proportional line height from scaling image-only blocks."""
+
+        def normalize_paragraph(match: re.Match[str]) -> str:
+            body = match.group("body")
+            if _IMAGE_TAG_PATTERN.search(body) is None:
+                return match.group(0)
+            if re.sub(r"<[^>]+>", "", body).strip():
+                return match.group(0)
+
+            attrs = match.group("attrs")
+            style_match = _STYLE_ATTRIBUTE_PATTERN.search(attrs)
+            if style_match is None:
+                attrs = f'{attrs} style="line-height:100%;"'
+            else:
+                style = re.sub(
+                    r"\s*line-height\s*:\s*[^;]+;?",
+                    "",
+                    style_match.group("style"),
+                    flags=re.IGNORECASE,
+                )
+                replacement = (
+                    f'{style_match.group("prefix")}'
+                    f'{style_match.group("quote")}'
+                    f'line-height:100%;{style}'
+                    f'{style_match.group("quote")}'
+                )
+                attrs = (
+                    f"{attrs[:style_match.start()]}"
+                    f"{replacement}"
+                    f"{attrs[style_match.end():]}"
+                )
+
+            return f"<p{attrs}>{body}</p>"
+
+        return _IMAGE_ONLY_PARAGRAPH_PATTERN.sub(normalize_paragraph, html)
+
+    def _apply_image_replacements(self) -> None:
+        if not hasattr(self, '_resolved_html'):
+            self._is_resolving_images = False
+            return
+
+        if not self._image_replacements:
+            self._is_resolving_images = False
             return
 
         scroll_pos = self.content.verticalScrollBar().value()
-
-        print(f"[DEBUG] HTML length before replacement: {len(self._resolved_html)}")
-        print(f"[DEBUG] URLs to replace: {list(self._image_replacements.keys())}")
-
-        resolved_html = self._resolved_html
-        replaced_count = 0
-        for url, data_url in self._image_replacements.items():
-            if url in resolved_html:
-                resolved_html = resolved_html.replace(url, data_url)
-                replaced_count += 1
-                print(f"[DEBUG] Replaced URL: {url[:30]}...")
-            else:
-                print(f"[DEBUG] URL not found in HTML: {url[:30]}...")
-
-        print(f"[DEBUG] Total replacements made: {replaced_count}")
-        print(f"[DEBUG] HTML length after replacement: {len(resolved_html)}")
+        resolved_html = self._replace_resolved_images(
+            self._resolved_html,
+            self._image_replacements,
+        )
 
         article = self._current_article
         if article is None:
-            print(f"[DEBUG] No current article, returning")
+            self._is_resolving_images = False
             return
 
         safe_title = escape(article.title)
@@ -795,14 +925,13 @@ class ArticleReader(QWidget):
             <div class="reader-article">{resolved_html}</div>
             <div class="reader-note">{safe_note}</div>
         """
-        print(f"[DEBUG] Setting HTML content...")
         self.content.setHtml(self._wrap_html(body))
         self.content.verticalScrollBar().setValue(scroll_pos)
-        print(f"[DEBUG] HTML content set successfully")
 
         self._is_resolving_images = False
 
     def _wrap_html(self, body: str) -> str:
+        paragraph_spacing = self._reader_style.paragraph_spacing_px
         return f"""
         <!doctype html>
         <html>
@@ -869,7 +998,7 @@ class ArticleReader(QWidget):
                     font-size: 13px;
                 }}
                 .reader-article p {{
-                    margin: 0 0 32px;
+                    margin: 0 0 {paragraph_spacing}px;
                 }}
                 .bilingual-pair {{
                     border-bottom: 1px solid #29485c;
@@ -882,6 +1011,9 @@ class ArticleReader(QWidget):
                 .original-paragraph {{
                     color: #d7e3ed;
                     margin-bottom: 10px;
+                }}
+                .bilingual-article p {{
+                    margin: 0;
                 }}
                 .translation-block {{
                     background: #102f53;
@@ -908,10 +1040,8 @@ class ArticleReader(QWidget):
                     font-style: italic;
                 }}
                 .reader-article img {{
-                    display: block;
-                    height: auto;
-                    max-width: 100%;
                     margin: 16px 0;
+                    vertical-align: top;
                 }}
                 .reader-article table {{
                     border-collapse: collapse;

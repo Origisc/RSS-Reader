@@ -8,6 +8,7 @@ MIN_LINE_HEIGHT = 1.2
 MAX_LINE_HEIGHT = 2.4
 MIN_CONTENT_WIDTH = 480
 MAX_CONTENT_WIDTH = 1200
+PARAGRAPH_SPACING_LINE_HEIGHTS = 1.25
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +18,18 @@ class ReaderStyle:
     font_size: int = 18
     line_height: float = 1.6
     content_width: int = 820
+
+    @property
+    def paragraph_spacing_px(self) -> float:
+        """Keep paragraph separation larger than one line box."""
+
+        normalized = self.normalized()
+        return round(
+            normalized.font_size
+            * normalized.line_height
+            * PARAGRAPH_SPACING_LINE_HEIGHTS,
+            1,
+        )
 
     def normalized(self) -> "ReaderStyle":
         return ReaderStyle(

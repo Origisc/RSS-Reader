@@ -13,6 +13,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from PySide6.QtGui import QTextDocument
 from PySide6.QtWidgets import QApplication
 
 from mercury.domain import (
@@ -24,7 +25,7 @@ from mercury.domain import (
     TranslationStatus,
 )
 from mercury.models.article import Article
-from mercury.ui.article_reader import ArticleReader
+from mercury.ui.article_reader import ArticleReader, _ResolvedImage
 from mercury.ui.reader_document import ReaderDocument, ReaderView
 from mercury.ui.reader_style import ReaderStyle
 
@@ -123,6 +124,122 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("Second visible paragraph", rendered_text)
         self.assertGreaterEqual(markdown_fragment.lower().count("<p"), 2)
         self.assertIn("color:#d7e3ed", rendered_html)
+
+    def test_markdown_paragraph_gap_exceeds_intra_paragraph_line_height(
+        self,
+    ) -> None:
+        style = ReaderStyle(
+            font_size=20,
+            line_height=1.5,
+            content_width=700,
+        )
+        document = ReaderDocument(
+            raw_html="<p>Raw fallback</p>",
+            cleaned_markdown=(
+                "First paragraph has a first line.\n"
+                "It continues inside the same paragraph.\n\n"
+                "Second paragraph starts after a larger gap."
+            ),
+        )
+        self.reader.set_reader_style(style)
+        self.reader.show_article(self.article, document)
+
+        fragment = self.reader._markdown_fragment(
+            document.cleaned_markdown or ""
+        )
+        normalized_fragment = fragment.replace(" ", "").lower()
+        self.assertNotIn("margin-top:0px", normalized_fragment)
+        self.assertNotIn("margin-bottom:0px", normalized_fragment)
+
+        self.reader.set_view(ReaderView.MARKDOWN)
+
+        first_paragraph = self.reader.content.document().begin()
+        while (
+            first_paragraph.isValid()
+            and not first_paragraph.text().startswith(
+                "First paragraph has a first line."
+            )
+        ):
+            first_paragraph = first_paragraph.next()
+
+        self.assertTrue(first_paragraph.isValid())
+        paragraph_gap = first_paragraph.blockFormat().bottomMargin()
+        line_box_height = style.font_size * style.line_height
+        self.assertGreater(paragraph_gap, line_box_height)
+        self.assertAlmostEqual(
+            paragraph_gap,
+            style.paragraph_spacing_px,
+            delta=0.5,
+        )
+
+    def test_resolved_markdown_image_uses_matching_scaled_dimensions(
+        self,
+    ) -> None:
+        self.reader.set_reader_style(
+            ReaderStyle(
+                font_size=18,
+                line_height=1.6,
+                content_width=700,
+            )
+        )
+        width, height = self.reader._scaled_image_size(840, 583)
+        fragment = (
+            '<p><img src="https://example.com/image.jpg" '
+            'width="840" height="583" alt="Fixture"></p>'
+            "<h1>Heading immediately after the image</h1>"
+        )
+
+        resolved = self.reader._replace_resolved_images(
+            fragment,
+            {
+                "https://example.com/image.jpg": _ResolvedImage(
+                    data_url="data:image/jpeg;base64,fixture",
+                    width=width,
+                    height=height,
+                )
+            },
+        )
+
+        self.assertEqual((width, height), (700, 486))
+        self.assertIn('width="700"', resolved)
+        self.assertIn('height="486"', resolved)
+        self.assertIn("line-height:100%", resolved)
+        self.assertNotIn('width="840"', resolved)
+        self.assertNotIn('height="583"', resolved)
+        self.assertLess(
+            resolved.index('height="486"'),
+            resolved.index("Heading immediately after the image"),
+        )
+
+        rendered = QTextDocument()
+        rendered.setHtml(
+            self.reader._wrap_html(
+                f'<div class="reader-article">{resolved}</div>'
+            )
+        )
+        image_block = rendered.begin()
+        while image_block.isValid() and "\ufffc" not in image_block.text():
+            image_block = image_block.next()
+        heading_block = image_block.next()
+
+        self.assertTrue(image_block.isValid())
+        self.assertTrue(heading_block.isValid())
+        self.assertIn("Heading immediately", heading_block.text())
+        image_rect = rendered.documentLayout().blockBoundingRect(image_block)
+        heading_rect = rendered.documentLayout().blockBoundingRect(heading_block)
+        gap_after_image = heading_rect.top() - image_rect.bottom()
+        self.assertLessEqual(
+            gap_after_image,
+            self.reader.reader_style.paragraph_spacing_px + 0.5,
+        )
+
+    def test_small_resolved_image_is_not_upscaled(self) -> None:
+        self.reader.set_reader_style(ReaderStyle(content_width=820))
+
+        self.assertEqual(
+            self.reader._scaled_image_size(320, 180),
+            (320, 180),
+        )
 
     def test_cleaning_failure_keeps_original_article_readable(self) -> None:
         document = ReaderDocument(
