@@ -26,6 +26,26 @@ class MainEntryTest(unittest.TestCase):
         source_main.assert_called_once_with()
         self.assertEqual(context.exception.code, 17)
 
+    def test_startup_reports_unwritable_local_data_directory(self) -> None:
+        with (
+            patch("mercury.main.QApplication") as application_class,
+            patch(
+                "mercury.main.database_path",
+                side_effect=OSError("permission denied"),
+            ),
+            patch("mercury.main.QMessageBox") as message_box,
+            patch("mercury.main.DBManager") as database_class,
+        ):
+            result = main()
+
+        self.assertEqual(result, 1)
+        database_class.assert_not_called()
+        application_class.return_value.exec.assert_not_called()
+        message_box.critical.assert_called_once()
+        error_message = message_box.critical.call_args.args[2]
+        self.assertIn("无法初始化本地数据目录", error_message)
+        self.assertIn("could not initialize", error_message)
+
     def test_production_window_receives_backend_and_ai_adapters(self) -> None:
         with (
             patch("mercury.main.QApplication") as application_class,
@@ -49,6 +69,10 @@ class MainEntryTest(unittest.TestCase):
             patch(
                 "mercury.main.SQLiteTranslationResultStore"
             ) as translation_store_class,
+            patch(
+                "mercury.main.database_path",
+                return_value=Path("local-data") / "database.db",
+            ) as database_path_function,
             patch("mercury.main.SummaryAgent") as summary_agent_class,
             patch("mercury.main.TagAgent") as tag_agent_class,
             patch(
@@ -66,7 +90,19 @@ class MainEntryTest(unittest.TestCase):
             result = main()
 
         database = database_class.return_value
-        database_path = Path.cwd() / "database.db"
+        database_path = Path("local-data") / "database.db"
+        database_path_function.assert_called_once_with(
+            legacy_paths=(
+                Path.cwd() / "database.db",
+                PROJECT_ROOT / "database.db",
+            ),
+        )
+        application_class.return_value.setApplicationName.assert_called_once_with(
+            "Mercury"
+        )
+        application_class.return_value.setOrganizationName.assert_called_once_with(
+            "Mercury"
+        )
         use_case_class.assert_called_once_with(database)
         article_service_class.assert_called_once_with(
             database,

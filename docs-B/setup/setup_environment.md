@@ -1,13 +1,14 @@
 # Mercury 开发环境搭建（Windows）
 
-本文档用于从零开始搭建 Mercury 项目的开发环境。
+本文档用于从零开始搭建 Mercury 项目的开发环境。项目已经包含完整的
+`pyproject.toml` 和 `uv.lock`，不要重新初始化项目或逐个添加依赖。
 
 ---
 
 # 1. 克隆项目
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Origisc/RSS-Reader.git
 ```
 
 或者使用 VS Code：
@@ -79,7 +80,7 @@ uv 0.11.x
 
 ---
 
-# 4. 初始化 uv 项目
+# 4. 同步锁定环境
 
 进入项目目录：
 
@@ -87,29 +88,21 @@ uv 0.11.x
 cd RSS-Reader
 ```
 
-初始化：
+在仓库根目录同步 Python 与依赖：
 
 ```powershell
-uv init
+uv python install 3.13
+uv sync --locked
 ```
 
-完成后应生成：
-
-```
-pyproject.toml
-```
+`uv sync --locked` 会根据仓库已有的锁文件创建 `.venv`。不要执行 `uv init`，
+否则会改写已经存在的项目配置。
 
 ---
 
 # 5. 创建虚拟环境
 
-创建：
-
-```powershell
-uv venv --python 3.13
-```
-
-完成后项目目录会出现：
+第 4 步完成后，项目目录会自动出现：
 
 ```
 .venv/
@@ -157,18 +150,16 @@ Python 3.13.x
 
 ---
 
-# 7. 安装 PySide6
+# 7. 检查已锁定依赖
 
-安装：
+检查 PySide6 是否可导入：
 
 ```powershell
-uv add pyside6
+uv run python -c "import PySide6; print(PySide6.__version__)"
 ```
 
-安装完成后会自动更新：
-
-- pyproject.toml
-- uv.lock
+不要执行 `uv add pyside6`；PySide6、feedparser 和 requests 已由
+`uv sync --locked` 安装。
 
 ---
 
@@ -200,7 +191,7 @@ RSS-Reader
 └── uv.lock
 ```
 
-> 根目录中的 `main.py` 不建议保留，正式入口应放在 `src/mercury/main.py`。
+> 根目录中的 `main.py` 是稳定启动入口，会转发到 `src/mercury/main.py`。
 
 ---
 
@@ -245,7 +236,7 @@ if __name__ == "__main__":
 # 10. 运行程序
 
 ```powershell
-uv run python src/mercury/main.py
+uv run python main.py
 ```
 
 运行成功后，应弹出窗口：
@@ -266,10 +257,10 @@ Hello Mercury!
 
 - GitHub 项目克隆
 - Python 3.13
-- uv
-- pyproject.toml
-- .venv
-- PySide6
+- uv 锁定环境
+- Python 3.13
+- 自动创建的 `.venv`
+- 锁定版本的 PySide6、feedparser 和 requests
 - 项目基础目录
 - 第一个 PySide6 窗口
 

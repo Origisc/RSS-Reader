@@ -1,3 +1,4 @@
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -9,7 +10,7 @@ if __package__ in {None, ""}:
         if str(path) not in sys.path:
             sys.path.insert(0, str(path))
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from core.database import DBManager
 from domain.feed.use_cases import FeedUseCase
@@ -25,28 +26,50 @@ from mercury.storage import (
     SQLiteProviderConfigStore,
     SQLiteSummaryResultStore,
     SQLiteTranslationResultStore,
+    database_path,
 )
 from mercury.ui.main_window import MainWindow
 
 
 def main() -> int:
     app = QApplication(sys.argv)
+    app.setApplicationName("Mercury")
+    app.setOrganizationName("Mercury")
 
-    db_path = Path.cwd() / "database.db"
-    db = DBManager(str(db_path))
-    feed_use_case = FeedUseCase(db)
-    provider_config_stores = {
-        agent_id: SQLiteProviderConfigStore(db_path, profile=agent_id)
-        for agent_id in ("summary", "translation", "tag")
-    }
-    providers = {
-        agent_id: HTTPChatCompletionsProvider(config_store)
-        for agent_id, config_store in provider_config_stores.items()
-    }
-    translation_service = TranslationService(providers["translation"])
-    article_service = BackendArticleService(db, feed_use_case, translation_service)
-    summary_result_store = SQLiteSummaryResultStore(db_path)
-    translation_result_store = SQLiteTranslationResultStore(db_path)
+    legacy_database_paths = (
+        Path.cwd() / "database.db",
+        PROJECT_ROOT / "database.db",
+    )
+    try:
+        db_path = database_path(legacy_paths=legacy_database_paths)
+        db = DBManager(str(db_path))
+        feed_use_case = FeedUseCase(db)
+        provider_config_stores = {
+            agent_id: SQLiteProviderConfigStore(db_path, profile=agent_id)
+            for agent_id in ("summary", "translation", "tag")
+        }
+        providers = {
+            agent_id: HTTPChatCompletionsProvider(config_store)
+            for agent_id, config_store in provider_config_stores.items()
+        }
+        translation_service = TranslationService(providers["translation"])
+        article_service = BackendArticleService(
+            db,
+            feed_use_case,
+            translation_service,
+        )
+        summary_result_store = SQLiteSummaryResultStore(db_path)
+        translation_result_store = SQLiteTranslationResultStore(db_path)
+    except (OSError, sqlite3.Error) as exc:
+        QMessageBox.critical(
+            None,
+            "Mercury",
+            "Mercury 无法初始化本地数据目录，程序尚未修改任何订阅数据。\n\n"
+            "Mercury could not initialize its local data directory. "
+            "No subscription data was changed.\n\n"
+            f"{exc}",
+        )
+        return 1
     summary_agent = SummaryAgent(
         providers["summary"],
         summary_result_store,
