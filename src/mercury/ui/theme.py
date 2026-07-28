@@ -160,6 +160,38 @@ QLineEdit#TagInput {
     padding: 4px 7px;
 }
 
+QPlainTextEdit#TagSuggestionPrompt,
+QListWidget#TagSuggestionList {
+    background: #ffffff;
+    border: 1px solid #c9ced4;
+    border-radius: 5px;
+    color: #1f2933;
+    padding: 4px 7px;
+}
+
+QPushButton#TagSuggestionGenerateButton,
+QPushButton#TagSuggestionConfigureButton,
+QPushButton#TagSuggestionApplyButton,
+QPushButton#TagSuggestionDismissButton {
+    background: #ffffff;
+    border: 1px solid #bfc6cd;
+    border-radius: 4px;
+    color: #1f2933;
+    padding: 4px 7px;
+}
+
+QPushButton#TagSuggestionGenerateButton,
+QPushButton#TagSuggestionApplyButton {
+    background: #d9e8ff;
+    border-color: #6b9de3;
+    color: #0f3d73;
+}
+
+QLabel#TagSuggestionStatus {
+    color: #68737d;
+    font-size: 10px;
+}
+
 QToolButton#TagPanelCloseButton {
     background: transparent;
     border: 0;
@@ -190,6 +222,39 @@ QStatusBar {
 QDialog QLabel {
     background: transparent;
     color: #1f2933;
+}
+
+QDialog#AgentsSettingsDialog,
+QWidget#AgentSettingsPage,
+QStackedWidget#AgentsSettingsPages {
+    background: #f7f7f5;
+}
+
+QListWidget#AgentsSettingsList {
+    background: #eeeeea;
+    border: 1px solid #d5d8dc;
+    border-radius: 6px;
+    color: #34404b;
+    outline: 0;
+    padding: 5px;
+}
+
+QListWidget#AgentsSettingsList::item {
+    border-radius: 5px;
+    font-size: 14px;
+    margin: 2px 5px;
+    padding: 4px 8px;
+}
+
+QListWidget#AgentsSettingsList::item:selected {
+    background: #d9e8ff;
+    color: #0f3d73;
+}
+
+QLabel#AgentsSettingsProperties {
+    color: #1f2933;
+    font-size: 13px;
+    font-weight: 700;
 }
 
 QDialog QComboBox,
@@ -443,6 +508,39 @@ QDialog {
 QDialog QLabel {
     background: transparent;
     color: #e5edf5;
+}
+
+QDialog#AgentsSettingsDialog,
+QWidget#AgentSettingsPage,
+QStackedWidget#AgentsSettingsPages {
+    background: #18181c;
+}
+
+QListWidget#AgentsSettingsList {
+    background: #202126;
+    border: 1px solid #30333a;
+    border-radius: 6px;
+    color: #d9e2ec;
+    outline: 0;
+    padding: 5px;
+}
+
+QListWidget#AgentsSettingsList::item {
+    border-radius: 5px;
+    font-size: 14px;
+    margin: 2px 5px;
+    padding: 4px 8px;
+}
+
+QListWidget#AgentsSettingsList::item:selected {
+    background: #0f68d8;
+    color: #ffffff;
+}
+
+QLabel#AgentsSettingsProperties {
+    color: #f3f6f9;
+    font-size: 13px;
+    font-weight: 700;
 }
 
 QDialog QComboBox,
@@ -752,6 +850,47 @@ QLineEdit#TagInput {
     padding: 5px 7px;
     selection-background-color: #0f68d8;
     selection-color: #ffffff;
+}
+
+QPlainTextEdit#TagSuggestionPrompt,
+QListWidget#TagSuggestionList {
+    background: #1c2732;
+    border: 1px solid #344759;
+    border-radius: 6px;
+    color: #e5edf5;
+    padding: 5px 7px;
+    selection-background-color: #0f68d8;
+    selection-color: #ffffff;
+}
+
+QPushButton#TagSuggestionGenerateButton,
+QPushButton#TagSuggestionConfigureButton,
+QPushButton#TagSuggestionApplyButton,
+QPushButton#TagSuggestionDismissButton {
+    background: #22242a;
+    border: 1px solid #303640;
+    border-radius: 5px;
+    color: #cdd6df;
+    padding: 4px 7px;
+}
+
+QPushButton#TagSuggestionGenerateButton,
+QPushButton#TagSuggestionApplyButton {
+    background: #0b78ff;
+    border-color: #0b78ff;
+    color: #ffffff;
+}
+
+QPushButton#TagSuggestionGenerateButton:disabled,
+QPushButton#TagSuggestionApplyButton:disabled {
+    background: #27313b;
+    border-color: #303640;
+    color: #65707c;
+}
+
+QLabel#TagSuggestionStatus {
+    color: #8996a3;
+    font-size: 11px;
 }
 
 QToolButton#TagPanelCloseButton {

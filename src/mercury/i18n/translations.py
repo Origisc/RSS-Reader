@@ -24,7 +24,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.star": "添加星标",
         "action.unstar": "取消星标",
         "action.preferences": "首选项",
-        "action.ai_settings": "AI 设置",
+        "action.ai_settings": "Agents 设置",
         "action.toggle_tags_panel": "标签面板",
         "action.toggle_summary_panel": "摘要面板",
         "action.toggle_translation_panel": "翻译设置",
@@ -111,6 +111,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.ok": "确定",
         "settings.cancel": "取消",
         "ai_settings.title": "AI Provider 设置",
+        "agents_settings.title": "Agents",
+        "agents_settings.properties": "Provider 属性",
+        "agents_settings.enabled": "启用此 Agent",
+        "agents_settings.save": "保存全部",
+        "agents_settings.agent.summary": "Summary Agent",
+        "agents_settings.agent.translation": "Translation Agent",
+        "agents_settings.agent.tag": "Tag Agent",
         "ai_settings.preset": "配置模板：",
         "ai_settings.preset.custom": "自定义（OpenAI 兼容）",
         "ai_settings.preset.custom_description": (
@@ -217,6 +224,30 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "tags.delete_dialog.body": (
             "确定删除标签“{name}”吗？这会移除所有文章上的该标签，"
             "但不会删除文章。"
+        ),
+        "tag_agent.title": "AI 标签建议",
+        "tag_agent.custom_prompt_placeholder": (
+            "可选：例如“使用简体中文标签”"
+        ),
+        "tag_agent.generate": "生成建议",
+        "tag_agent.configure_ai": "AI 设置",
+        "tag_agent.apply": "应用所选",
+        "tag_agent.dismiss": "放弃建议",
+        "tag_agent.status.no_article": "选择文章后可生成标签建议。",
+        "tag_agent.status.unavailable": "Tag Agent 尚不可用，请检查 AI 设置。",
+        "tag_agent.status.ready": (
+            "点击生成后才会把当前文章发送给已配置的 Provider。"
+        ),
+        "tag_agent.status.running": "正在后台生成标签建议……",
+        "tag_agent.status.generated": "请选择建议并点击“应用所选”。",
+        "tag_agent.error.invalid_input": "当前文章没有可用于生成标签的正文。",
+        "tag_agent.error.provider_not_configured": "请先配置 AI Provider。",
+        "tag_agent.error.provider_failure": (
+            "标签建议生成失败；手动标签和文章阅读不受影响。"
+        ),
+        "tag_agent.error.empty_response": "Provider 没有返回可用的标签建议。",
+        "tag_agent.error.unexpected": (
+            "标签建议操作失败；手动标签和文章阅读不受影响。"
         ),
         "summary.title": "Summary",
         "summary.expand": "⌄ Summary",
@@ -354,7 +385,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.star": "Star",
         "action.unstar": "Unstar",
         "action.preferences": "Preferences",
-        "action.ai_settings": "AI Settings",
+        "action.ai_settings": "Agents Settings",
         "action.toggle_tags_panel": "Tags Panel",
         "action.toggle_summary_panel": "Summary Panel",
         "action.toggle_translation_panel": "Translation Settings",
@@ -452,6 +483,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.ok": "OK",
         "settings.cancel": "Cancel",
         "ai_settings.title": "AI Provider Settings",
+        "agents_settings.title": "Agents",
+        "agents_settings.properties": "Provider properties",
+        "agents_settings.enabled": "Enable this Agent",
+        "agents_settings.save": "Save all",
+        "agents_settings.agent.summary": "Summary Agent",
+        "agents_settings.agent.translation": "Translation Agent",
+        "agents_settings.agent.tag": "Tag Agent",
         "ai_settings.preset": "Configuration template:",
         "ai_settings.preset.custom": "Custom (OpenAI-compatible)",
         "ai_settings.preset.custom_description": (
@@ -581,6 +619,43 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "tags.delete_dialog.body": (
             'Delete the tag "{name}"? It will be removed from every '
             "article, but no articles will be deleted."
+        ),
+        "tag_agent.title": "AI tag suggestions",
+        "tag_agent.custom_prompt_placeholder": (
+            'Optional, for example: "Use Simplified Chinese tags"'
+        ),
+        "tag_agent.generate": "Suggest tags",
+        "tag_agent.configure_ai": "AI Settings",
+        "tag_agent.apply": "Apply selected",
+        "tag_agent.dismiss": "Dismiss",
+        "tag_agent.status.no_article": (
+            "Select an article to generate tag suggestions."
+        ),
+        "tag_agent.status.unavailable": (
+            "Tag Agent is unavailable; check AI settings."
+        ),
+        "tag_agent.status.ready": (
+            "The article is sent to the configured Provider only after "
+            "you request suggestions."
+        ),
+        "tag_agent.status.running": "Generating tag suggestions…",
+        "tag_agent.status.generated": (
+            "Select suggestions, then choose Apply selected."
+        ),
+        "tag_agent.error.invalid_input": (
+            "This article has no readable content for tag suggestions."
+        ),
+        "tag_agent.error.provider_not_configured": (
+            "Configure an AI Provider first."
+        ),
+        "tag_agent.error.provider_failure": (
+            "Tag suggestions failed; manual tags and reading are unaffected."
+        ),
+        "tag_agent.error.empty_response": (
+            "The Provider returned no usable tag suggestions."
+        ),
+        "tag_agent.error.unexpected": (
+            "Tag suggestions failed; manual tags and reading are unaffected."
         ),
         "summary.title": "Summary",
         "summary.expand": "⌄ Summary",

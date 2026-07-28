@@ -15,6 +15,7 @@ from core.database import DBManager
 from domain.feed.use_cases import FeedUseCase
 from mercury.agents import (
     SummaryAgent,
+    TagAgent,
     TranslationAgent,
 )
 from mercury.llm import HTTPChatCompletionsProvider
@@ -34,29 +35,43 @@ def main() -> int:
     db_path = Path.cwd() / "database.db"
     db = DBManager(str(db_path))
     feed_use_case = FeedUseCase(db)
-    provider_config_store = SQLiteProviderConfigStore(db_path)
-    provider = HTTPChatCompletionsProvider(provider_config_store)
-    translation_service = TranslationService(provider)
+    provider_config_stores = {
+        agent_id: SQLiteProviderConfigStore(db_path, profile=agent_id)
+        for agent_id in ("summary", "translation", "tag")
+    }
+    providers = {
+        agent_id: HTTPChatCompletionsProvider(config_store)
+        for agent_id, config_store in provider_config_stores.items()
+    }
+    translation_service = TranslationService(providers["translation"])
     article_service = BackendArticleService(db, feed_use_case, translation_service)
     summary_result_store = SQLiteSummaryResultStore(db_path)
     translation_result_store = SQLiteTranslationResultStore(db_path)
-    summary_agent = SummaryAgent(provider, summary_result_store)
+    summary_agent = SummaryAgent(
+        providers["summary"],
+        summary_result_store,
+    )
+    tag_agent = TagAgent(providers["tag"])
     translation_agent = TranslationAgent(
-        provider,
+        providers["translation"],
         translation_result_store,
     )
 
     window = MainWindow(
         article_service,
         feed_deletion_service=article_service,
-        provider_config_store=provider_config_store,
-        provider_connection_tester=provider.test_config,
+        agent_provider_config_stores=provider_config_stores,
+        agent_connection_testers={
+            agent_id: provider.test_config
+            for agent_id, provider in providers.items()
+        },
         summary_generator=summary_agent.summarize,
         summary_result_loader=summary_result_store.latest_for_article,
         translation_generator=translation_agent.translate,
         translation_result_loader=(
             translation_result_store.latest_for_article
         ),
+        tag_suggestion_generator=tag_agent.suggest,
     )
     window.show()
 

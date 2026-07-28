@@ -12,7 +12,8 @@
 - 左侧增加 Feeds / Tags 分段按钮和底部状态栏。
 - 中间文章列表改为 Entries 风格，展示标题、来源和本地 Mock 元信息。
 - 阅读区使用更接近文章正文的排版、深色背景和局部信息卡片。
-- 右侧增加常驻 Tags 面板，当前为静态入口，等待后续 TagService / Tag Agent 接入。
+- Reader 右侧 Tags 浮层已接入手动标签与 Tag Agent；AI 建议必须经用户
+  勾选并点击“应用所选”后才写入本地标签。
 - 底部增加 Summary 条，当前为静态入口，等待 Summary Agent 接入。
 
 ## Verification

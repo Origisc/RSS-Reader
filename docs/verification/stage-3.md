@@ -102,8 +102,9 @@ uv run python main.py
 ## 4. 可选真实 Provider 人工验收
 
 真实 Provider 验收不是自动测试的一部分，必须由用户主动配置并明确发起。
-生产入口已经把 `HTTPChatCompletionsProvider`、`SummaryAgent` 和
-`TranslationAgent` 接入同一个动态配置存储。
+生产入口为 `SummaryAgent`、`TranslationAgent` 和 `TagAgent` 分别创建
+`HTTPChatCompletionsProvider`，三者使用独立的动态配置存储，但复用同一个
+Provider 抽象。
 
 适配器发送标准 Chat Completions 请求。如果 Base URL 是
 `https://provider.example/v1`，请求地址为
@@ -118,8 +119,9 @@ uv run python main.py
 
 人工步骤：
 
-1. 在 AI 设置中填写用户选择的 Base URL、模型、超时和可选 API Key。
-   凭据只放入本次验收允许的本地配置位置，不写入仓库。
+1. 打开“Agents 设置”，分别为 Summary、Translation 和 Tag 填写用户选择
+   的 Base URL、模型、超时和可选 API Key。三个 Agent 可选择不同配置，也
+   可单独禁用。凭据只放入本次验收允许的本地配置位置，不写入仓库。
 2. 主动执行“测试连接”。该操作只发送一个简短确认提示，不发送文章内容；
    在此之前不应出现 Provider 网络请求。
 3. 选择一篇非敏感测试文章，展开 Summary 并主动生成。确认摘要语言、
@@ -136,8 +138,9 @@ uv run python main.py
    确认 UI 显示可理解错误；Reader 中所有原文仍可读，失败段落不会被空白
    译文替换。
 6. 恢复有效配置后重新执行，确认失败不会破坏后续生成。
-7. 关闭并重新启动 Mercury，重新选择同一篇文章；确认 Provider 配置仍在，
-   最近一次摘要和逐段翻译无需重新调用 Provider 即可恢复。
+7. 关闭并重新启动 Mercury，确认三个 Agent 的独立 Provider 配置仍在；
+   重新选择同一篇文章后，最近一次摘要和逐段翻译无需重新调用 Provider
+   即可恢复。
 8. 验收结束后清除临时凭据，并检查 `git status --short`，确保没有凭据、
    本地数据库或私有文章进入待提交文件。
 
@@ -154,7 +157,8 @@ DeepSeek 官方云 API 按 Token 计费。“本地 DeepSeek（Ollama，零 API
    ollama pull deepseek-r1:1.5b
    ```
 
-3. 确认 Ollama 正在运行，然后打开 Mercury 的“AI 设置”。
+3. 确认 Ollama 正在运行，然后打开 Mercury 的“Agents 设置”，选择需要
+   使用本地模型的 Agent。
 4. 选择“本地 DeepSeek（Ollama，零 API 费用）”。确认 Base URL 为
    `http://127.0.0.1:11434/v1`、模型为 `deepseek-r1:1.5b`，API Key
    留空。
@@ -175,7 +179,8 @@ API Key 和可用余额。模板仅填写当前官方 Base URL 和模型名，�
 - Mock Provider 自动验收和完整回归通过。
 - 未配置 Provider 时，基础阅读功能完全可用。
 - Provider 失败时，摘要/翻译给出可理解错误，文章和翻译原文仍可读。
-- Provider 配置、摘要和结构化逐段翻译在重启后可从本地数据库恢复。
+- 三个 Agent 的独立 Provider 配置、摘要和结构化逐段翻译在重启后可从本地
+  数据库恢复。
 - SQLite 存储失败不会导致应用崩溃，也不会影响基础阅读。
 - 翻译对照严格使用结构化 `TranslationResult`，不从整篇字符串猜测段落。
 - 翻译结果渲染在 Reader 正文区域，严格保持“原文段落 → 对应译文”的顺序，

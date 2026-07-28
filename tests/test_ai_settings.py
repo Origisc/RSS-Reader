@@ -22,7 +22,7 @@ from mercury.llm import (
     ProviderConnectionResult,
 )
 from mercury.services.mock_article_service import MockArticleService
-from mercury.ui.ai_settings import AISettingsDialog
+from mercury.ui.ai_settings import AISettingsDialog, AgentsSettingsDialog
 from mercury.ui.main_window import MainWindow
 
 
@@ -277,6 +277,66 @@ class AISettingsDialogTest(unittest.TestCase):
         dialog.deleteLater()
 
 
+class AgentsSettingsDialogTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _config(self, model: str) -> ProviderConfig:
+        return ProviderConfig(
+            base_url="http://127.0.0.1:8080/v1",
+            model=model,
+            api_key=f"{model}-secret",
+        )
+
+    def test_each_agent_has_an_independent_provider_editor(self) -> None:
+        configs = {
+            "summary": self._config("summary-model"),
+            "translation": self._config("translation-model"),
+            "tag": self._config("tag-model"),
+        }
+        dialog = AgentsSettingsDialog(
+            Translator("en_US"),
+            current_configs=configs,
+            initial_agent="translation",
+        )
+
+        self.assertEqual(dialog.agent_list.count(), 3)
+        self.assertEqual(dialog.agent_list.currentRow(), 1)
+        self.assertEqual(
+            dialog.editors["summary"].model_edit.text(),
+            "summary-model",
+        )
+        self.assertEqual(
+            dialog.editors["translation"].model_edit.text(),
+            "translation-model",
+        )
+        self.assertEqual(
+            dialog.editors["tag"].model_edit.text(),
+            "tag-model",
+        )
+        self.assertEqual(dialog.selected_configs(), configs)
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_agent_can_be_disabled_without_blocking_other_agents(self) -> None:
+        summary = self._config("summary-model")
+        dialog = AgentsSettingsDialog(
+            Translator("zh_CN"),
+            current_configs={"summary": summary},
+        )
+
+        selected = dialog.selected_configs()
+
+        self.assertEqual(selected["summary"], summary)
+        self.assertIsNone(selected["translation"])
+        self.assertIsNone(selected["tag"])
+        dialog.accept()
+        self.assertEqual(dialog.result(), QDialog.DialogCode.Accepted)
+        dialog.close()
+        dialog.deleteLater()
+
+
 class MainWindowAISettingsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -308,8 +368,12 @@ class MainWindowAISettingsTest(unittest.TestCase):
             def exec(self) -> int:
                 return 1
 
-            def selected_config(self) -> ProviderConfig:
-                return config
+            def selected_configs(self):
+                return {
+                    "summary": config,
+                    "translation": None,
+                    "tag": None,
+                }
 
         window = MainWindow(
             MockArticleService(),
@@ -317,7 +381,7 @@ class MainWindowAISettingsTest(unittest.TestCase):
         )
 
         with patch(
-            "mercury.ui.main_window.AISettingsDialog",
+            "mercury.ui.main_window.AgentsSettingsDialog",
             AcceptedDialog,
         ):
             window._open_ai_settings()
@@ -353,8 +417,12 @@ class MainWindowAISettingsTest(unittest.TestCase):
             def exec(self) -> int:
                 return 1
 
-            def selected_config(self) -> ProviderConfig:
-                return config
+            def selected_configs(self):
+                return {
+                    "summary": config,
+                    "translation": None,
+                    "tag": None,
+                }
 
         window = MainWindow(
             MockArticleService(),
@@ -363,7 +431,7 @@ class MainWindowAISettingsTest(unittest.TestCase):
 
         with (
             patch(
-                "mercury.ui.main_window.AISettingsDialog",
+                "mercury.ui.main_window.AgentsSettingsDialog",
                 AcceptedDialog,
             ),
             patch(
@@ -378,6 +446,71 @@ class MainWindowAISettingsTest(unittest.TestCase):
         self.assertNotIn("database details", message)
         self.assertEqual(window.article_list.list_widget.count(), 3)
         warning.assert_called_once()
+        window.close()
+        window.deleteLater()
+
+    def test_saves_distinct_configs_to_each_agent_store(self) -> None:
+        stores = {
+            agent_id: InMemoryProviderConfigStore()
+            for agent_id in ("summary", "translation", "tag")
+        }
+        configs = {
+            agent_id: ProviderConfig(
+                base_url="http://127.0.0.1:8080/v1",
+                model=f"{agent_id}-model",
+            )
+            for agent_id in stores
+        }
+
+        class AcceptedDialog:
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+            def exec(self) -> int:
+                return 1
+
+            def selected_configs(self):
+                return configs
+
+        window = MainWindow(
+            MockArticleService(),
+            agent_provider_config_stores=stores,
+        )
+        with patch(
+            "mercury.ui.main_window.AgentsSettingsDialog",
+            AcceptedDialog,
+        ):
+            window._open_ai_settings("tag")
+
+        self.assertEqual(
+            {
+                agent_id: store.load()
+                for agent_id, store in stores.items()
+            },
+            configs,
+        )
+        window.close()
+        window.deleteLater()
+
+    def test_agent_entry_opens_the_matching_settings_page(self) -> None:
+        opened_agents: list[str] = []
+
+        class RejectedDialog:
+            def __init__(self, *args, **kwargs) -> None:
+                opened_agents.append(kwargs["initial_agent"])
+
+            def exec(self) -> int:
+                return 0
+
+        window = MainWindow(MockArticleService())
+        with patch(
+            "mercury.ui.main_window.AgentsSettingsDialog",
+            RejectedDialog,
+        ):
+            window._open_ai_settings("translation")
+            window._open_ai_settings("tag")
+
+        self.assertEqual(opened_agents, ["translation", "tag"])
         window.close()
         window.deleteLater()
 

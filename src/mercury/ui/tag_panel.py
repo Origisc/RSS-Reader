@@ -76,15 +76,18 @@ class TagEditorPanel(QFrame):
         self.chip_grid.setVerticalSpacing(5)
         self.chip_grid.setColumnStretch(4, 1)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 9, 10, 10)
-        layout.setSpacing(6)
-        layout.addLayout(title_layout)
-        layout.addLayout(input_layout)
-        layout.addWidget(self.existing_label)
-        layout.addLayout(self.chip_grid)
-        layout.addWidget(self.no_tags_label)
+        self.content_layout = QVBoxLayout(self)
+        self.content_layout.setContentsMargins(10, 9, 10, 10)
+        self.content_layout.setSpacing(6)
+        self.content_layout.addLayout(title_layout)
+        self.content_layout.addLayout(input_layout)
+        self.content_layout.addWidget(self.existing_label)
+        self.content_layout.addLayout(self.chip_grid)
+        self.content_layout.addWidget(self.no_tags_label)
         self.set_article_tags([], set(), article_available=False)
+
+    def set_suggestion_widget(self, widget) -> None:
+        self.content_layout.addWidget(widget)
 
     def set_texts(
         self,

@@ -1,4 +1,4 @@
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 
 from PySide6.QtCore import Qt, QRunnable, QThreadPool, QObject, Signal
 from PySide6.QtGui import QAction
@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from mercury.agents import SummarySource, TranslationSource
+from mercury.agents import SummarySource, TagSource, TranslationSource
 from mercury.domain import TranslationResult
 from mercury.i18n import Translator
 from mercury.i18n.translations import SUPPORTED_LANGUAGES
@@ -24,7 +24,11 @@ from mercury.llm import InMemoryProviderConfigStore, ProviderConfigStore
 from mercury.models.article import Article, Feed
 from mercury.models.tag import Tag
 from mercury.services.article_service import ArticleService
-from mercury.ui.ai_settings import AISettingsDialog, ConnectionTester
+from mercury.ui.ai_settings import (
+    AGENT_IDS,
+    AgentsSettingsDialog,
+    ConnectionTester,
+)
 from mercury.ui.article_list import ArticleList
 from mercury.ui.article_reader import ArticleReader
 from mercury.ui.feed_deletion import FeedDeletionService
@@ -44,6 +48,10 @@ from mercury.ui.summary_panel import (
     SummaryResultLoader,
 )
 from mercury.ui.tag_panel import TagEditorPanel
+from mercury.ui.tag_suggestion_panel import (
+    TagSuggestionGenerator,
+    TagSuggestionPanel,
+)
 from mercury.ui.theme import stylesheet_for_theme
 from mercury.ui.translation_panel import (
     TranslationGenerator,
@@ -63,10 +71,19 @@ class MainWindow(QMainWindow):
         feed_deletion_service: FeedDeletionService | None = None,
         provider_config_store: ProviderConfigStore | None = None,
         provider_connection_tester: ConnectionTester | None = None,
+        agent_provider_config_stores: Mapping[
+            str, ProviderConfigStore
+        ]
+        | None = None,
+        agent_connection_testers: Mapping[
+            str, ConnectionTester
+        ]
+        | None = None,
         summary_generator: SummaryGenerator | None = None,
         summary_result_loader: SummaryResultLoader | None = None,
         translation_generator: TranslationGenerator | None = None,
         translation_result_loader: TranslationResultLoader | None = None,
+        tag_suggestion_generator: TagSuggestionGenerator | None = None,
     ) -> None:
         super().__init__()
 
@@ -80,16 +97,38 @@ class MainWindow(QMainWindow):
         self._reader_style = self._reader_style_store.load().normalized()
         self._read_state_store = read_state_store or InMemoryReadStateStore()
         self._feed_deletion_service = feed_deletion_service
-        self._provider_config_store = (
-            provider_config_store
-            if provider_config_store is not None
-            else InMemoryProviderConfigStore()
-        )
-        self._provider_connection_tester = provider_connection_tester
+        if agent_provider_config_stores is not None:
+            self._agent_provider_config_stores = {
+                agent_id: agent_provider_config_stores[agent_id]
+                for agent_id in AGENT_IDS
+            }
+        else:
+            self._agent_provider_config_stores = {
+                "summary": (
+                    provider_config_store
+                    if provider_config_store is not None
+                    else InMemoryProviderConfigStore()
+                ),
+                "translation": InMemoryProviderConfigStore(),
+                "tag": InMemoryProviderConfigStore(),
+            }
+        self._agent_connection_testers = {
+            agent_id: (
+                agent_connection_testers.get(agent_id)
+                if agent_connection_testers is not None
+                else (
+                    provider_connection_tester
+                    if agent_id == "summary"
+                    else None
+                )
+            )
+            for agent_id in AGENT_IDS
+        }
         self._summary_generator = summary_generator
         self._summary_result_loader = summary_result_loader
         self._translation_generator = translation_generator
         self._translation_result_loader = translation_result_loader
+        self._tag_suggestion_generator = tag_suggestion_generator
         self._active_workers = set()
         self._selected_feed_id = ALL_FEEDS_ID
         self._selected_tag_ids: set[str] = set()
@@ -157,12 +196,12 @@ class MainWindow(QMainWindow):
 
         self.open_ai_settings_action = QAction(self)
         self.open_ai_settings_action.triggered.connect(
-            self._open_ai_settings
+            lambda _checked=False: self._open_ai_settings()
         )
 
         self.toggle_tags_action = QAction(self)
         self.toggle_tags_action.setCheckable(True)
-        self.toggle_tags_action.setChecked(True)
+        self.toggle_tags_action.setChecked(False)
 
         self.toggle_summary_action = QAction(self)
         self.toggle_summary_action.setCheckable(True)
@@ -206,6 +245,11 @@ class MainWindow(QMainWindow):
 
     def _setup_tag_panel(self) -> None:
         self.tag_editor = TagEditorPanel()
+        self.tag_suggestion_panel = TagSuggestionPanel(
+            self.translator,
+            generator=self._tag_suggestion_generator,
+        )
+        self.tag_editor.set_suggestion_widget(self.tag_suggestion_panel)
         self.tag_editor.close_requested.connect(
             lambda: self.toggle_tags_action.setChecked(False)
         )
@@ -213,6 +257,7 @@ class MainWindow(QMainWindow):
         self.toggle_tags_action.toggled.connect(
             self._set_tag_panel_visible
         )
+        self._set_tag_panel_visible(self.toggle_tags_action.isChecked())
 
     def _set_tag_panel_visible(self, visible: bool) -> None:
         self.tag_editor.setVisible(visible)
@@ -377,10 +422,13 @@ class MainWindow(QMainWindow):
             self.toggle_tags_action.setChecked
         )
         self.summary_panel.settings_requested.connect(
-            self._open_ai_settings
+            lambda: self._open_ai_settings("summary")
         )
         self.translation_panel.settings_requested.connect(
-            self._open_ai_settings
+            lambda: self._open_ai_settings("translation")
+        )
+        self.tag_suggestion_panel.settings_requested.connect(
+            lambda: self._open_ai_settings("tag")
         )
         self.translation_panel.generation_progress.connect(
             self._show_translation_progress
@@ -393,6 +441,9 @@ class MainWindow(QMainWindow):
         )
         self.tag_editor.tag_assignment_changed.connect(
             self._set_article_tag_assignment
+        )
+        self.tag_suggestion_panel.apply_requested.connect(
+            self._apply_tag_suggestions
         )
 
     def _load_initial_data(self) -> None:
@@ -507,22 +558,24 @@ class MainWindow(QMainWindow):
                 set(),
                 article_available=False,
             )
+            self.tag_suggestion_panel.clear_article()
             return
 
         try:
-            assigned_ids = {
-                tag.id
-                for tag in self.article_service.list_article_tags(
-                    article_id
-                )
-            }
+            assigned_tags = self.article_service.list_article_tags(article_id)
+            assigned_ids = {tag.id for tag in assigned_tags}
         except Exception:
+            assigned_tags = []
             assigned_ids = set()
 
         self.tag_editor.set_article_tags(
             self._tags,
             assigned_ids,
             article_available=True,
+        )
+        self.tag_suggestion_panel.update_tag_context(
+            tuple(tag.name for tag in self._tags),
+            tuple(tag.name for tag in assigned_tags),
         )
 
     def _show_tagged_articles(
@@ -558,11 +611,7 @@ class MainWindow(QMainWindow):
         self.translation_panel.clear_article()
         self._refresh_tag_editor()
 
-    def _create_and_assign_tags(self, raw_names: str) -> None:
-        article_id = self.article_reader.current_article_id
-        if article_id is None:
-            return
-
+    def _create_and_assign_tags(self, raw_names: str) -> bool:
         names = [
             value.strip()
             for value in raw_names.replace("\N{FULLWIDTH COMMA}", ",").split(
@@ -570,11 +619,23 @@ class MainWindow(QMainWindow):
             )
             if value.strip()
         ]
-        if not names:
-            return
+        return self._create_and_assign_tag_names(names)
+
+    def _create_and_assign_tag_names(
+        self,
+        names: Collection[str],
+    ) -> bool:
+        article_id = self.article_reader.current_article_id
+        normalized_names = [
+            name.strip()
+            for name in names
+            if isinstance(name, str) and name.strip()
+        ]
+        if article_id is None or not normalized_names:
+            return False
 
         try:
-            for name in names:
+            for name in normalized_names:
                 tag = self.article_service.create_tag(name)
                 self.article_service.add_tag_to_article(
                     article_id,
@@ -586,7 +647,7 @@ class MainWindow(QMainWindow):
                 8000,
             )
             self._reload_tags()
-            return
+            return False
 
         self.tag_editor.clear_input()
         self._reload_tags()
@@ -595,6 +656,27 @@ class MainWindow(QMainWindow):
             self.translator.text("status.tags_added"),
             5000,
         )
+        return True
+
+    def _apply_tag_suggestions(
+        self,
+        article_id: str,
+        suggestions: object,
+    ) -> None:
+        if (
+            article_id != self.article_reader.current_article_id
+            or not isinstance(suggestions, tuple)
+        ):
+            return
+        names = tuple(
+            name.strip()
+            for name in suggestions
+            if isinstance(name, str) and name.strip()
+        )
+        if not names:
+            return
+        if self._create_and_assign_tag_names(names):
+            self.tag_suggestion_panel.clear_suggestions()
 
     def _set_article_tag_assignment(
         self,
@@ -793,6 +875,9 @@ class MainWindow(QMainWindow):
                 cleaned_html=document.cleaned_html,
             )
         )
+        self.tag_suggestion_panel.set_article(
+            self._tag_source(article, document)
+        )
 
     def _show_article(self, article_id: str) -> None:
         system_selected = self._system_selected_article_id == article_id
@@ -828,12 +913,29 @@ class MainWindow(QMainWindow):
                 cleaned_html=document.cleaned_html,
             )
         )
+        self.tag_suggestion_panel.set_article(
+            self._tag_source(article, document)
+        )
         self.article_reader.set_translation_result(
             self.translation_panel.displayed_result
         )
         self._refresh_tag_editor(article.id)
         if not system_selected:
             self._set_read_state(article.id, True, article)
+
+    def _tag_source(
+        self,
+        article: Article,
+        document: ReaderDocument,
+    ) -> TagSource:
+        return TagSource(
+            article_id=article.id,
+            title=article.title,
+            raw_html=document.raw_html,
+            cleaned_markdown=document.cleaned_markdown,
+            cleaned_html=document.cleaned_html,
+            existing_tags=tuple(tag.name for tag in self._tags),
+        )
 
     def _translate_current_article(self, article_id: str) -> None:
         article = self.article_service.get_article(article_id)
@@ -1256,9 +1358,14 @@ class MainWindow(QMainWindow):
                 5000,
             )
 
-    def _open_ai_settings(self) -> None:
+    def _open_ai_settings(self, initial_agent: str = "summary") -> None:
         try:
-            current_config = self._provider_config_store.load()
+            current_configs = {
+                agent_id: self._agent_provider_config_stores[
+                    agent_id
+                ].load()
+                for agent_id in AGENT_IDS
+            }
         except Exception:
             message = self.translator.text(
                 "status.ai_settings_storage_failed"
@@ -1271,18 +1378,22 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(message, 8000)
             return
 
-        dialog = AISettingsDialog(
+        dialog = AgentsSettingsDialog(
             self.translator,
-            current_config=current_config,
-            connection_tester=self._provider_connection_tester,
+            current_configs=current_configs,
+            connection_testers=self._agent_connection_testers,
+            initial_agent=initial_agent,
             parent=self,
         )
 
         if dialog.exec():
             try:
-                self._provider_config_store.save(
-                    dialog.selected_config()
-                )
+                for agent_id, config in dialog.selected_configs().items():
+                    store = self._agent_provider_config_stores[agent_id]
+                    if config is None:
+                        store.clear()
+                    else:
+                        store.save(config)
             except Exception:
                 message = self.translator.text(
                     "status.ai_settings_storage_failed"
@@ -1532,6 +1643,7 @@ class MainWindow(QMainWindow):
             no_article=self.translator.text("tags.no_article"),
             close_tooltip=self.translator.text("tags.close"),
         )
+        self.tag_suggestion_panel.set_translator(self.translator)
 
         self._update_summary_title()
         self.summary_title_button.setToolTip(

@@ -1,7 +1,7 @@
-# 第四阶段验收：星标收藏与手动标签
+# 第四阶段验收：星标收藏、手动标签与可选 Tag Agent
 
 当前第四阶段范围为星标收藏、手动标签和组合筛选；单篇与多篇文章导出不再列入计划，
-笔记面板按项目约定暂缓，Tag Agent 仍为选做增强。
+笔记面板按项目约定暂缓；Tag Agent 已作为不影响基础验收的选做增强实现。
 
 ## 自动验证
 
@@ -10,6 +10,7 @@
 ```powershell
 uv run python -m unittest tests.test_starred_entries -v
 uv run python -m unittest tests.test_tags -v
+uv run python -m unittest tests.test_tag_agent -v
 uv run python -m unittest discover -s tests -p "test_*.py" -q
 ```
 
@@ -18,6 +19,7 @@ uv run python -m unittest discover -s tests -p "test_*.py" -q
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tests.test_starred_entries -v
 .\.venv\Scripts\python.exe -m unittest tests.test_tags -v
+.\.venv\Scripts\python.exe -m unittest tests.test_tag_agent -v
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py" -q
 ```
 
@@ -64,10 +66,32 @@ uv run python main.py
    - 确认后标签从所有文章移除，但文章不会被删除。
 10. 切换英文/简体中文，确认标签标题、按钮、右键菜单、确认对话框和状态消息即时更新。
 
+## Tag Agent 可选人工验证
+
+1. 在“Agents 设置”中单独配置 Tag Agent 的 Provider，然后打开一篇文章的
+   “标签”浮层。
+2. 在“AI 标签建议”的自定义 Prompt 中输入 `使用简体中文标签`。
+3. 点击“生成建议”，确认界面保持可操作，建议在后台生成。
+4. 建议出现后先不要点击“应用所选”，关闭再重新打开标签浮层，确认文章的
+   本地标签没有被自动修改。
+5. 重新生成建议，取消勾选其中一项，再点击“应用所选”：
+   - 只有仍勾选的建议被添加；
+   - 已有同名标签被复用；
+   - 文章和其他手动标签保持不变。
+6. 点击“放弃建议”，确认建议消失且不会写入。
+7. 切换到另一篇文章，确认上一文章的建议不会应用到新文章。
+8. 清空或禁用 Provider 配置，确认生成失败时仍可手动创建、移除和筛选标签，
+   Reader 正文也保持可读。
+9. 切换英文/简体中文，确认 Tag Agent 的 Prompt、按钮、状态和错误提示即时
+   更新。
+
 ## 验收门
 
 - 星标只保存在本地，不产生额外网络请求。
 - 手动标签只保存在本地，不产生网络请求，也不依赖 Tag Agent。
+- Tag Agent 复用统一 Provider，支持自定义 Prompt，并且只在用户主动生成时
+  发送当前文章。
+- Tag Agent 只生成建议；未经“应用所选”确认不得修改本地标签。
 - 多标签筛选使用“同时包含全部所选标签”的语义。
 - 删除标签必须确认，且不能删除任何文章。
 - 旧数据库迁移不丢失订阅源、文章或 AI 结果。

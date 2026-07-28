@@ -135,6 +135,13 @@ class TranslatorTest(unittest.TestCase):
                 "ai_settings.connection_unavailable",
                 "ai_settings.connection_success",
                 "ai_settings.connection_failed",
+                "agents_settings.title",
+                "agents_settings.properties",
+                "agents_settings.enabled",
+                "agents_settings.save",
+                "agents_settings.agent.summary",
+                "agents_settings.agent.translation",
+                "agents_settings.agent.tag",
                 "status.ai_settings_saved",
                 "status.ai_settings_storage_failed",
             ):
@@ -189,6 +196,30 @@ class TranslatorTest(unittest.TestCase):
                 "{name}",
                 translator.text("tags.delete_dialog.body"),
             )
+
+    def test_tag_agent_messages_are_available_in_both_languages(self) -> None:
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+
+            for key in (
+                "tag_agent.title",
+                "tag_agent.custom_prompt_placeholder",
+                "tag_agent.generate",
+                "tag_agent.configure_ai",
+                "tag_agent.apply",
+                "tag_agent.dismiss",
+                "tag_agent.status.no_article",
+                "tag_agent.status.unavailable",
+                "tag_agent.status.ready",
+                "tag_agent.status.running",
+                "tag_agent.status.generated",
+                "tag_agent.error.invalid_input",
+                "tag_agent.error.provider_not_configured",
+                "tag_agent.error.provider_failure",
+                "tag_agent.error.empty_response",
+                "tag_agent.error.unexpected",
+            ):
+                self.assertNotEqual(translator.text(key), key)
 
     def test_summary_panel_messages_are_available_in_both_languages(self) -> None:
         for language in ("zh_CN", "en_US"):

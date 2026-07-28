@@ -53,11 +53,11 @@ class CompactLayoutTest(unittest.TestCase):
             self.window.tag_editor.width(),
             self.window.article_reader.width(),
         )
-
-        self.window.tag_editor.close_button.click()
-        self.app.processEvents()
         self.assertFalse(self.window.tag_editor.isVisible())
         self.assertFalse(self.window.toggle_tags_action.isChecked())
+        self.assertFalse(
+            self.window.article_reader.tag_toggle_button.isChecked()
+        )
 
         self.window.article_reader.tag_toggle_button.click()
         self.app.processEvents()

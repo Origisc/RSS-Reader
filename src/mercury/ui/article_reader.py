@@ -124,7 +124,7 @@ class ArticleReader(QWidget):
         self.tag_toggle_button = QPushButton()
         self.tag_toggle_button.setObjectName("ReaderUtilityButton")
         self.tag_toggle_button.setCheckable(True)
-        self.tag_toggle_button.setChecked(True)
+        self.tag_toggle_button.setChecked(False)
         self.tag_toggle_button.clicked.connect(
             lambda checked: self.tag_panel_visibility_requested.emit(checked)
         )

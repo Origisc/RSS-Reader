@@ -24,6 +24,8 @@ from mercury.llm.config import ProviderConfig
 
 _SQLITE_TIMEOUT_SECONDS = 10.0
 _MAX_RESULTS_PER_ARTICLE = 20
+AGENT_PROVIDER_IDS = ("summary", "translation", "tag")
+_AGENT_CONFIG_MIGRATION = "agent-provider-config-v1"
 
 
 class _SQLiteStore:
@@ -60,6 +62,20 @@ class _SQLiteStore:
                     api_key TEXT NOT NULL,
                     timeout_seconds REAL NOT NULL,
                     updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS ai_agent_provider_configs (
+                    agent_id TEXT PRIMARY KEY,
+                    base_url TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    api_key TEXT NOT NULL,
+                    timeout_seconds REAL NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS ai_config_migrations (
+                    migration_key TEXT PRIMARY KEY,
+                    applied_at TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS ai_summary_results (
@@ -116,12 +132,88 @@ class _SQLiteStore:
                 );
                 """
             )
+            self._migrate_legacy_agent_configs(connection)
+
+    @staticmethod
+    def _migrate_legacy_agent_configs(
+        connection: sqlite3.Connection,
+    ) -> None:
+        migrated = connection.execute(
+            """
+            SELECT 1
+            FROM ai_config_migrations
+            WHERE migration_key = ?
+            """,
+            (_AGENT_CONFIG_MIGRATION,),
+        ).fetchone()
+        if migrated is not None:
+            return
+
+        legacy = connection.execute(
+            """
+            SELECT base_url, model, api_key, timeout_seconds, updated_at
+            FROM ai_provider_config
+            WHERE singleton_id = 1
+            """
+        ).fetchone()
+        if legacy is not None:
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO ai_agent_provider_configs (
+                    agent_id,
+                    base_url,
+                    model,
+                    api_key,
+                    timeout_seconds,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    (
+                        agent_id,
+                        legacy["base_url"],
+                        legacy["model"],
+                        legacy["api_key"],
+                        legacy["timeout_seconds"],
+                        legacy["updated_at"],
+                    )
+                    for agent_id in AGENT_PROVIDER_IDS
+                ),
+            )
+        connection.execute(
+            """
+            INSERT INTO ai_config_migrations (migration_key, applied_at)
+            VALUES (?, ?)
+            """,
+            (
+                _AGENT_CONFIG_MIGRATION,
+                datetime.now().astimezone().isoformat(),
+            ),
+        )
 
 
 class SQLiteProviderConfigStore(_SQLiteStore):
     """Local provider configuration backed by Mercury's SQLite database."""
 
+    def __init__(
+        self,
+        database_path: str | Path,
+        profile: str = "default",
+    ) -> None:
+        normalized_profile = str(profile).strip().casefold()
+        if (
+            normalized_profile != "default"
+            and normalized_profile not in AGENT_PROVIDER_IDS
+        ):
+            raise ValueError("Unsupported AI Provider profile.")
+        self._profile = normalized_profile
+        super().__init__(database_path)
+
     def load(self) -> ProviderConfig | None:
+        if self._profile != "default":
+            return self._load_agent_config()
+
         with self._connect() as connection:
             row = connection.execute(
                 """
@@ -143,6 +235,10 @@ class SQLiteProviderConfigStore(_SQLiteStore):
 
     def save(self, config: ProviderConfig) -> None:
         config.require_valid()
+        if self._profile != "default":
+            self._save_agent_config(config)
+            return
+
         with self._connect() as connection:
             connection.execute(
                 """
@@ -172,9 +268,69 @@ class SQLiteProviderConfigStore(_SQLiteStore):
             )
 
     def clear(self) -> None:
+        if self._profile != "default":
+            with self._connect() as connection:
+                connection.execute(
+                    """
+                    DELETE FROM ai_agent_provider_configs
+                    WHERE agent_id = ?
+                    """,
+                    (self._profile,),
+                )
+            return
+
         with self._connect() as connection:
             connection.execute(
                 "DELETE FROM ai_provider_config WHERE singleton_id = 1"
+            )
+
+    def _load_agent_config(self) -> ProviderConfig | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT base_url, model, api_key, timeout_seconds
+                FROM ai_agent_provider_configs
+                WHERE agent_id = ?
+                """,
+                (self._profile,),
+            ).fetchone()
+        if row is None:
+            return None
+        return ProviderConfig(
+            base_url=row["base_url"],
+            model=row["model"],
+            api_key=row["api_key"],
+            timeout_seconds=float(row["timeout_seconds"]),
+        )
+
+    def _save_agent_config(self, config: ProviderConfig) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO ai_agent_provider_configs (
+                    agent_id,
+                    base_url,
+                    model,
+                    api_key,
+                    timeout_seconds,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(agent_id) DO UPDATE SET
+                    base_url = excluded.base_url,
+                    model = excluded.model,
+                    api_key = excluded.api_key,
+                    timeout_seconds = excluded.timeout_seconds,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    self._profile,
+                    config.base_url.strip(),
+                    config.model.strip(),
+                    config.api_key,
+                    config.timeout_seconds,
+                    datetime.now().astimezone().isoformat(),
+                ),
             )
 
 

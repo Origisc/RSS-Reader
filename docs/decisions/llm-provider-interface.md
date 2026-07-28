@@ -24,9 +24,10 @@ configuration storage are connected in the production composition.
 - Requests contain the configured model and standard system/user message
   objects. An `Authorization: Bearer` header is added only when the user
   supplies an API Key.
-- The adapter reads `ProviderConfigStore` for every completion. Settings saved
-  while the application is running therefore apply to the next Summary or
-  Translation request without rebuilding the window.
+- Each Agent owns an `HTTPChatCompletionsProvider` backed by its own
+  `ProviderConfigStore` profile. Settings saved while the application is
+  running therefore apply to that Agent's next request without rebuilding the
+  window.
 - Connection testing accepts the dialog's unsaved configuration and sends only
   a short explicit acknowledgement prompt, never article content.
 
@@ -34,9 +35,12 @@ configuration storage are connected in the production composition.
 
 `ProviderConfigStore` remains the only configuration boundary used by the UI
 and Provider. `InMemoryProviderConfigStore` is retained for deterministic
-tests. Production injects `SQLiteProviderConfigStore`, which stores the latest
-user-selected configuration in the existing local `database.db`. The file is
-excluded from Git and is never synchronized by Mercury.
+tests. Production injects three profiled `SQLiteProviderConfigStore`
+instances for Summary, Translation, and Tag. They store independent
+user-selected configurations in the existing local `database.db`. A one-time
+migration copies the former shared configuration to all three profiles, after
+which they can be edited or disabled independently. The file is excluded from
+Git and is never synchronized by Mercury.
 
 Every database operation uses a short-lived connection. This allows Summary
 and Translation jobs to run in worker threads without sharing a SQLite
@@ -60,9 +64,10 @@ Provider failures use `LLMProviderError` with a user-readable message. Summary a
 ## Completed Follow-up
 
 Task 3.1.2 added the Provider-neutral settings UI and injectable
-connection-test interaction. The production composition now shares one
-`HTTPChatCompletionsProvider` between connection testing, `SummaryAgent`, and
-`TranslationAgent`. Automated tests replace its HTTP transport and never
-access a real network. The production composition now injects the SQLite
-Provider, Summary, and Translation stores; restart round trips are covered by
+connection-test interaction. The later Agents settings page gives
+`SummaryAgent`, `TranslationAgent`, and `TagAgent` independent Provider
+profiles while preserving the same `LLMProvider` protocol. Automated tests
+replace HTTP transport and never access a real network. Production injects the
+profiled SQLite Provider stores plus Summary and Translation result stores;
+restart and migration round trips are covered by
 `tests/test_ai_persistence.py`.

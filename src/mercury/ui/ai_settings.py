@@ -1,15 +1,22 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
+    QStackedWidget,
     QVBoxLayout,
+    QWidget,
 )
 
 from mercury.i18n import Translator
@@ -24,6 +31,7 @@ from mercury.ui.provider_presets import (
 
 
 ConnectionTester = Callable[[ProviderConfig], ProviderConnectionResult]
+AGENT_IDS = ("summary", "translation", "tag")
 
 
 class AISettingsDialog(QDialog):
@@ -253,3 +261,127 @@ class AISettingsDialog(QDialog):
         )
         ok_button.setText(self._translator.text("settings.ok"))
         cancel_button.setText(self._translator.text("settings.cancel"))
+
+
+class AgentsSettingsDialog(QDialog):
+    """Standalone local settings page for independent Agent Providers."""
+
+    def __init__(
+        self,
+        translator: Translator,
+        current_configs: Mapping[str, ProviderConfig | None] | None = None,
+        connection_testers: Mapping[str, ConnectionTester | None]
+        | None = None,
+        initial_agent: str = "summary",
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self._translator = translator
+        configs = dict(current_configs or {})
+        testers = dict(connection_testers or {})
+        self.editors: dict[str, AISettingsDialog] = {}
+        self.enabled_checks: dict[str, QCheckBox] = {}
+        self.agent_list = QListWidget()
+        self.agent_list.setObjectName("AgentsSettingsList")
+        self.agent_list.setFixedWidth(155)
+        self.agent_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.pages = QStackedWidget()
+        self.pages.setObjectName("AgentsSettingsPages")
+
+        for agent_id in AGENT_IDS:
+            item = QListWidgetItem(
+                translator.text(f"agents_settings.agent.{agent_id}")
+            )
+            item.setData(Qt.ItemDataRole.UserRole, agent_id)
+            self.agent_list.addItem(item)
+
+            page = QWidget()
+            page.setObjectName("AgentSettingsPage")
+            properties_label = QLabel(
+                translator.text("agents_settings.properties")
+            )
+            properties_label.setObjectName("AgentsSettingsProperties")
+            enabled = QCheckBox(
+                translator.text("agents_settings.enabled")
+            )
+            config = configs.get(agent_id)
+            enabled.setChecked(
+                config is not None and config.is_configured
+            )
+            editor = AISettingsDialog(
+                translator,
+                current_config=config,
+                connection_tester=testers.get(agent_id),
+                parent=page,
+            )
+            editor.setWindowFlags(Qt.WindowType.Widget)
+            editor.button_box.hide()
+            editor.setMinimumWidth(0)
+            editor.setEnabled(enabled.isChecked())
+            enabled.toggled.connect(editor.setEnabled)
+
+            page_layout = QVBoxLayout(page)
+            page_layout.setContentsMargins(12, 8, 12, 8)
+            page_layout.addWidget(properties_label)
+            page_layout.addWidget(enabled)
+            page_layout.addWidget(editor)
+            page_layout.addStretch(1)
+            self.pages.addWidget(page)
+            self.editors[agent_id] = editor
+            self.enabled_checks[agent_id] = enabled
+
+        self.agent_list.currentRowChanged.connect(
+            self.pages.setCurrentIndex
+        )
+        selected_index = AGENT_IDS.index(
+            initial_agent if initial_agent in AGENT_IDS else "summary"
+        )
+        self.agent_list.setCurrentRow(selected_index)
+
+        content_layout = QHBoxLayout()
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(10)
+        content_layout.addWidget(self.agent_list)
+        content_layout.addWidget(self.pages, 1)
+
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        self.button_box.button(
+            QDialogButtonBox.StandardButton.Save
+        ).setText(translator.text("agents_settings.save"))
+        self.button_box.button(
+            QDialogButtonBox.StandardButton.Cancel
+        ).setText(translator.text("settings.cancel"))
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(content_layout, 1)
+        layout.addWidget(self.button_box)
+
+        self.setObjectName("AgentsSettingsDialog")
+        self.setWindowTitle(translator.text("agents_settings.title"))
+        self.setMinimumSize(760, 570)
+
+    def selected_configs(self) -> dict[str, ProviderConfig | None]:
+        return {
+            agent_id: (
+                self.editors[agent_id].selected_config()
+                if self.enabled_checks[agent_id].isChecked()
+                else None
+            )
+            for agent_id in AGENT_IDS
+        }
+
+    def accept(self) -> None:
+        for index, agent_id in enumerate(AGENT_IDS):
+            if not self.enabled_checks[agent_id].isChecked():
+                continue
+            if self.editors[agent_id]._validated_config() is None:
+                self.agent_list.setCurrentRow(index)
+                return
+        super().accept()

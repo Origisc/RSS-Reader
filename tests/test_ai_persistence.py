@@ -76,6 +76,115 @@ class AIPersistenceTest(unittest.TestCase):
 
         self.assertIsNone(store.load())
 
+    def test_agent_provider_profiles_are_independent_and_persistent(
+        self,
+    ) -> None:
+        configs = {
+            agent_id: ProviderConfig(
+                base_url="http://127.0.0.1:8080/v1",
+                model=f"{agent_id}-model",
+                api_key=f"{agent_id}-secret",
+            )
+            for agent_id in ("summary", "translation", "tag")
+        }
+        for agent_id, config in configs.items():
+            SQLiteProviderConfigStore(
+                self.database_path,
+                profile=agent_id,
+            ).save(config)
+
+        loaded = {
+            agent_id: SQLiteProviderConfigStore(
+                self.database_path,
+                profile=agent_id,
+            ).load()
+            for agent_id in configs
+        }
+
+        self.assertEqual(loaded, configs)
+        SQLiteProviderConfigStore(
+            self.database_path,
+            profile="tag",
+        ).clear()
+        self.assertIsNone(
+            SQLiteProviderConfigStore(
+                self.database_path,
+                profile="tag",
+            ).load()
+        )
+        self.assertEqual(
+            SQLiteProviderConfigStore(
+                self.database_path,
+                profile="summary",
+            ).load(),
+            configs["summary"],
+        )
+
+    def test_legacy_single_provider_is_migrated_once_to_all_agents(
+        self,
+    ) -> None:
+        legacy = ProviderConfig(
+            base_url="http://127.0.0.1:11434/v1",
+            model="legacy-model",
+            api_key="legacy-secret",
+            timeout_seconds=90.0,
+        )
+        with closing(sqlite3.connect(self.database_path)) as connection:
+            connection.execute(
+                """
+                CREATE TABLE ai_provider_config (
+                    singleton_id INTEGER PRIMARY KEY
+                        CHECK (singleton_id = 1),
+                    base_url TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    api_key TEXT NOT NULL,
+                    timeout_seconds REAL NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO ai_provider_config
+                VALUES (1, ?, ?, ?, ?, ?)
+                """,
+                (
+                    legacy.base_url,
+                    legacy.model,
+                    legacy.api_key,
+                    legacy.timeout_seconds,
+                    TEST_TIME.isoformat(),
+                ),
+            )
+            connection.commit()
+
+        self.assertEqual(
+            {
+                agent_id: SQLiteProviderConfigStore(
+                    self.database_path,
+                    profile=agent_id,
+                ).load()
+                for agent_id in ("summary", "translation", "tag")
+            },
+            {
+                "summary": legacy,
+                "translation": legacy,
+                "tag": legacy,
+            },
+        )
+
+        tag_store = SQLiteProviderConfigStore(
+            self.database_path,
+            profile="tag",
+        )
+        tag_store.clear()
+        self.assertIsNone(
+            SQLiteProviderConfigStore(
+                self.database_path,
+                profile="tag",
+            ).load()
+        )
+
     def test_summary_round_trip_preserves_unicode_and_metadata(self) -> None:
         result = SummaryResult(
             article_id="article-摘要",

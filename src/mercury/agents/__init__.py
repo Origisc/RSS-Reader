@@ -5,6 +5,14 @@ from mercury.agents.summary_agent import (
     SummaryResultStore,
     SummarySource,
 )
+from mercury.agents.tag_agent import (
+    TagAgent,
+    TagSource,
+    TagSuggestionErrorCode,
+    TagSuggestionOptions,
+    TagSuggestionResult,
+    parse_tag_suggestions,
+)
 from mercury.agents.translation_agent import (
     InMemoryTranslationResultStore,
     TranslationAgent,
@@ -25,6 +33,12 @@ __all__ = [
     "SummaryOptions",
     "SummaryResultStore",
     "SummarySource",
+    "TagAgent",
+    "TagSource",
+    "TagSuggestionErrorCode",
+    "TagSuggestionOptions",
+    "TagSuggestionResult",
+    "parse_tag_suggestions",
     "InMemoryTranslationResultStore",
     "TranslationAgent",
     "TranslationOptions",
