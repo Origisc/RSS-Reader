@@ -869,7 +869,12 @@ class ArticleReader(QWidget):
                     font-size: 13px;
                 }}
                 .reader-article p {{
-                    margin: 0 0 18px;
+                    margin: 0 0 32px;
+                }}
+                .reader-article div,
+                .reader-article span {{
+                    display: block;
+                    margin: 0 0 32px;
                 }}
                 .bilingual-pair {{
                     border-bottom: 1px solid #29485c;
