@@ -16,6 +16,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.import_opml": "导入 OPML",
         "action.refresh": "刷新",
         "action.delete_feed": "删除所选 Feed",
+        "action.delete_feeds": "批量删除所选 Feeds",
+        "action.multi_select_feeds": "多选删除",
+        "action.delete_selected_feeds": "删除所选（{count}）",
         "action.mark_read": "标记为已读",
         "action.mark_unread": "标记为未读",
         "action.star": "添加星标",
@@ -84,10 +87,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "feed.delete_dialog.body": (
             "确定删除订阅源“{title}”及其本地缓存文章吗？此操作不可撤销。"
         ),
+        "feed.delete_many_dialog.title": "批量删除 Feeds",
+        "feed.delete_many_dialog.body": (
+            "确定删除以下 {count} 个订阅源及其全部本地缓存文章吗？"
+            "此操作不可撤销。\n\n{titles}"
+        ),
         "feed.delete_unavailable": (
             "删除服务未配置；当前不会修改本地订阅或文章。"
         ),
         "feed.delete_failed": "删除失败：订阅源不存在或本地数据库操作失败。",
+        "feed.delete_many_failed": (
+            "批量删除失败：所选订阅源已发生变化或本地数据库操作失败；"
+            "本次没有删除任何订阅源。"
+        ),
         "opml.import_dialog.title": "导入 OPML",
         "opml.import_dialog.filter": "OPML 文件 (*.opml *.xml);;所有文件 (*)",
         "settings.title": "设置",
@@ -168,6 +180,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status.tag_failed": "无法更新本地标签，原有阅读内容不受影响。",
         "status.delete_feed_started": "正在删除 Feed...",
         "status.delete_feed_finished": "已删除 Feed：{title}",
+        "status.delete_feeds_started": "正在批量删除 {count} 个 Feeds...",
+        "status.delete_feeds_finished": "已删除 {count} 个 Feeds。",
         "dialog.feature_failed.title": "操作失败",
         "dialog.feature_pending.title": "功能入口已预留",
         "dialog.about.title": "关于 Mercury",
@@ -332,6 +346,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "action.import_opml": "Import OPML",
         "action.refresh": "Refresh",
         "action.delete_feed": "Delete selected Feed",
+        "action.delete_feeds": "Delete selected Feeds",
+        "action.multi_select_feeds": "Select multiple",
+        "action.delete_selected_feeds": "Delete selected ({count})",
         "action.mark_read": "Mark as read",
         "action.mark_unread": "Mark as unread",
         "action.star": "Star",
@@ -408,12 +425,21 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Delete the feed “{title}” and its locally cached articles? "
             "This action cannot be undone."
         ),
+        "feed.delete_many_dialog.title": "Delete multiple Feeds",
+        "feed.delete_many_dialog.body": (
+            "Delete these {count} feeds and all their locally cached "
+            "articles? This action cannot be undone.\n\n{titles}"
+        ),
         "feed.delete_unavailable": (
             "The deletion service is not configured. "
             "No local feeds or articles were changed."
         ),
         "feed.delete_failed": (
             "Deletion failed because the feed was not found or the local database operation failed."
+        ),
+        "feed.delete_many_failed": (
+            "Batch deletion failed because the selected feeds changed or "
+            "the local database operation failed. No feeds were deleted."
         ),
         "opml.import_dialog.title": "Import OPML",
         "opml.import_dialog.filter": "OPML files (*.opml *.xml);;All files (*)",
@@ -512,6 +538,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "status.delete_feed_started": "Deleting feed...",
         "status.delete_feed_finished": "Deleted feed: {title}",
+        "status.delete_feeds_started": "Deleting {count} feeds...",
+        "status.delete_feeds_finished": "Deleted {count} feeds.",
         "dialog.feature_failed.title": "Action Failed",
         "dialog.feature_pending.title": "Feature Entry Ready",
         "dialog.about.title": "About Mercury",

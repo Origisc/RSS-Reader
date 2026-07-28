@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Collection
 from datetime import datetime
 from html import escape
 from urllib.parse import urlparse
@@ -78,8 +79,8 @@ class BackendArticleService:
             translate_status,
             translate_error,
             target_language,
-            is_starred,
             translated_title,
+            is_starred,
         ) = detail
         feed_id, source_title = self._find_feed_for_article(article_id)
         title, link = self._normalise_title_and_link(stored_title, stored_link)
@@ -324,6 +325,28 @@ class BackendArticleService:
 
         raise FeedDeletionError(
             str(result.get("message") or "Feed deletion failed.")
+        )
+
+    def delete_feeds(self, feed_ids: Collection[str]) -> None:
+        normalized_ids: list[int] = []
+        for feed_id in feed_ids:
+            try:
+                numeric_id = int(feed_id)
+            except (TypeError, ValueError) as exc:
+                raise FeedDeletionError(
+                    "Invalid feed identifier."
+                ) from exc
+            if numeric_id not in normalized_ids:
+                normalized_ids.append(numeric_id)
+
+        if not normalized_ids:
+            raise FeedDeletionError("No feeds were selected.")
+
+        if self._db.delete_feeds(normalized_ids):
+            return
+
+        raise FeedDeletionError(
+            "One or more feeds were not found, so nothing was deleted."
         )
 
     def clean_article_content(self, article_id: str, force: bool = False) -> str:

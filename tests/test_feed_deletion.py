@@ -123,6 +123,7 @@ class FakeFeedDeletionService:
     def __init__(self, article_service: MutableArticleService) -> None:
         self.article_service = article_service
         self.deleted_feed_ids: list[str] = []
+        self.deleted_batches: list[tuple[str, ...]] = []
 
     def delete_feed(self, feed_id: str) -> None:
         self.deleted_feed_ids.append(feed_id)
@@ -133,6 +134,24 @@ class FakeFeedDeletionService:
             article
             for article in self.article_service.articles
             if article.feed_id != feed_id
+        ]
+
+    def delete_feeds(self, feed_ids) -> None:
+        selected_ids = tuple(dict.fromkeys(str(feed_id) for feed_id in feed_ids))
+        existing_ids = {feed.id for feed in self.article_service.feeds}
+        if not selected_ids or not set(selected_ids).issubset(existing_ids):
+            raise RuntimeError("invalid batch")
+
+        self.deleted_batches.append(selected_ids)
+        self.article_service.feeds = [
+            feed
+            for feed in self.article_service.feeds
+            if feed.id not in selected_ids
+        ]
+        self.article_service.articles = [
+            article
+            for article in self.article_service.articles
+            if article.feed_id not in selected_ids
         ]
 
 
@@ -190,6 +209,35 @@ class FeedDeletionTest(unittest.TestCase):
         self.assertFalse(self.window._confirm_feed_deletion("First feed"))
         self.assertEqual(dialog_state, [("取消", True)])
 
+    def test_batch_confirmation_lists_scope_and_defaults_to_cancel(
+        self,
+    ) -> None:
+        dialog_state: list[tuple[str, bool, str]] = []
+
+        def cancel_dialog() -> None:
+            dialog = QApplication.activeModalWidget()
+            self.assertIsInstance(dialog, QMessageBox)
+            dialog_state.append(
+                (
+                    dialog.defaultButton().text(),
+                    dialog.defaultButton() is dialog.escapeButton(),
+                    dialog.text(),
+                )
+            )
+            dialog.defaultButton().click()
+
+        QTimer.singleShot(0, cancel_dialog)
+
+        self.assertFalse(
+            self.window._confirm_feeds_deletion(
+                self.article_service.list_feeds()
+            )
+        )
+        self.assertEqual(dialog_state[0][0:2], ("取消", True))
+        self.assertIn("2", dialog_state[0][2])
+        self.assertIn("First feed", dialog_state[0][2])
+        self.assertIn("Second feed", dialog_state[0][2])
+
     def test_confirmed_deletion_refreshes_feed_entries_and_reader(self) -> None:
         self.window._show_article("article-1")
 
@@ -226,6 +274,39 @@ class FeedDeletionTest(unittest.TestCase):
         self.assertEqual(self.window.article_list.list_widget.count(), 1)
         self.assertIsNone(self.window.article_reader.current_article_id)
         self.assertIn("First feed", self.window.statusBar().currentMessage())
+
+    def test_confirmed_batch_deletion_refreshes_all_views(self) -> None:
+        self.window._show_article("article-1")
+        self.window.sidebar.batch_delete_button.click()
+        for row in range(self.window.sidebar.feed_list.count()):
+            item = self.window.sidebar.feed_list.item(row)
+            if item.data(FEED_ID_ROLE) in {"feed-1", "feed-2"}:
+                item.setSelected(True)
+
+        with patch.object(
+            self.window,
+            "_confirm_feeds_deletion",
+            return_value=True,
+        ):
+            self.window.sidebar.batch_delete_button.click()
+
+        self.assertEqual(
+            self.deletion_service.deleted_batches,
+            [("feed-1", "feed-2")],
+        )
+        self.assertEqual(self.article_service.list_feeds(), [])
+        self.assertEqual(self.article_service.list_articles(), [])
+        self.assertEqual(self.window.article_list.list_widget.count(), 0)
+        self.assertIsNone(self.window.article_reader.current_article_id)
+        self.assertIn("2", self.window.statusBar().currentMessage())
+        self.assertEqual(
+            self.window.sidebar.feed_list.selectionMode().name,
+            "SingleSelection",
+        )
+        self.assertEqual(
+            self.window.sidebar.batch_delete_button.text(),
+            "多选删除",
+        )
 
     def test_missing_adapter_explains_that_nothing_was_deleted(self) -> None:
         self.window.close()

@@ -13,7 +13,12 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from PySide6.QtCore import QPoint, Qt
-from PySide6.QtWidgets import QApplication, QToolButton
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QToolButton,
+)
 
 from mercury.ui.sidebar import (
     ALL_FEEDS_ID,
@@ -135,6 +140,103 @@ class SidebarTest(unittest.TestCase):
             self.sidebar.menu_delete_feed_action.text(),
             "Delete selected Feed",
         )
+
+    def test_delete_action_emits_all_selected_real_feeds(self) -> None:
+        from mercury.models.article import Feed
+
+        requests: list[tuple[str, ...]] = []
+        self.sidebar.delete_feeds_requested.connect(requests.append)
+        self.sidebar.set_feeds(
+            [
+                Feed(id="feed-1", title="First"),
+                Feed(id="feed-2", title="Second"),
+                Feed(id="feed-3", title="Third"),
+            ]
+        )
+        self.assertEqual(
+            self.sidebar.feed_list.selectionMode(),
+            QAbstractItemView.SelectionMode.SingleSelection,
+        )
+
+        self.sidebar.resize(360, 500)
+        self.sidebar.show()
+        self.app.processEvents()
+        self.sidebar.batch_delete_button.click()
+        self.assertEqual(
+            self.sidebar.feed_list.selectionMode(),
+            QAbstractItemView.SelectionMode.MultiSelection,
+        )
+        self.assertFalse(self.sidebar.menu_delete_feed_action.isEnabled())
+
+        virtual_item = self.sidebar.feed_list.item(0)
+        QTest.mouseClick(
+            self.sidebar.feed_list.viewport(),
+            Qt.MouseButton.LeftButton,
+            pos=self.sidebar.feed_list.visualItemRect(
+                virtual_item
+            ).center(),
+        )
+        self.assertEqual(self.sidebar.selected_feed_ids(), ())
+        self.assertFalse(self.sidebar.batch_delete_button.isEnabled())
+
+        for feed_id in ("feed-1", "feed-3"):
+            item = next(
+                self.sidebar.feed_list.item(row)
+                for row in range(self.sidebar.feed_list.count())
+                if self.sidebar.feed_list.item(row).data(FEED_ID_ROLE)
+                == feed_id
+            )
+            QTest.mouseClick(
+                self.sidebar.feed_list.viewport(),
+                Qt.MouseButton.LeftButton,
+                pos=self.sidebar.feed_list.visualItemRect(item).center(),
+            )
+
+        self.assertEqual(
+            self.sidebar.batch_delete_button.text(),
+            "Delete selected (2)",
+        )
+        self.sidebar.batch_delete_button.click()
+
+        self.assertEqual(requests, [("feed-1", "feed-3")])
+        self.assertEqual(
+            self.sidebar.selected_feed_ids(),
+            ("feed-1", "feed-3"),
+        )
+
+    def test_batch_delete_mode_can_be_cancelled(self) -> None:
+        from mercury.models.article import Feed
+
+        self.sidebar.set_feeds(
+            [
+                Feed(id="feed-1", title="First"),
+                Feed(id="feed-2", title="Second"),
+            ]
+        )
+        self.sidebar.select_feed("feed-1")
+
+        self.sidebar.batch_delete_button.click()
+        second_item = next(
+            self.sidebar.feed_list.item(row)
+            for row in range(self.sidebar.feed_list.count())
+            if self.sidebar.feed_list.item(row).data(FEED_ID_ROLE)
+            == "feed-2"
+        )
+        second_item.setSelected(True)
+        self.sidebar.cancel_batch_delete_button.click()
+
+        self.assertEqual(
+            self.sidebar.feed_list.selectionMode(),
+            QAbstractItemView.SelectionMode.SingleSelection,
+        )
+        self.assertTrue(
+            self.sidebar.cancel_batch_delete_button.isHidden()
+        )
+        self.assertEqual(
+            self.sidebar.batch_delete_button.text(),
+            "Select multiple",
+        )
+        self.assertEqual(self.sidebar.current_feed_id(), "feed-1")
 
     def test_context_menu_delete_targets_the_clicked_feed(self) -> None:
         from mercury.models.article import Feed
