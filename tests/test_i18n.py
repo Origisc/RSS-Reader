@@ -86,17 +86,36 @@ class TranslatorTest(unittest.TestCase):
 
             for key in (
                 "action.delete_feed",
+                "action.delete_feeds",
+                "action.multi_select_feeds",
+                "action.delete_selected_feeds",
                 "feed.delete_dialog.title",
+                "feed.delete_many_dialog.title",
                 "feed.delete_unavailable",
                 "feed.delete_failed",
+                "feed.delete_many_failed",
                 "status.delete_feed_started",
                 "status.delete_feed_finished",
+                "status.delete_feeds_started",
+                "status.delete_feeds_finished",
             ):
                 self.assertNotEqual(translator.text(key), key)
 
             self.assertIn(
                 "{title}",
                 translator.text("feed.delete_dialog.body"),
+            )
+            self.assertIn(
+                "{count}",
+                translator.text("feed.delete_many_dialog.body"),
+            )
+            self.assertIn(
+                "{titles}",
+                translator.text("feed.delete_many_dialog.body"),
+            )
+            self.assertIn(
+                "{count}",
+                translator.text("action.delete_selected_feeds"),
             )
 
     def test_ai_settings_messages_are_available_in_both_languages(self) -> None:

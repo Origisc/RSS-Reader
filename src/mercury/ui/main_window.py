@@ -1,3 +1,5 @@
+from collections.abc import Collection
+
 from PySide6.QtCore import Qt, QRunnable, QThreadPool, QObject, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
@@ -354,7 +356,7 @@ class MainWindow(QMainWindow):
         self.sidebar.add_feed_requested.connect(self._add_feed)
         self.sidebar.import_opml_requested.connect(self._import_opml)
         self.sidebar.refresh_requested.connect(self._refresh_feeds)
-        self.sidebar.delete_feed_requested.connect(self._delete_feed)
+        self.sidebar.delete_feeds_requested.connect(self._delete_feeds)
         self.sidebar.tag_filter_changed.connect(self._show_tagged_articles)
         self.sidebar.rename_tag_requested.connect(self._rename_tag)
         self.sidebar.delete_tag_requested.connect(self._delete_tag)
@@ -1071,16 +1073,25 @@ class MainWindow(QMainWindow):
         )
 
     def _delete_feed(self, feed_id: str) -> None:
-        feed = next(
-            (
-                current
-                for current in self.article_service.list_feeds()
-                if current.id == feed_id
-            ),
-            None,
-        )
+        self._delete_feeds((feed_id,))
 
-        if feed is None:
+    def _delete_feeds(self, feed_ids: Collection[str]) -> None:
+        normalized_ids = tuple(
+            dict.fromkeys(str(feed_id) for feed_id in feed_ids)
+        )
+        if not normalized_ids:
+            return
+
+        feeds_by_id = {
+            feed.id: feed
+            for feed in self.article_service.list_feeds()
+        }
+        feeds = [
+            feeds_by_id[feed_id]
+            for feed_id in normalized_ids
+            if feed_id in feeds_by_id
+        ]
+        if len(feeds) != len(normalized_ids):
             return
 
         if self._feed_deletion_service is None:
@@ -1091,19 +1102,36 @@ class MainWindow(QMainWindow):
             )
             return
 
-        if not self._confirm_feed_deletion(feed.title):
+        if len(feeds) == 1:
+            confirmed = self._confirm_feed_deletion(feeds[0].title)
+        else:
+            confirmed = self._confirm_feeds_deletion(feeds)
+        if not confirmed:
             return
 
         self.statusBar().showMessage(
-            self.translator.text("status.delete_feed_started"),
+            self.translator.text(
+                "status.delete_feed_started"
+                if len(feeds) == 1
+                else "status.delete_feeds_started"
+            ).format(count=len(feeds)),
             5000,
         )
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
         try:
-            self._feed_deletion_service.delete_feed(feed_id)
+            if len(feeds) == 1:
+                self._feed_deletion_service.delete_feed(feeds[0].id)
+            else:
+                self._feed_deletion_service.delete_feeds(
+                    tuple(feed.id for feed in feeds)
+                )
         except Exception:
-            message = self.translator.text("feed.delete_failed")
+            message = self.translator.text(
+                "feed.delete_failed"
+                if len(feeds) == 1
+                else "feed.delete_many_failed"
+            )
             QMessageBox.warning(
                 self,
                 self.translator.text("dialog.feature_failed.title"),
@@ -1119,8 +1147,14 @@ class MainWindow(QMainWindow):
         self.summary_panel.clear_article()
         self.translation_panel.clear_article()
         self.statusBar().showMessage(
-            self.translator.text("status.delete_feed_finished").format(
-                title=feed.title,
+            (
+                self.translator.text(
+                    "status.delete_feed_finished"
+                ).format(title=feeds[0].title)
+                if len(feeds) == 1
+                else self.translator.text(
+                    "status.delete_feeds_finished"
+                ).format(count=len(feeds))
             ),
             8000,
         )
@@ -1138,6 +1172,33 @@ class MainWindow(QMainWindow):
         )
         delete_button = dialog.addButton(
             self.translator.text("action.delete_feed"),
+            QMessageBox.ButtonRole.DestructiveRole,
+        )
+        cancel_button = dialog.addButton(
+            self.translator.text("settings.cancel"),
+            QMessageBox.ButtonRole.RejectRole,
+        )
+        dialog.setDefaultButton(cancel_button)
+        dialog.setEscapeButton(cancel_button)
+        dialog.exec()
+        return dialog.clickedButton() is delete_button
+
+    def _confirm_feeds_deletion(self, feeds: Collection[Feed]) -> bool:
+        feed_list = list(feeds)
+        titles = "\n".join(f"• {feed.title}" for feed in feed_list)
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Icon.Warning)
+        dialog.setWindowTitle(
+            self.translator.text("feed.delete_many_dialog.title")
+        )
+        dialog.setText(
+            self.translator.text("feed.delete_many_dialog.body").format(
+                count=len(feed_list),
+                titles=titles,
+            )
+        )
+        delete_button = dialog.addButton(
+            self.translator.text("action.delete_feeds"),
             QMessageBox.ButtonRole.DestructiveRole,
         )
         cancel_button = dialog.addButton(
@@ -1356,6 +1417,13 @@ class MainWindow(QMainWindow):
             import_opml=self.translator.text("action.import_opml"),
             refresh=self.translator.text("action.refresh"),
             delete_feed=self.translator.text("action.delete_feed"),
+            batch_delete=self.translator.text(
+                "action.multi_select_feeds"
+            ),
+            delete_selected=self.translator.text(
+                "action.delete_selected_feeds"
+            ),
+            cancel_selection=self.translator.text("settings.cancel"),
         )
         self.sidebar.set_footer(self.translator.text("sidebar.footer"))
         self.sidebar.set_feed_detail_text(

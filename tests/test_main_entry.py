@@ -41,6 +41,9 @@ class MainEntryTest(unittest.TestCase):
                 "mercury.main.HTTPChatCompletionsProvider"
             ) as provider_class,
             patch(
+                "mercury.main.TranslationService"
+            ) as translation_service_class,
+            patch(
                 "mercury.main.SQLiteSummaryResultStore"
             ) as summary_store_class,
             patch(
@@ -63,8 +66,12 @@ class MainEntryTest(unittest.TestCase):
         article_service_class.assert_called_once_with(
             database,
             use_case_class.return_value,
+            translation_service_class.return_value,
         )
         config_store_class.assert_called_once_with(database_path)
+        translation_service_class.assert_called_once_with(
+            provider_class.return_value
+        )
         summary_store_class.assert_called_once_with(database_path)
         translation_store_class.assert_called_once_with(database_path)
         provider_class.assert_called_once_with(

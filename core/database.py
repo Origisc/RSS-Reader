@@ -1,5 +1,6 @@
 import sqlite3
 import threading
+from collections.abc import Collection
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -390,8 +391,8 @@ class DBManager:
                     translate_status,
                     translate_error,
                     target_language,
-                    is_starred,
-                    translated_title
+                    translated_title,
+                    is_starred
                 FROM articles
                 WHERE id = ?
                 """,
@@ -654,4 +655,39 @@ class DBManager:
                 return cursor.rowcount > 0
         except Exception as e:
             print(f"数据库删除 Feed 失败: {e}")
+            return False
+
+    def delete_feeds(self, feed_ids: Collection[int]) -> bool:
+        """Atomically delete multiple feeds and their related local data."""
+        normalized_ids = tuple(
+            dict.fromkeys(int(feed_id) for feed_id in feed_ids)
+        )
+        if not normalized_ids:
+            return False
+
+        placeholders = ", ".join("?" for _feed_id in normalized_ids)
+        try:
+            with self._lock, self.conn:
+                self.conn.execute("PRAGMA foreign_keys = ON")
+                existing_ids = {
+                    int(row[0])
+                    for row in self.conn.execute(
+                        f"SELECT id FROM feeds WHERE id IN ({placeholders})",
+                        normalized_ids,
+                    )
+                }
+                if existing_ids != set(normalized_ids):
+                    return False
+
+                cursor = self.conn.execute(
+                    f"DELETE FROM feeds WHERE id IN ({placeholders})",
+                    normalized_ids,
+                )
+                if cursor.rowcount != len(normalized_ids):
+                    raise sqlite3.DatabaseError(
+                        "Batch feed deletion affected an unexpected row count."
+                    )
+                return True
+        except Exception as exc:
+            print(f"数据库批量删除 Feed 失败: {exc}")
             return False

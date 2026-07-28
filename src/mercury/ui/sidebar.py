@@ -3,6 +3,7 @@ from collections.abc import Collection, Mapping
 from PySide6.QtCore import QRectF, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QButtonGroup,
     QFrame,
     QHBoxLayout,
@@ -43,6 +44,7 @@ class Sidebar(QWidget):
     import_opml_requested = Signal()
     refresh_requested = Signal()
     delete_feed_requested = Signal(str)
+    delete_feeds_requested = Signal(object)
     tag_filter_changed = Signal(object)
     rename_tag_requested = Signal(str)
     delete_tag_requested = Signal(str)
@@ -62,6 +64,11 @@ class Sidebar(QWidget):
         self._clear_tag_filter_text = "Clear filter"
         self._rename_tag_text = "Rename"
         self._delete_tag_text = "Delete"
+        self._batch_delete_mode = False
+        self._feed_id_before_batch: str | None = None
+        self._batch_delete_text = "Select multiple"
+        self._delete_selected_text = "Delete selected ({count})"
+        self._cancel_batch_text = "Cancel"
 
         self.feeds_tab = QPushButton()
         self.feeds_tab.setObjectName("PrimarySegment")
@@ -123,6 +130,21 @@ class Sidebar(QWidget):
             QToolButton.ToolButtonPopupMode.InstantPopup
         )
 
+        self.batch_delete_button = QPushButton()
+        self.batch_delete_button.setObjectName("FeedBatchDeleteButton")
+        self.batch_delete_button.clicked.connect(
+            self._handle_batch_delete_button
+        )
+
+        self.cancel_batch_delete_button = QPushButton()
+        self.cancel_batch_delete_button.setObjectName(
+            "FeedBatchDeleteCancelButton"
+        )
+        self.cancel_batch_delete_button.setVisible(False)
+        self.cancel_batch_delete_button.clicked.connect(
+            self._cancel_batch_delete_mode
+        )
+
         feed_actions_widget = QWidget()
         feed_actions_layout = QHBoxLayout(feed_actions_widget)
         feed_actions_layout.setContentsMargins(0, 0, 0, 0)
@@ -134,6 +156,8 @@ class Sidebar(QWidget):
         title_layout.setContentsMargins(12, 4, 12, 2)
         title_layout.addWidget(self.title_label)
         title_layout.addStretch(1)
+        title_layout.addWidget(self.batch_delete_button)
+        title_layout.addWidget(self.cancel_batch_delete_button)
         title_layout.addWidget(feed_actions_widget)
 
         self.feed_list = QListWidget()
@@ -143,6 +167,9 @@ class Sidebar(QWidget):
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
         self.feed_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.feed_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
         self.feed_list.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu
         )
@@ -206,6 +233,9 @@ class Sidebar(QWidget):
         self.feed_list.currentItemChanged.connect(
             self._on_current_item_changed
         )
+        self.feed_list.itemSelectionChanged.connect(
+            self._on_feed_selection_changed
+        )
         self.feed_list.customContextMenuRequested.connect(
             self._show_feed_context_menu
         )
@@ -222,6 +252,8 @@ class Sidebar(QWidget):
         unread_counts: Mapping[str, int] | None = None,
         starred_count: int = 0,
     ) -> None:
+        if self._batch_delete_mode:
+            self._set_batch_delete_mode(False, restore_selection=False)
         selected_feed_id = self.current_feed_id() or ALL_FEEDS_ID
         blocker = QSignalBlocker(self.feed_list)
         self.feed_list.clear()
@@ -255,11 +287,7 @@ class Sidebar(QWidget):
 
         self.select_feed(selected_feed_id)
         del blocker
-        selected_item = self.feed_list.currentItem()
-        self.menu_delete_feed_action.setEnabled(
-            selected_item is not None
-            and not bool(selected_item.data(IS_VIRTUAL_ROLE))
-        )
+        self._update_delete_action_state()
         self._update_footer()
 
     def update_unread_count(self, feed_id: str, unread_count: int) -> None:
@@ -378,6 +406,9 @@ class Sidebar(QWidget):
         import_opml: str,
         refresh: str,
         delete_feed: str,
+        batch_delete: str = "Select multiple",
+        delete_selected: str = "Delete selected ({count})",
+        cancel_selection: str = "Cancel",
     ) -> None:
         self.add_feed_button.setToolTip(add_feed)
         self.add_feed_button.setAccessibleName(add_feed)
@@ -387,6 +418,10 @@ class Sidebar(QWidget):
         self.menu_import_opml_action.setText(import_opml)
         self.menu_refresh_action.setText(refresh)
         self.menu_delete_feed_action.setText(delete_feed)
+        self._batch_delete_text = batch_delete
+        self._delete_selected_text = delete_selected
+        self._cancel_batch_text = cancel_selection
+        self._update_batch_delete_controls()
 
     def set_footer(self, footer_text: str) -> None:
         self._footer_template = footer_text
@@ -427,6 +462,13 @@ class Sidebar(QWidget):
             return None
         return str(item.data(FEED_ID_ROLE))
 
+    def selected_feed_ids(self) -> tuple[str, ...]:
+        return tuple(
+            str(item.data(FEED_ID_ROLE))
+            for item in self.feed_list.selectedItems()
+            if not bool(item.data(IS_VIRTUAL_ROLE))
+        )
+
     def select_feed(self, feed_id: str) -> bool:
         item = self._item_for_feed_id(feed_id)
         if item is None:
@@ -434,18 +476,18 @@ class Sidebar(QWidget):
         if item is None:
             return False
 
+        self.feed_list.clearSelection()
         self.feed_list.setCurrentItem(item)
         return True
 
     def _on_current_item_changed(self, current, previous) -> None:
         del previous
 
-        self.menu_delete_feed_action.setEnabled(
-            current is not None
-            and not bool(current.data(IS_VIRTUAL_ROLE))
-        )
+        self._update_delete_action_state()
 
         if current is None:
+            return
+        if self._batch_delete_mode:
             return
 
         feed_id = current.data(FEED_ID_ROLE)
@@ -453,13 +495,99 @@ class Sidebar(QWidget):
 
     def _request_current_feed_deletion(self) -> None:
         current = self.feed_list.currentItem()
-
-        if current is None:
+        if current is None or bool(current.data(IS_VIRTUAL_ROLE)):
             return
-        if bool(current.data(IS_VIRTUAL_ROLE)):
+        self._emit_feed_deletion_request(
+            (str(current.data(FEED_ID_ROLE)),)
+        )
+
+    def _handle_batch_delete_button(self) -> None:
+        if not self._batch_delete_mode:
+            self._set_batch_delete_mode(True)
+            return
+        self._emit_feed_deletion_request(self.selected_feed_ids())
+
+    def _cancel_batch_delete_mode(self) -> None:
+        self._set_batch_delete_mode(False)
+
+    def _set_batch_delete_mode(
+        self,
+        enabled: bool,
+        *,
+        restore_selection: bool = True,
+    ) -> None:
+        if enabled == self._batch_delete_mode:
             return
 
-        self.delete_feed_requested.emit(str(current.data(FEED_ID_ROLE)))
+        if enabled:
+            self._feed_id_before_batch = self.current_feed_id()
+            self._batch_delete_mode = True
+            self.feed_list.setSelectionMode(
+                QAbstractItemView.SelectionMode.MultiSelection
+            )
+            self.feed_list.clearSelection()
+        else:
+            previous_feed_id = self._feed_id_before_batch
+            self._batch_delete_mode = False
+            self._feed_id_before_batch = None
+            self.feed_list.setSelectionMode(
+                QAbstractItemView.SelectionMode.SingleSelection
+            )
+            self.feed_list.clearSelection()
+            if restore_selection and previous_feed_id is not None:
+                self.select_feed(previous_feed_id)
+
+        self._update_delete_action_state()
+
+    def _on_feed_selection_changed(self) -> None:
+        if self._batch_delete_mode:
+            blocker = QSignalBlocker(self.feed_list)
+            for item in self.feed_list.selectedItems():
+                if bool(item.data(IS_VIRTUAL_ROLE)):
+                    item.setSelected(False)
+            del blocker
+        self._update_delete_action_state()
+
+    def _update_delete_action_state(self) -> None:
+        current = self.feed_list.currentItem()
+        self.menu_delete_feed_action.setEnabled(
+            not self._batch_delete_mode
+            and current is not None
+            and not bool(current.data(IS_VIRTUAL_ROLE))
+        )
+        self._update_batch_delete_controls()
+
+    def _update_batch_delete_controls(self) -> None:
+        selected_count = len(self.selected_feed_ids())
+        self.cancel_batch_delete_button.setText(self._cancel_batch_text)
+        self.cancel_batch_delete_button.setVisible(
+            self._batch_delete_mode
+        )
+        self.add_feed_button.setVisible(not self._batch_delete_mode)
+        self.feed_menu_button.setVisible(not self._batch_delete_mode)
+        if self._batch_delete_mode:
+            self.batch_delete_button.setText(
+                self._delete_selected_text.format(count=selected_count)
+            )
+            self.batch_delete_button.setEnabled(selected_count > 0)
+            return
+
+        self.batch_delete_button.setText(self._batch_delete_text)
+        self.batch_delete_button.setEnabled(self._feed_count > 0)
+
+    def _emit_feed_deletion_request(
+        self,
+        feed_ids: Collection[str],
+    ) -> None:
+        normalized_ids = tuple(
+            dict.fromkeys(str(feed_id) for feed_id in feed_ids)
+        )
+        if not normalized_ids:
+            return
+
+        if len(normalized_ids) == 1:
+            self.delete_feed_requested.emit(normalized_ids[0])
+        self.delete_feeds_requested.emit(normalized_ids)
 
     def _show_feed_context_menu(self, position) -> None:
         item = self.feed_list.itemAt(position)
@@ -477,13 +605,21 @@ class Sidebar(QWidget):
             return QMenu(self)
 
         feed_id = str(item.data(FEED_ID_ROLE))
+        selected_feed_ids = self.selected_feed_ids()
+        deletion_targets = (
+            selected_feed_ids
+            if item.isSelected() and feed_id in selected_feed_ids
+            else (feed_id,)
+        )
         menu = QMenu(self)
         delete_action = menu.addAction(
             self.menu_delete_feed_action.text()
         )
         delete_action.setObjectName("ContextDeleteFeedAction")
         delete_action.triggered.connect(
-            lambda checked=False: self.delete_feed_requested.emit(feed_id)
+            lambda checked=False: self._emit_feed_deletion_request(
+                deletion_targets
+            )
         )
         return menu
 

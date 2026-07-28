@@ -148,6 +148,56 @@ class BackendArticleServiceTest(unittest.TestCase):
         self.assertEqual(self.db.get_all_feeds(), [])
         self.assertEqual(self.db.get_articles_by_feed(feed_id), [])
 
+    def test_batch_deletion_is_atomic_and_cascades_articles(self) -> None:
+        first_id = self.db.add_feed(
+            "First",
+            "https://example.com/first.xml",
+        )
+        second_id = self.db.add_feed(
+            "Second",
+            "https://example.com/second.xml",
+        )
+        for feed_id, suffix in (
+            (first_id, "first"),
+            (second_id, "second"),
+        ):
+            self.db.save_articles(
+                feed_id,
+                [
+                    {
+                        "title": suffix,
+                        "link": f"https://example.com/{suffix}",
+                        "summary": suffix,
+                    }
+                ],
+            )
+
+        self.service.delete_feeds((str(first_id), str(second_id)))
+
+        self.assertEqual(self.db.get_all_feeds(), [])
+        self.assertEqual(self.db.get_articles_by_feed(first_id), [])
+        self.assertEqual(self.db.get_articles_by_feed(second_id), [])
+
+    def test_batch_deletion_keeps_all_feeds_when_one_is_missing(self) -> None:
+        first_id = self.db.add_feed(
+            "First",
+            "https://example.com/first.xml",
+        )
+        second_id = self.db.add_feed(
+            "Second",
+            "https://example.com/second.xml",
+        )
+
+        with self.assertRaises(FeedDeletionError):
+            self.service.delete_feeds(
+                (str(first_id), "999", str(second_id))
+            )
+
+        self.assertEqual(
+            {row[0] for row in self.db.get_all_feeds()},
+            {first_id, second_id},
+        )
+
     def test_missing_feed_returns_adapter_error(self) -> None:
         with self.assertRaises(FeedDeletionError):
             self.service.delete_feed("999")
