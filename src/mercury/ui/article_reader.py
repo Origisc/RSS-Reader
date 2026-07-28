@@ -871,11 +871,6 @@ class ArticleReader(QWidget):
                 .reader-article p {{
                     margin: 0 0 32px;
                 }}
-                .reader-article div,
-                .reader-article span {{
-                    display: block;
-                    margin: 0 0 32px;
-                }}
                 .bilingual-pair {{
                     border-bottom: 1px solid #29485c;
                     margin: 0 0 24px;
@@ -913,8 +908,10 @@ class ArticleReader(QWidget):
                     font-style: italic;
                 }}
                 .reader-article img {{
+                    display: block;
                     height: auto;
                     max-width: 100%;
+                    margin: 16px 0;
                 }}
                 .reader-article table {{
                     border-collapse: collapse;
