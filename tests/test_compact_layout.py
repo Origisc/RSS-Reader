@@ -43,6 +43,20 @@ class CompactLayoutTest(unittest.TestCase):
             self.window.view_menu.actions(),
         )
 
+    def test_each_main_menu_has_an_icon(self) -> None:
+        menus = (
+            self.window.file_menu,
+            self.window.settings_menu,
+            self.window.view_menu,
+            self.window.help_menu,
+        )
+
+        self.assertTrue(all(not menu.icon().isNull() for menu in menus))
+        self.assertEqual(
+            len({menu.icon().cacheKey() for menu in menus}),
+            len(menus),
+        )
+
     def test_tag_editor_is_a_compact_reader_overlay(self) -> None:
         self.assertIs(
             self.window.tag_editor.parentWidget(),

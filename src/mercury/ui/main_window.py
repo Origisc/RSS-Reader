@@ -32,6 +32,7 @@ from mercury.ui.ai_settings import (
 from mercury.ui.article_list import ArticleList
 from mercury.ui.article_reader import ArticleReader
 from mercury.ui.feed_deletion import FeedDeletionService
+from mercury.ui.menu_icons import menu_icon
 from mercury.ui.read_state import InMemoryReadStateStore, ReadStateStore
 from mercury.ui.reader_document import ReaderDocument
 from mercury.ui.reader_style import (
@@ -228,6 +229,10 @@ class MainWindow(QMainWindow):
         self.settings_menu = self.menuBar().addMenu("")
         self.view_menu = self.menuBar().addMenu("")
         self.help_menu = self.menuBar().addMenu("")
+        self.file_menu.setIcon(menu_icon("file"))
+        self.settings_menu.setIcon(menu_icon("settings"))
+        self.view_menu.setIcon(menu_icon("view"))
+        self.help_menu.setIcon(menu_icon("help"))
 
         self.file_menu.addAction(self.add_feed_action)
         self.file_menu.addAction(self.import_opml_action)
