@@ -103,6 +103,7 @@ class MainEntryTest(unittest.TestCase):
         application_class.return_value.setOrganizationName.assert_called_once_with(
             "Mercury"
         )
+        application_class.return_value.setFont.assert_called_once()
         use_case_class.assert_called_once_with(database)
         article_service_class.assert_called_once_with(
             database,

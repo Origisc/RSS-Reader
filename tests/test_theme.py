@@ -8,10 +8,25 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from mercury.ui.theme import stylesheet_for_theme
+from mercury.ui.theme import (
+    UI_FONT_FAMILIES,
+    preferred_ui_font,
+    stylesheet_for_theme,
+)
 
 
 class ThemeTest(unittest.TestCase):
+    def test_preferred_ui_font_uses_cross_platform_sans_serif_fallbacks(
+        self,
+    ) -> None:
+        font = preferred_ui_font()
+
+        self.assertEqual(tuple(font.families()), UI_FONT_FAMILIES)
+        self.assertEqual(font.pointSize(), 10)
+        self.assertIn("Segoe UI", font.families())
+        self.assertIn("PingFang SC", font.families())
+        self.assertIn("Noto Sans CJK SC", font.families())
+
     def test_dark_theme_contains_reader_panel_styles(self) -> None:
         stylesheet = stylesheet_for_theme("dark")
 
@@ -53,6 +68,14 @@ class ThemeTest(unittest.TestCase):
         self.assertIn("QDialog QDoubleSpinBox::up-button", stylesheet)
         self.assertIn("subcontrol-position: top right", stylesheet)
         self.assertIn("subcontrol-position: bottom right", stylesheet)
+        self.assertIn("QListWidget#AgentsSettingsList::item:hover", stylesheet)
+        self.assertIn("border-right: 1px solid #2d3036", stylesheet)
+        self.assertNotIn(
+            "QListWidget#AgentsSettingsList {\n"
+            "    background: #202126;\n"
+            "    border: 1px solid #30333a",
+            stylesheet,
+        )
 
     def test_light_settings_dialog_uses_dark_label_text(self) -> None:
         stylesheet = stylesheet_for_theme("light")

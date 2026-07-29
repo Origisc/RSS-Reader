@@ -1,4 +1,25 @@
+from PySide6.QtGui import QFont
+
+
 THEME_CODES = ("system", "light", "dark")
+UI_FONT_FAMILIES = (
+    "Segoe UI Variable Text",
+    "Segoe UI",
+    "Microsoft YaHei UI",
+    "PingFang SC",
+    "Noto Sans CJK SC",
+    "Noto Sans",
+    "Arial",
+)
+
+
+def preferred_ui_font(point_size: int = 10) -> QFont:
+    """Return a readable cross-platform sans-serif application font."""
+
+    font = QFont()
+    font.setFamilies(list(UI_FONT_FAMILIES))
+    font.setPointSize(point_size)
+    return font
 
 LIGHT_STYLESHEET = """
 QMainWindow,
@@ -242,19 +263,24 @@ QStackedWidget#AgentsSettingsPages {
 }
 
 QListWidget#AgentsSettingsList {
-    background: #eeeeea;
-    border: 1px solid #d5d8dc;
-    border-radius: 6px;
+    background: #f0f1f2;
+    border: 0;
+    border-right: 1px solid #d7dbe0;
+    border-radius: 0;
     color: #34404b;
     outline: 0;
-    padding: 5px;
+    padding: 8px 10px;
 }
 
 QListWidget#AgentsSettingsList::item {
-    border-radius: 5px;
-    font-size: 14px;
-    margin: 2px 5px;
-    padding: 4px 8px;
+    border-radius: 7px;
+    margin: 0;
+    padding: 0 12px;
+}
+
+QListWidget#AgentsSettingsList::item:hover {
+    background: #e2e6ea;
+    color: #1f2933;
 }
 
 QListWidget#AgentsSettingsList::item:selected {
@@ -647,23 +673,28 @@ QStackedWidget#AgentsSettingsPages {
 }
 
 QListWidget#AgentsSettingsList {
-    background: #202126;
-    border: 1px solid #30333a;
-    border-radius: 6px;
+    background: #141519;
+    border: 0;
+    border-right: 1px solid #2d3036;
+    border-radius: 0;
     color: #d9e2ec;
     outline: 0;
-    padding: 5px;
+    padding: 8px 10px;
 }
 
 QListWidget#AgentsSettingsList::item {
-    border-radius: 5px;
-    font-size: 14px;
-    margin: 2px 5px;
-    padding: 4px 8px;
+    border-radius: 7px;
+    margin: 0;
+    padding: 0 12px;
+}
+
+QListWidget#AgentsSettingsList::item:hover {
+    background: #252831;
+    color: #f3f6f9;
 }
 
 QListWidget#AgentsSettingsList::item:selected {
-    background: #0f68d8;
+    background: #1769c2;
     color: #ffffff;
 }
 

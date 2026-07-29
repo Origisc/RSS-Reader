@@ -29,12 +29,14 @@ from mercury.storage import (
     database_path,
 )
 from mercury.ui.main_window import MainWindow
+from mercury.ui.theme import preferred_ui_font
 
 
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("Mercury")
     app.setOrganizationName("Mercury")
+    app.setFont(preferred_ui_font())
 
     legacy_database_paths = (
         Path.cwd() / "database.db",
