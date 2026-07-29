@@ -123,7 +123,22 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("First visible paragraph", rendered_text)
         self.assertIn("Second visible paragraph", rendered_text)
         self.assertGreaterEqual(markdown_fragment.lower().count("<p"), 2)
-        self.assertIn("color:#d7e3ed", rendered_html)
+        self.assertIn("color:#e8e3da", rendered_html)
+
+    def test_light_theme_renders_reader_as_a_light_paper_surface(self) -> None:
+        self.reader.set_color_scheme("light")
+        self.reader.show_article(
+            self.article,
+            ReaderDocument(
+                raw_html="<p>Readable light content.</p>",
+            ),
+        )
+
+        rendered_html = self.reader.content.toHtml().replace(" ", "").lower()
+
+        self.assertIn('bgcolor="#ffffff"', rendered_html)
+        self.assertIn("color:#202124", rendered_html)
+        self.assertIn("Readable light content", self.reader.content.toPlainText())
 
     def test_markdown_view_preserves_structural_formatting(self) -> None:
         document = ReaderDocument(
@@ -318,6 +333,110 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertEqual(
             self.reader._scaled_image_size(320, 180),
             (320, 180),
+        )
+
+    def test_image_width_tracks_narrow_reader_viewport(self) -> None:
+        self.reader.show()
+        self.reader.resize(560, 720)
+        self.app.processEvents()
+
+        width, height = self.reader._scaled_image_size(1200, 600)
+        available_width = max(
+            120,
+            self.reader.content.viewport().width() - 108,
+        )
+
+        self.assertLessEqual(width, available_width)
+        self.assertEqual(height, round(width / 2))
+
+    def test_link_only_404_entry_shows_clear_issue_and_keeps_link(self) -> None:
+        link = "https://example.com/removed-article"
+        article = replace(
+            self.article,
+            content_html=f'<p><a href="{link}">{link}</a></p>',
+            fetch_status="failed",
+            fetch_error="HTTP error: 404 Client Error: Not Found",
+        )
+        self.reader.set_content_issue_texts(
+            link_only_loading="Loading linked article.",
+            link_only_not_found="The linked article returned 404.",
+            link_only_failed="Loading failed: {error}",
+            link_only_available="Full content is available.",
+        )
+
+        self.reader.show_article(article)
+
+        rendered_text = self.reader.content.toPlainText()
+        self.assertIn("The linked article returned 404.", rendered_text)
+        self.assertIn(link, rendered_text)
+        self.assertNotIn("Loading linked article.", rendered_text)
+
+    def test_link_only_entry_reports_background_loading(self) -> None:
+        link = "https://example.com/pending-article"
+        article = replace(
+            self.article,
+            content_html=f'<p><a href="{link}">{link}</a></p>',
+            fetch_status="pending",
+        )
+        self.reader.set_content_issue_texts(
+            link_only_loading="Loading linked article.",
+            link_only_not_found="The linked article returned 404.",
+            link_only_failed="Loading failed: {error}",
+            link_only_available="Full content is available.",
+        )
+
+        self.reader.show_article(article)
+
+        self.assertIn(
+            "Loading linked article.",
+            self.reader.content.toPlainText(),
+        )
+
+    def test_image_only_figure_does_not_reserve_scaled_line_height(
+        self,
+    ) -> None:
+        fragment = (
+            '<figure class="insert-image">'
+            '<img alt="Fixture" height="auto" '
+            'src="https://example.com/figure.jpg" width="700" />'
+            "</figure>"
+            "<p>Text immediately after the figure.</p>"
+        )
+        resolved = self.reader._replace_resolved_images(
+            fragment,
+            {
+                "https://example.com/figure.jpg": _ResolvedImage(
+                    data_url="data:image/jpeg;base64,fixture",
+                    width=700,
+                    height=350,
+                )
+            },
+        )
+
+        self.assertNotIn("<figure", resolved)
+        self.assertIn("<p", resolved)
+        self.assertIn("line-height:100%", resolved)
+        self.assertNotIn('height="auto"', resolved)
+
+        rendered = QTextDocument()
+        rendered.setHtml(
+            self.reader._wrap_html(
+                f'<div class="reader-article">{resolved}</div>'
+            )
+        )
+        image_block = rendered.begin()
+        while image_block.isValid() and "\ufffc" not in image_block.text():
+            image_block = image_block.next()
+        text_block = image_block.next()
+
+        self.assertTrue(image_block.isValid())
+        self.assertTrue(text_block.isValid())
+        self.assertIn("Text immediately", text_block.text())
+        image_rect = rendered.documentLayout().blockBoundingRect(image_block)
+        text_rect = rendered.documentLayout().blockBoundingRect(text_block)
+        self.assertLessEqual(
+            text_rect.top() - image_rect.bottom(),
+            self.reader.reader_style.paragraph_spacing_px + 0.5,
         )
 
     def test_cleaning_failure_keeps_original_article_readable(self) -> None:
@@ -581,6 +700,43 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("https://example.com/one", rendered_html)
         self.assertIn("https://example.com/original.png", rendered_html)
         self.assertIn("font-weight:700", rendered_html.replace(" ", ""))
+
+    def test_bilingual_view_reuses_resolved_image_cache(self) -> None:
+        image_url = "https://example.com/resolved.png"
+        source_html = (
+            "<p>Original paragraph.</p>"
+            f'<figure><img src="{image_url}" alt="Resolved"></figure>'
+        )
+        self.reader._resolve_images_async = lambda _html: None
+        self.reader.show_article(
+            self.article,
+            ReaderDocument(raw_html=source_html),
+        )
+        self.reader._image_replacements[image_url] = _ResolvedImage(
+            data_url="data:image/png;base64,fixture",
+            width=900,
+            height=450,
+            natural_width=900,
+            natural_height=450,
+        )
+
+        self.reader.set_translation_result(
+            self._translation_result(
+                (
+                    self._paragraph(
+                        0,
+                        "Original paragraph.",
+                        "原文段落译文。",
+                    ),
+                ),
+                source_format=TranslationSourceFormat.RAW_HTML,
+            )
+        )
+
+        rendered_html = self.reader.content.toHtml()
+        self.assertIn("data:image/png;base64,fixture", rendered_html)
+        self.assertNotIn(image_url, rendered_html)
+        self.assertIn("原文段落译文", self.reader.content.toPlainText())
 
     def test_bilingual_legacy_br_fragment_uses_structured_pairs(
         self,

@@ -1,8 +1,8 @@
 import re
 from dataclasses import dataclass
-from html import escape
+from html import escape, unescape
 
-from PySide6.QtCore import Qt, Signal, QUrl
+from PySide6.QtCore import Qt, QTimer, Signal, QUrl
 from PySide6.QtGui import QImage, QTextDocument
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from PySide6.QtWidgets import (
@@ -54,8 +54,11 @@ _IMAGE_SIZE_ATTRIBUTE_PATTERN = re.compile(
     r"(?:[\"'][^\"']*[\"']|[^\s>]+)",
     re.IGNORECASE,
 )
-_IMAGE_ONLY_PARAGRAPH_PATTERN = re.compile(
-    r"<p\b(?P<attrs>[^>]*)>(?P<body>.*?)</p>",
+_IMAGE_ONLY_BLOCK_PATTERN = re.compile(
+    (
+        r"<(?P<tag>p|figure|div)\b(?P<attrs>[^>]*)>"
+        r"(?P<body>.*?)</(?P=tag)\s*>"
+    ),
     re.IGNORECASE | re.DOTALL,
 )
 _STYLE_ATTRIBUTE_PATTERN = re.compile(
@@ -70,6 +73,8 @@ class _ResolvedImage:
     data_url: str
     width: int
     height: int
+    natural_width: int | None = None
+    natural_height: int | None = None
 
 
 class ArticleReader(QWidget):
@@ -92,6 +97,7 @@ class ArticleReader(QWidget):
         self._current_document: ReaderDocument | None = None
         self._current_view = ReaderView.RAW
         self._reader_style = ReaderStyle()
+        self._color_scheme = "dark"
         self._is_read = False
         self._translation_result: TranslationResult | None = None
         self._bilingual_visible = False
@@ -124,9 +130,25 @@ class ArticleReader(QWidget):
         self._fallback_error = (
             "Cleaning failed: {error}. Showing original content."
         )
+        self._link_only_loading = (
+            "This Feed only provides a link. Mercury is loading the "
+            "article webpage in the background."
+        )
+        self._link_only_not_found = (
+            "The article body could not be loaded because the webpage "
+            "returned 404. It may have been removed or moved."
+        )
+        self._link_only_failed = (
+            "The article body could not be loaded: {error}"
+        )
+        self._link_only_available = (
+            "This Feed only provides a link. The webpage content is "
+            "available in Cleaned HTML or Markdown."
+        )
 
         self.title_label = QLabel()
         self.title_label.setObjectName("ReaderPanelTitle")
+        self.title_label.hide()
 
         self.view_toolbar = QFrame()
         self.view_toolbar.setObjectName("ReaderToolbar")
@@ -212,6 +234,17 @@ class ArticleReader(QWidget):
         self.content.setOpenExternalLinks(True)
         self._network_manager = QNetworkAccessManager()
         self.content.document().setMetaInformation(QTextDocument.DocumentUrl, "")
+        self._image_replacements: dict[str, _ResolvedImage] = {}
+        self._image_generation = 0
+        self._is_resolving_images = False
+        self._pending_images = 0
+        self._last_image_max_width = 0
+        self._image_resize_timer = QTimer(self)
+        self._image_resize_timer.setSingleShot(True)
+        self._image_resize_timer.setInterval(80)
+        self._image_resize_timer.timeout.connect(
+            self._rerender_images_after_resize
+        )
 
         self.reader_body = QFrame()
         self.reader_body.setObjectName("ReaderBody")
@@ -252,6 +285,7 @@ class ArticleReader(QWidget):
         return self._translation_result
 
     def show_welcome(self) -> None:
+        self._reset_image_context()
         self._current_article = None
         self._current_document = None
         self._is_read = False
@@ -274,6 +308,8 @@ class ArticleReader(QWidget):
         article: Article,
         document: ReaderDocument | None = None,
     ) -> None:
+        if self.current_article_id != article.id:
+            self._reset_image_context()
         self._current_article = article
         self._current_document = document or ReaderDocument.from_article(article)
         self._translation_result = None
@@ -284,6 +320,27 @@ class ArticleReader(QWidget):
         self._update_bilingual_button()
         self._render_current_view()
 
+    def _reset_image_context(self) -> None:
+        self._image_generation += 1
+        self._image_replacements.clear()
+        self._is_resolving_images = False
+        self._pending_images = 0
+        self._last_image_max_width = 0
+        self._image_resize_timer.stop()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self._current_article is not None and self._image_replacements:
+            self._image_resize_timer.start()
+
+    def _rerender_images_after_resize(self) -> None:
+        if self._current_article is None or not self._image_replacements:
+            return
+        if self._image_max_width() == self._last_image_max_width:
+            return
+
+        self._render_current_view()
+
     def set_view(self, view: ReaderView) -> None:
         """Switch the representation without changing the selected article."""
         self._current_view = view
@@ -292,8 +349,33 @@ class ArticleReader(QWidget):
         if self._current_article is not None:
             self._render_current_view()
 
+    def set_content_issue_texts(
+        self,
+        *,
+        link_only_loading: str,
+        link_only_not_found: str,
+        link_only_failed: str,
+        link_only_available: str,
+    ) -> None:
+        self._link_only_loading = link_only_loading
+        self._link_only_not_found = link_only_not_found
+        self._link_only_failed = link_only_failed
+        self._link_only_available = link_only_available
+
+        if self._current_article is not None:
+            self._render_current_view()
+
     def set_reader_style(self, style: ReaderStyle) -> None:
         self._reader_style = style.normalized()
+
+        if self._current_article is None:
+            self.show_welcome()
+            return
+
+        self._render_current_view()
+
+    def set_color_scheme(self, theme: str) -> None:
+        self._color_scheme = "light" if theme == "light" else "dark"
 
         if self._current_article is None:
             self.show_welcome()
@@ -574,26 +656,25 @@ class ArticleReader(QWidget):
             return
 
         scroll_pos = self.content.verticalScrollBar().value()
+        normalized_html = self._normalize_image_paragraphs(interleaved_html)
+        display_html = self._replace_resolved_images(
+            normalized_html,
+            self._scaled_image_replacements(),
+        )
 
         article = self._current_article
         safe_title = escape(article.title)
         safe_source = escape(article.source_title)
-        safe_source_label = escape(self._source_label)
-        safe_note = escape(self._reader_note)
         body = f"""
             <h1>{safe_title}</h1>
             <p class="byline">{safe_source}</p>
-            <div class="reader-card">
-                <span>{safe_source_label}</span>
-                <strong>{safe_source}</strong>
-            </div>
             <div class="reader-article bilingual-article">
-                {interleaved_html}
+                {display_html}
             </div>
-            <div class="reader-note">{safe_note}</div>
         """
         self.content.setHtml(self._wrap_html(body))
         self.content.verticalScrollBar().setValue(scroll_pos)
+        self._resolve_images_async(normalized_html)
 
     @staticmethod
     def _text_to_html(text: str) -> str:
@@ -635,33 +716,93 @@ class ArticleReader(QWidget):
             return
 
         scroll_pos = self.content.verticalScrollBar().value()
+        normalized_content_html = self._normalize_image_paragraphs(
+            content_html
+        )
+        display_content_html = self._replace_resolved_images(
+            normalized_content_html,
+            self._scaled_image_replacements(),
+        )
 
         article = self._current_article
         safe_title = escape(article.title)
         safe_source = escape(article.source_title)
-        safe_source_label = escape(self._source_label)
-        safe_note = escape(self._reader_note)
         fallback_html = ""
+        issue_html = ""
 
         if fallback_status:
             fallback_html = (
                 f'<div class="reader-warning">{escape(fallback_status)}</div>'
             )
+        content_issue = self._content_issue_message(content_html)
+        if content_issue:
+            issue_html = (
+                f'<div class="reader-warning">{escape(content_issue)}</div>'
+            )
 
         body = f"""
             <h1>{safe_title}</h1>
             <p class="byline">{safe_source}</p>
-            <div class="reader-card">
-                <span>{safe_source_label}</span>
-                <strong>{safe_source}</strong>
-            </div>
             {fallback_html}
-            <div class="reader-article">{content_html}</div>
-            <div class="reader-note">{safe_note}</div>
+            {issue_html}
+            <div class="reader-article">{display_content_html}</div>
         """
         self.content.setHtml(self._wrap_html(body))
         self.content.verticalScrollBar().setValue(scroll_pos)
-        self._resolve_images_async(content_html)
+        self._resolve_images_async(normalized_content_html)
+
+    def _content_issue_message(self, content_html: str) -> str:
+        article = self._current_article
+        if article is None or not self._is_link_only_content(content_html):
+            return ""
+
+        if (
+            article.original_html
+            or article.cleaned_html
+            or article.cleaned_markdown
+        ):
+            if self._current_view is ReaderView.RAW:
+                return self._link_only_available
+            return ""
+
+        if article.fetch_status == "failed":
+            error = str(article.fetch_error or "").strip()
+            if re.search(r"\b404\b|not[\s_-]*found", error, re.IGNORECASE):
+                return self._link_only_not_found
+            return self._link_only_failed.format(
+                error=error or "Unknown fetch error",
+            )
+
+        return self._link_only_loading
+
+    @staticmethod
+    def _is_link_only_content(content_html: str) -> bool:
+        anchors = re.findall(
+            r"<a\b[^>]*>(.*?)</a\s*>",
+            content_html,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if not anchors:
+            return False
+
+        outside_anchors = re.sub(
+            r"<a\b[^>]*>.*?</a\s*>",
+            "",
+            content_html,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        outside_text = re.sub(r"<[^>]+>", " ", outside_anchors)
+        if re.sub(r"\s+", "", unescape(outside_text)):
+            return False
+
+        for anchor_body in anchors:
+            anchor_text = unescape(
+                re.sub(r"<[^>]+>", "", anchor_body)
+            ).strip()
+            if not re.match(r"^https?://\S+$", anchor_text, re.IGNORECASE):
+                return False
+
+        return True
 
     def _resolve_markdown_images(self, markdown: str) -> str:
         import re
@@ -743,30 +884,40 @@ class ArticleReader(QWidget):
         return re.sub(r'<img[^>]+>', replace_image, html)
 
     def _resolve_images_async(self, html: str) -> None:
-        if hasattr(self, '_is_resolving_images') and self._is_resolving_images:
+        if self._is_resolving_images:
             return
 
         img_urls = re.findall(r'src=["\']([^"\']+)["\']', html)
-        http_urls = [url for url in img_urls if url.startswith('http')]
+        http_urls = [
+            url
+            for url in dict.fromkeys(img_urls)
+            if url.startswith('http')
+            and url not in self._image_replacements
+        ]
 
         if not http_urls:
             return
 
         self._is_resolving_images = True
         self._pending_images = len(http_urls)
-        self._resolved_html = html
-        self._image_replacements: dict[str, _ResolvedImage] = {}
+        generation = self._image_generation
 
         for url in http_urls:
             request = QNetworkRequest(QUrl(url))
             request.setTransferTimeout(10000)
             reply = self._network_manager.get(request)
             reply.finished.connect(
-                lambda r=reply, u=url: self._on_image_downloaded(r, u)
+                lambda r=reply, u=url, g=generation: (
+                    self._on_image_downloaded(r, u, g)
+                )
             )
 
-    def _on_image_downloaded(self, reply, url):
+    def _on_image_downloaded(self, reply, url, generation: int):
         from PySide6.QtNetwork import QNetworkReply
+
+        if generation != self._image_generation:
+            reply.deleteLater()
+            return
 
         try:
             error = reply.error()
@@ -794,6 +945,8 @@ class ArticleReader(QWidget):
                         ),
                         width=width,
                         height=height,
+                        natural_width=image.width(),
+                        natural_height=image.height(),
                     )
         except Exception:
             # A failed image must never make the cached article unreadable.
@@ -810,7 +963,7 @@ class ArticleReader(QWidget):
         source_width: int,
         source_height: int,
     ) -> tuple[int, int]:
-        max_width = self._reader_style.normalized().content_width
+        max_width = self._image_max_width()
         if source_width <= 0 or source_height <= 0:
             return 1, 1
 
@@ -819,6 +972,37 @@ class ArticleReader(QWidget):
             max(1, round(source_width * scale)),
             max(1, round(source_height * scale)),
         )
+
+    def _image_max_width(self) -> int:
+        configured_width = self._reader_style.normalized().content_width
+        if not self.isVisible():
+            return configured_width
+
+        viewport_width = self.content.viewport().width()
+        page_padding = 108
+        visible_width = max(120, viewport_width - page_padding)
+        return min(configured_width, visible_width)
+
+    def _scaled_image_replacements(self) -> dict[str, _ResolvedImage]:
+        scaled: dict[str, _ResolvedImage] = {}
+        for url, image in self._image_replacements.items():
+            natural_width = image.natural_width or image.width
+            natural_height = image.natural_height or image.height
+            width, height = self._scaled_image_size(
+                natural_width,
+                natural_height,
+            )
+            scaled[url] = _ResolvedImage(
+                data_url=image.data_url,
+                width=width,
+                height=height,
+                natural_width=natural_width,
+                natural_height=natural_height,
+            )
+
+        if scaled:
+            self._last_image_max_width = self._image_max_width()
+        return scaled
 
     @staticmethod
     def _replace_resolved_images(
@@ -859,7 +1043,7 @@ class ArticleReader(QWidget):
     def _normalize_image_paragraphs(html: str) -> str:
         """Prevent proportional line height from scaling image-only blocks."""
 
-        def normalize_paragraph(match: re.Match[str]) -> str:
+        def normalize_block(match: re.Match[str]) -> str:
             body = match.group("body")
             if _IMAGE_TAG_PATTERN.search(body) is None:
                 return match.group(0)
@@ -889,60 +1073,55 @@ class ArticleReader(QWidget):
                     f"{attrs[style_match.end():]}"
                 )
 
+            # QTextDocument ignores ``figure`` styling and applies the
+            # article line-height to the image itself. A presentation-only
+            # paragraph keeps the semantic source unchanged in storage while
+            # giving Qt a block whose line height it can size correctly.
             return f"<p{attrs}>{body}</p>"
 
-        return _IMAGE_ONLY_PARAGRAPH_PATTERN.sub(normalize_paragraph, html)
+        return _IMAGE_ONLY_BLOCK_PATTERN.sub(normalize_block, html)
 
     def _apply_image_replacements(self) -> None:
-        if not hasattr(self, '_resolved_html'):
-            self._is_resolving_images = False
-            return
-
-        if not self._image_replacements:
-            self._is_resolving_images = False
-            return
-
-        scroll_pos = self.content.verticalScrollBar().value()
-        resolved_html = self._replace_resolved_images(
-            self._resolved_html,
-            self._image_replacements,
-        )
-
-        article = self._current_article
-        if article is None:
-            self._is_resolving_images = False
-            return
-
-        safe_title = escape(article.title)
-        safe_source = escape(article.source_title)
-        safe_source_label = escape(self._source_label)
-        safe_note = escape(self._reader_note)
-
-        body = f"""
-            <h1>{safe_title}</h1>
-            <p class="byline">{safe_source}</p>
-            <div class="reader-card">
-                <span>{safe_source_label}</span>
-                <strong>{safe_source}</strong>
-            </div>
-            <div class="reader-article">{resolved_html}</div>
-            <div class="reader-note">{safe_note}</div>
-        """
-        self.content.setHtml(self._wrap_html(body))
-        self.content.verticalScrollBar().setValue(scroll_pos)
-
         self._is_resolving_images = False
+        if self._current_article is not None and self._image_replacements:
+            self._render_current_view()
 
     def _wrap_html(self, body: str) -> str:
         paragraph_spacing = self._reader_style.paragraph_spacing_px
+        if self._color_scheme == "light":
+            palette = {
+                "background": "#ffffff",
+                "text": "#202124",
+                "title": "#17181a",
+                "muted": "#6f7378",
+                "surface": "#f3f5f7",
+                "surface_text": "#25313c",
+                "border": "#d7dce1",
+                "code": "#f0f2f4",
+                "link": "#0a66cc",
+                "translation": "#eaf3ff",
+            }
+        else:
+            palette = {
+                "background": "#191b1f",
+                "text": "#e8e3da",
+                "title": "#f7f3ec",
+                "muted": "#aaa49b",
+                "surface": "#24272c",
+                "surface_text": "#edf0f3",
+                "border": "#3a3f46",
+                "code": "#24272c",
+                "link": "#73adff",
+                "translation": "#23354a",
+            }
         return f"""
         <!doctype html>
         <html>
         <head>
             <style>
                 body {{
-                    background: #082435;
-                    color: #d7e3ed;
+                    background: {palette["background"]};
+                    color: {palette["text"]};
                     font-family: Georgia, "Times New Roman", serif;
                     font-size: {self._reader_style.font_size}px;
                     line-height: {self._reader_style.line_height};
@@ -952,44 +1131,44 @@ class ArticleReader(QWidget):
                 .reader-page {{
                     margin: 0 auto;
                     max-width: {self._reader_style.content_width}px;
-                    padding: 32px 40px 72px;
+                    padding: 46px 54px 76px;
                 }}
                 h1 {{
-                    color: #dbe8f5;
-                    font-size: 34px;
+                    color: {palette["title"]};
+                    font-size: 38px;
                     line-height: 1.18;
-                    margin: 0 0 18px;
+                    margin: 0 0 14px;
                 }}
                 .byline {{
-                    color: #cbd8e5;
+                    color: {palette["muted"]};
                     font-style: italic;
-                    margin: 0 0 22px;
+                    margin: 0 0 30px;
                 }}
                 .lede {{
-                    color: #afc2d2;
+                    color: {palette["muted"]};
                     font-size: {self._reader_style.font_size}px;
                 }}
                 .reader-card,
                 .reader-note,
                 .reader-warning {{
-                    background: #102f53;
+                    background: {palette["surface"]};
                     border-left: 3px solid #2487ff;
                     border-radius: 6px;
-                    color: #dbe8f5;
+                    color: {palette["surface_text"]};
                     margin: 20px 0;
                     padding: 14px 18px;
                 }}
                 .reader-card span {{
-                    color: #9db4c8;
+                    color: {palette["muted"]};
                     display: block;
                     font-family: "Segoe UI", Arial, sans-serif;
                     font-size: 13px;
                     margin-bottom: 4px;
                 }}
                 .reader-note {{
-                    background: #0f2a3d;
-                    border-left-color: #4e7191;
-                    color: #adc3d2;
+                    background: {palette["surface"]};
+                    border-left-color: {palette["border"]};
+                    color: {palette["muted"]};
                     font-family: "Segoe UI", Arial, sans-serif;
                     font-size: 13px;
                 }}
@@ -1004,7 +1183,7 @@ class ArticleReader(QWidget):
                     margin: 0 0 {paragraph_spacing}px;
                 }}
                 .bilingual-pair {{
-                    border-bottom: 1px solid #29485c;
+                    border-bottom: 1px solid {palette["border"]};
                     margin: 0 0 24px;
                     padding: 0 0 24px;
                 }}
@@ -1012,17 +1191,17 @@ class ArticleReader(QWidget):
                     border-bottom: 0;
                 }}
                 .original-paragraph {{
-                    color: #d7e3ed;
+                    color: {palette["text"]};
                     margin-bottom: 10px;
                 }}
                 .bilingual-article p {{
                     margin: 0;
                 }}
                 .translation-block {{
-                    background: #102f53;
+                    background: {palette["translation"]};
                     border-left: 3px solid #2487ff;
                     border-radius: 5px;
-                    color: #f0f6fc;
+                    color: {palette["surface_text"]};
                     margin: 8px 0 22px;
                     padding: 12px 16px;
                 }}
@@ -1043,8 +1222,13 @@ class ArticleReader(QWidget):
                     font-style: italic;
                 }}
                 .reader-article img {{
-                    margin: 16px 0;
+                    margin: 0;
                     vertical-align: top;
+                }}
+                .reader-article figure {{
+                    line-height: 100%;
+                    margin: 16px 0;
+                    padding: 0;
                 }}
                 .reader-article table {{
                     border-collapse: collapse;
@@ -1053,13 +1237,13 @@ class ArticleReader(QWidget):
                 }}
                 .reader-article th,
                 .reader-article td {{
-                    border: 1px solid #416074;
+                    border: 1px solid {palette["border"]};
                     padding: 8px;
                     text-align: left;
                 }}
                 .reader-article pre,
                 .reader-article code {{
-                    background: #0f2a3d;
+                    background: {palette["code"]};
                     border-radius: 4px;
                     font-family: Consolas, "SFMono-Regular", monospace;
                 }}
@@ -1068,7 +1252,7 @@ class ArticleReader(QWidget):
                     padding: 14px;
                 }}
                 .reader-article a {{
-                    color: #69aefc;
+                    color: {palette["link"]};
                 }}
             </style>
         </head>
