@@ -1,3 +1,4 @@
+import sqlite3
 from collections.abc import Collection, Mapping
 
 from PySide6.QtCore import Qt, QRunnable, QThreadPool, QObject, Signal
@@ -1715,9 +1716,10 @@ class MainWindow(QMainWindow):
                 ].load()
                 for agent_id in AGENT_IDS
             }
-        except Exception:
-            message = self.translator.text(
-                "status.ai_settings_storage_failed"
+        except Exception as exc:
+            message = self._ai_storage_failure_message(
+                exc,
+                action="load",
             )
             QMessageBox.warning(
                 self,
@@ -1743,9 +1745,10 @@ class MainWindow(QMainWindow):
                         store.clear()
                     else:
                         store.save(config)
-            except Exception:
-                message = self.translator.text(
-                    "status.ai_settings_storage_failed"
+            except Exception as exc:
+                message = self._ai_storage_failure_message(
+                    exc,
+                    action="save",
                 )
                 QMessageBox.warning(
                     self,
@@ -1758,6 +1761,25 @@ class MainWindow(QMainWindow):
                 self.translator.text("status.ai_settings_saved"),
                 5000,
             )
+
+    def _ai_storage_failure_message(
+        self,
+        error: Exception,
+        *,
+        action: str,
+    ) -> str:
+        if isinstance(error, PermissionError):
+            reason = "permission"
+        elif isinstance(error, sqlite3.Error):
+            reason = "database"
+        elif isinstance(error, OSError):
+            reason = "unavailable"
+        else:
+            reason = "unknown"
+
+        return self.translator.text(
+            f"status.ai_settings_{action}_failed.{reason}"
+        )
 
     def _apply_settings(
         self,

@@ -38,6 +38,36 @@ class TranslatorTest(unittest.TestCase):
         self.assertEqual(translator.language, "zh_CN")
         self.assertEqual(translator.text("menu.file"), "文件")
 
+    def test_ai_configuration_failure_reasons_exist_in_both_languages(
+        self,
+    ) -> None:
+        keys = (
+            "ai_settings.reason_prefix",
+            "ai_settings.validation.base_url_required",
+            "ai_settings.validation.base_url_invalid",
+            "ai_settings.validation.model_required",
+            "ai_settings.validation.timeout_out_of_range",
+            "ai_settings.connection_reason.authentication",
+            "ai_settings.connection_reason.timeout",
+            "ai_settings.connection_reason.proxy",
+            "ai_settings.connection_reason.local_unreachable",
+            "ai_settings.connection_reason.remote_unreachable",
+            "status.ai_settings_load_failed.permission",
+            "status.ai_settings_save_failed.unavailable",
+        )
+
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+            for key in keys:
+                self.assertNotEqual(translator.text(key), key)
+
+        chinese = Translator("zh_CN")
+        remote_reason = chinese.text(
+            "ai_settings.connection_reason.remote_unreachable"
+        )
+        self.assertIn("VPN/代理", remote_reason)
+        self.assertIn("DNS", remote_reason)
+
     def test_can_switch_to_english(self) -> None:
         translator = Translator("en_US")
 

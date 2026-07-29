@@ -226,6 +226,41 @@ class HTTPChatCompletionsProviderTest(unittest.TestCase):
         )
         self.assertNotIn(secret, str(context.exception))
 
+    def test_connection_test_preserves_safe_network_failure_category(
+        self,
+    ) -> None:
+        cases = (
+            (
+                requests.exceptions.ProxyError("private proxy details"),
+                "Provider proxy connection failed.",
+            ),
+            (
+                requests.exceptions.SSLError(
+                    "private certificate details"
+                ),
+                "Provider TLS certificate validation failed.",
+            ),
+            (
+                requests.exceptions.ConnectionError(
+                    "private DNS details"
+                ),
+                "Could not connect to Provider.",
+            ),
+        )
+
+        for failure, expected in cases:
+            with self.subTest(expected=expected):
+                provider = HTTPChatCompletionsProvider(
+                    InMemoryProviderConfigStore(),
+                    RecordingTransport(failure=failure),
+                )
+
+                result = provider.test_config(configured())
+
+                self.assertFalse(result.success)
+                self.assertEqual(result.message, expected)
+                self.assertNotIn("private", result.message)
+
     def test_rejects_malformed_response_without_backend_details(self) -> None:
         transport = RecordingTransport(
             response={"unexpected": "private backend details"}

@@ -149,6 +149,22 @@ class HTTPChatCompletionsProvider:
             raise LLMProviderError(
                 "Provider request timed out."
             ) from exc
+        except requests.exceptions.ProxyError as exc:
+            raise LLMProviderError(
+                "Provider proxy connection failed."
+            ) from exc
+        except requests.exceptions.SSLError as exc:
+            raise LLMProviderError(
+                "Provider TLS certificate validation failed."
+            ) from exc
+        except requests.exceptions.ConnectionError as exc:
+            raise LLMProviderError(
+                "Could not connect to Provider."
+            ) from exc
+        except requests.exceptions.InvalidURL as exc:
+            raise LLMProviderError(
+                "Provider URL is invalid."
+            ) from exc
         except ValueError as exc:
             raise LLMProviderError(
                 "Provider returned invalid JSON."

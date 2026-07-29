@@ -12,6 +12,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QDialog, QLineEdit
 
 from mercury.i18n import Translator
@@ -244,7 +245,76 @@ class AISettingsDialogTest(unittest.TestCase):
         dialog._test_connection()
 
         self.assertEqual(received_configs, [])
-        self.assertIn("valid Base URL", dialog.connection_status.text())
+        self.assertIn("Base URL", dialog.connection_status.text())
+        self.assertIn("Model name", dialog.connection_status.text())
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_remote_connection_failure_lists_vpn_and_dns_as_possible_causes(
+        self,
+    ) -> None:
+        config = ProviderConfig(
+            base_url="https://api.example.invalid/v1",
+            model="remote-model",
+        )
+        dialog = AISettingsDialog(
+            Translator("zh_CN"),
+            config,
+            connection_tester=lambda _config: ProviderConnectionResult(
+                False,
+                "Could not connect to Provider.",
+            ),
+        )
+
+        dialog._test_connection()
+
+        message = dialog.connection_status.text()
+        self.assertIn("原因", message)
+        self.assertIn("VPN/代理", message)
+        self.assertIn("DNS", message)
+        self.assertIn("Base URL", message)
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_local_connection_failure_points_to_local_service_and_port(
+        self,
+    ) -> None:
+        config = ProviderConfig(
+            base_url="http://127.0.0.1:11434/v1",
+            model="local-model",
+        )
+        dialog = AISettingsDialog(
+            Translator("zh_CN"),
+            config,
+            connection_tester=lambda _config: ProviderConnectionResult(
+                False,
+                "Could not connect to Provider.",
+            ),
+        )
+
+        dialog._test_connection()
+
+        message = dialog.connection_status.text()
+        self.assertIn("Ollama", message)
+        self.assertIn("端口", message)
+        self.assertNotIn("DNS", message)
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_http_authentication_failure_explains_api_key_problem(self) -> None:
+        dialog = AISettingsDialog(
+            Translator("zh_CN"),
+            self._valid_config(),
+            connection_tester=lambda _config: ProviderConnectionResult(
+                False,
+                "Provider request failed with HTTP status 401.",
+            ),
+        )
+
+        dialog._test_connection()
+
+        self.assertIn("API Key", dialog.connection_status.text())
+        self.assertIn("无效", dialog.connection_status.text())
         dialog.close()
         dialog.deleteLater()
 
@@ -272,7 +342,10 @@ class AISettingsDialogTest(unittest.TestCase):
         dialog.accept()
 
         self.assertEqual(dialog.result(), QDialog.DialogCode.Rejected)
-        self.assertTrue(dialog.connection_status.text())
+        message = dialog.connection_status.text()
+        self.assertIn("原因", message)
+        self.assertIn("Base URL", message)
+        self.assertIn("模型名称", message)
         dialog.close()
         dialog.deleteLater()
 
@@ -316,6 +389,26 @@ class AgentsSettingsDialogTest(unittest.TestCase):
             "tag-model",
         )
         self.assertEqual(dialog.selected_configs(), configs)
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_agent_navigation_is_compact_and_evenly_sized(self) -> None:
+        dialog = AgentsSettingsDialog(Translator("zh_CN"))
+
+        self.assertEqual(dialog.agent_list.width(), 176)
+        self.assertTrue(dialog.agent_list.uniformItemSizes())
+        self.assertEqual(dialog.agent_list.spacing(), 4)
+        self.assertEqual(
+            dialog.agent_list.verticalScrollBarPolicy(),
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
+        )
+        self.assertEqual(
+            [
+                dialog.agent_list.item(index).sizeHint().height()
+                for index in range(dialog.agent_list.count())
+            ],
+            [40, 40, 40],
+        )
         dialog.close()
         dialog.deleteLater()
 
@@ -445,6 +538,35 @@ class MainWindowAISettingsTest(unittest.TestCase):
         self.assertNotIn(config.api_key, message)
         self.assertNotIn("database details", message)
         self.assertEqual(window.article_list.list_widget.count(), 3)
+        warning.assert_called_once()
+        window.close()
+        window.deleteLater()
+
+    def test_storage_load_permission_failure_reports_exact_reason(self) -> None:
+        class UnreadableStore:
+            def load(self):
+                raise PermissionError("private filesystem details")
+
+            def save(self, _config) -> None:
+                pass
+
+            def clear(self) -> None:
+                pass
+
+        window = MainWindow(
+            MockArticleService(),
+            provider_config_store=UnreadableStore(),
+        )
+
+        with patch(
+            "mercury.ui.main_window.QMessageBox.warning"
+        ) as warning:
+            window._open_ai_settings()
+
+        message = window.statusBar().currentMessage()
+        self.assertIn("无法读取", message)
+        self.assertIn("读取权限", message)
+        self.assertNotIn("private filesystem", message)
         warning.assert_called_once()
         window.close()
         window.deleteLater()

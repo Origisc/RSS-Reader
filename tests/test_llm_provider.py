@@ -46,6 +46,24 @@ class ProviderConfigTest(unittest.TestCase):
         self.assertIn("Model name", message)
         self.assertIn("Timeout", message)
 
+    def test_configuration_exposes_stable_validation_reason_codes(
+        self,
+    ) -> None:
+        config = ProviderConfig(
+            base_url="ftp://example.com",
+            model="",
+            timeout_seconds=0,
+        )
+
+        self.assertEqual(
+            config.validation_error_codes(),
+            (
+                "base_url_invalid",
+                "model_required",
+                "timeout_out_of_range",
+            ),
+        )
+
     def test_api_key_is_excluded_from_repr(self) -> None:
         secret = "must-not-appear-in-output"
         config = ProviderConfig(

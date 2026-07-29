@@ -1,6 +1,8 @@
+import re
 from collections.abc import Callable, Mapping
+from urllib.parse import urlparse
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -32,6 +34,12 @@ from mercury.ui.provider_presets import (
 
 ConnectionTester = Callable[[ProviderConfig], ProviderConnectionResult]
 AGENT_IDS = ("summary", "translation", "tag")
+_VALIDATION_FIELDS = {
+    "base_url_required": "base_url",
+    "base_url_invalid": "base_url",
+    "model_required": "model",
+    "timeout_out_of_range": "timeout",
+}
 
 
 class AISettingsDialog(QDialog):
@@ -163,14 +171,40 @@ class AISettingsDialog(QDialog):
 
     def _validated_config(self) -> ProviderConfig | None:
         config = self.selected_config()
+        error_codes = config.validation_error_codes()
 
-        if config.validation_errors():
+        if error_codes:
+            reasons = [
+                self._translator.text(
+                    f"ai_settings.validation.{code}"
+                ).format(
+                    min=MIN_TIMEOUT_SECONDS,
+                    max=MAX_TIMEOUT_SECONDS,
+                )
+                for code in error_codes
+            ]
+            reason_text = self._translator.text(
+                "ai_settings.reason_prefix"
+            ).format(reason=" ".join(reasons))
             self.connection_status.setText(
-                self._translator.text("ai_settings.invalid_config")
+                f"{self._translator.text('ai_settings.invalid_config')} "
+                f"{reason_text}"
             )
+            self._focus_validation_error(error_codes[0])
             return None
 
         return config
+
+    def _focus_validation_error(self, error_code: str) -> None:
+        field_name = _VALIDATION_FIELDS.get(error_code)
+        fields = {
+            "base_url": self.base_url_edit,
+            "model": self.model_edit,
+            "timeout": self.timeout_spin,
+        }
+        field = fields.get(field_name)
+        if field is not None:
+            field.setFocus()
 
     def _test_connection(self) -> None:
         config = self._validated_config()
@@ -187,8 +221,10 @@ class AISettingsDialog(QDialog):
         try:
             result = self._connection_tester(config)
         except Exception:
-            self.connection_status.setText(
-                self._translator.text("ai_settings.connection_failed")
+            self._show_connection_failure(
+                self._translator.text(
+                    "ai_settings.connection_reason.internal"
+                )
             )
             return
 
@@ -199,13 +235,76 @@ class AISettingsDialog(QDialog):
             return
 
         message = self._redact_api_key(result.message)
-        failure_text = self._translator.text(
-            "ai_settings.connection_failed"
+        self._show_connection_failure(
+            self._connection_failure_reason(message, config)
         )
-        if message:
-            failure_text = f"{failure_text} {message}"
 
-        self.connection_status.setText(failure_text)
+    def _show_connection_failure(self, reason: str) -> None:
+        reason_text = self._translator.text(
+            "ai_settings.reason_prefix"
+        ).format(reason=reason)
+        self.connection_status.setText(
+            f"{self._translator.text('ai_settings.connection_failed')} "
+            f"{reason_text}"
+        )
+
+    def _connection_failure_reason(
+        self,
+        message: str,
+        config: ProviderConfig,
+    ) -> str:
+        normalized = message.casefold()
+        status_match = re.search(r"http status (\d{3})", normalized)
+        status = int(status_match.group(1)) if status_match else None
+
+        if status == 401:
+            key = "authentication"
+        elif status == 403:
+            key = "permission"
+        elif status == 404:
+            key = "not_found"
+        elif status == 429:
+            key = "rate_limit"
+        elif status is not None and status >= 500:
+            key = "server"
+        elif "timed out" in normalized:
+            key = "timeout"
+        elif "proxy" in normalized:
+            key = "proxy"
+        elif "tls" in normalized or "certificate" in normalized:
+            key = "tls"
+        elif "url is invalid" in normalized:
+            key = "invalid_url"
+        elif (
+            "invalid json" in normalized
+            or "unexpected response" in normalized
+            or "unexpected choice" in normalized
+            or "did not contain choices" in normalized
+            or "did not contain message content" in normalized
+        ):
+            key = "incompatible_response"
+        elif "empty" in normalized:
+            key = "empty_response"
+        elif (
+            "could not connect" in normalized
+            or "request failed" in normalized
+        ):
+            hostname = (urlparse(config.base_url).hostname or "").casefold()
+            key = (
+                "local_unreachable"
+                if hostname in {"127.0.0.1", "localhost", "::1"}
+                else "remote_unreachable"
+            )
+        elif message.strip():
+            return self._translator.text(
+                "ai_settings.connection_reason.provider_message"
+            ).format(message=message.strip())
+        else:
+            key = "unknown"
+
+        return self._translator.text(
+            f"ai_settings.connection_reason.{key}"
+        )
 
     def _redact_api_key(self, message: str) -> str:
         api_key = self.api_key_edit.text()
@@ -283,10 +382,15 @@ class AgentsSettingsDialog(QDialog):
         self.enabled_checks: dict[str, QCheckBox] = {}
         self.agent_list = QListWidget()
         self.agent_list.setObjectName("AgentsSettingsList")
-        self.agent_list.setFixedWidth(155)
+        self.agent_list.setFixedWidth(176)
         self.agent_list.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
+        self.agent_list.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.agent_list.setSpacing(4)
+        self.agent_list.setUniformItemSizes(True)
         self.pages = QStackedWidget()
         self.pages.setObjectName("AgentsSettingsPages")
 
@@ -295,6 +399,7 @@ class AgentsSettingsDialog(QDialog):
                 translator.text(f"agents_settings.agent.{agent_id}")
             )
             item.setData(Qt.ItemDataRole.UserRole, agent_id)
+            item.setSizeHint(QSize(0, 40))
             self.agent_list.addItem(item)
 
             page = QWidget()
@@ -342,7 +447,7 @@ class AgentsSettingsDialog(QDialog):
 
         content_layout = QHBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(10)
+        content_layout.setSpacing(16)
         content_layout.addWidget(self.agent_list)
         content_layout.addWidget(self.pages, 1)
 

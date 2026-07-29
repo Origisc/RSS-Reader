@@ -212,12 +212,74 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "未配置 AI 也不会影响基础阅读。"
         ),
         "ai_settings.test_connection": "测试连接",
-        "ai_settings.invalid_config": "请填写有效的 Base URL、模型和超时时间。",
+        "ai_settings.invalid_config": "当前 Provider 配置无法使用。",
+        "ai_settings.reason_prefix": "原因：{reason}",
+        "ai_settings.validation.base_url_required": (
+            "尚未填写 Base URL。"
+        ),
+        "ai_settings.validation.base_url_invalid": (
+            "Base URL 必须是完整的 HTTP 或 HTTPS 地址。"
+        ),
+        "ai_settings.validation.model_required": "尚未填写模型名称。",
+        "ai_settings.validation.timeout_out_of_range": (
+            "超时时间必须在 {min} 到 {max} 秒之间。"
+        ),
         "ai_settings.connection_unavailable": (
             "当前未接入 Provider 连接适配器；配置尚未发送到网络。"
         ),
         "ai_settings.connection_success": "连接测试成功。",
         "ai_settings.connection_failed": "连接测试失败。",
+        "ai_settings.connection_reason.authentication": (
+            "API Key 缺失、无效或已过期，请检查凭据。"
+        ),
+        "ai_settings.connection_reason.permission": (
+            "Provider 已拒绝访问，请检查 API Key 权限、模型权限或账户状态。"
+        ),
+        "ai_settings.connection_reason.not_found": (
+            "Provider 地址返回 404，请检查 Base URL、API 路径和模型名称。"
+        ),
+        "ai_settings.connection_reason.rate_limit": (
+            "请求受到限流，或账户余额/配额不足，请稍后重试并检查账户。"
+        ),
+        "ai_settings.connection_reason.server": (
+            "Provider 服务端暂时异常，请稍后重试。"
+        ),
+        "ai_settings.connection_reason.timeout": (
+            "Provider 响应超时，请检查网络、VPN/代理、服务状态，"
+            "或适当提高超时时间。"
+        ),
+        "ai_settings.connection_reason.proxy": (
+            "无法通过代理连接，请检查 VPN/代理是否已连接以及代理配置。"
+        ),
+        "ai_settings.connection_reason.tls": (
+            "HTTPS 证书校验失败，请检查系统时间、代理证书和 Provider 地址。"
+        ),
+        "ai_settings.connection_reason.invalid_url": (
+            "Provider 地址无法解析，请检查 Base URL。"
+        ),
+        "ai_settings.connection_reason.incompatible_response": (
+            "Provider 返回格式不兼容，请确认该地址支持 Chat Completions API。"
+        ),
+        "ai_settings.connection_reason.empty_response": (
+            "Provider 已响应但没有返回内容，请检查模型名称和服务日志。"
+        ),
+        "ai_settings.connection_reason.local_unreachable": (
+            "无法连接本地 Provider，请确认 Ollama/本地服务已启动，"
+            "并检查 Base URL 和端口。"
+        ),
+        "ai_settings.connection_reason.remote_unreachable": (
+            "无法连接远程 Provider；可能是网络、DNS、VPN/代理未连接，"
+            "或 Base URL 填写错误。"
+        ),
+        "ai_settings.connection_reason.provider_message": (
+            "Provider 返回：{message}"
+        ),
+        "ai_settings.connection_reason.internal": (
+            "连接测试组件在收到 Provider 响应前发生错误；配置尚未保存。"
+        ),
+        "ai_settings.connection_reason.unknown": (
+            "未收到可识别的 Provider 错误，请检查网络、服务状态和配置。"
+        ),
         "theme.system": "跟随系统",
         "theme.light": "浅色",
         "theme.dark": "深色",
@@ -227,6 +289,30 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status.ai_settings_saved": "AI Provider 配置已保存到本地。",
         "status.ai_settings_storage_failed": (
             "AI Provider 配置未能保存到本地；现有阅读功能不受影响。"
+        ),
+        "status.ai_settings_load_failed.permission": (
+            "无法读取 AI Provider 配置：没有本地数据目录的读取权限。"
+        ),
+        "status.ai_settings_load_failed.database": (
+            "无法读取 AI Provider 配置：本地配置数据库不可用或已损坏。"
+        ),
+        "status.ai_settings_load_failed.unavailable": (
+            "无法读取 AI Provider 配置：本地存储当前不可用。"
+        ),
+        "status.ai_settings_load_failed.unknown": (
+            "无法读取 AI Provider 配置：发生未知的本地存储错误。"
+        ),
+        "status.ai_settings_save_failed.permission": (
+            "AI Provider 配置无法保存到本地：没有本地数据目录的写入权限。"
+        ),
+        "status.ai_settings_save_failed.database": (
+            "AI Provider 配置无法保存到本地：本地配置数据库写入失败。"
+        ),
+        "status.ai_settings_save_failed.unavailable": (
+            "AI Provider 配置无法保存到本地：磁盘或本地存储当前不可用。"
+        ),
+        "status.ai_settings_save_failed.unknown": (
+            "AI Provider 配置无法保存到本地：发生未知的本地存储错误。"
         ),
         "status.add_feed_started": "正在添加 Feed...",
         "status.import_opml_started": "正在导入 OPML...",
@@ -679,7 +765,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "ai_settings.test_connection": "Test Connection",
         "ai_settings.invalid_config": (
-            "Enter a valid Base URL, model, and timeout."
+            "The current Provider configuration cannot be used."
+        ),
+        "ai_settings.reason_prefix": "Reason: {reason}",
+        "ai_settings.validation.base_url_required": (
+            "Base URL has not been entered."
+        ),
+        "ai_settings.validation.base_url_invalid": (
+            "Base URL must be a complete HTTP or HTTPS address."
+        ),
+        "ai_settings.validation.model_required": (
+            "Model name has not been entered."
+        ),
+        "ai_settings.validation.timeout_out_of_range": (
+            "Timeout must be between {min} and {max} seconds."
         ),
         "ai_settings.connection_unavailable": (
             "No Provider connection adapter is available; the configuration was not sent "
@@ -687,6 +786,67 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "ai_settings.connection_success": "Connection test succeeded.",
         "ai_settings.connection_failed": "Connection test failed.",
+        "ai_settings.connection_reason.authentication": (
+            "The API key is missing, invalid, or expired. Check the credential."
+        ),
+        "ai_settings.connection_reason.permission": (
+            "The Provider denied access. Check API-key permissions, model "
+            "access, and account status."
+        ),
+        "ai_settings.connection_reason.not_found": (
+            "The Provider returned 404. Check the Base URL, API path, and "
+            "model name."
+        ),
+        "ai_settings.connection_reason.rate_limit": (
+            "The request was rate-limited, or the account has insufficient "
+            "credit or quota. Check the account and retry later."
+        ),
+        "ai_settings.connection_reason.server": (
+            "The Provider has a temporary server error. Retry later."
+        ),
+        "ai_settings.connection_reason.timeout": (
+            "The Provider timed out. Check the network, VPN/proxy, and "
+            "service status, or increase the timeout."
+        ),
+        "ai_settings.connection_reason.proxy": (
+            "The proxy connection failed. Check whether the VPN/proxy is "
+            "connected and configured correctly."
+        ),
+        "ai_settings.connection_reason.tls": (
+            "HTTPS certificate validation failed. Check the system clock, "
+            "proxy certificate, and Provider address."
+        ),
+        "ai_settings.connection_reason.invalid_url": (
+            "The Provider address could not be parsed. Check the Base URL."
+        ),
+        "ai_settings.connection_reason.incompatible_response": (
+            "The Provider response is incompatible. Confirm that the address "
+            "supports the Chat Completions API."
+        ),
+        "ai_settings.connection_reason.empty_response": (
+            "The Provider responded without content. Check the model name "
+            "and service logs."
+        ),
+        "ai_settings.connection_reason.local_unreachable": (
+            "The local Provider could not be reached. Confirm that Ollama or "
+            "the local service is running, then check the Base URL and port."
+        ),
+        "ai_settings.connection_reason.remote_unreachable": (
+            "The remote Provider could not be reached. Possible causes "
+            "include network or DNS failure, a disconnected VPN/proxy, or "
+            "an incorrect Base URL."
+        ),
+        "ai_settings.connection_reason.provider_message": (
+            "Provider response: {message}"
+        ),
+        "ai_settings.connection_reason.internal": (
+            "The connection-test component failed before a Provider response "
+            "was received. The configuration was not saved."
+        ),
+        "ai_settings.connection_reason.unknown": (
+            "No recognizable Provider error was received. Check the network, "
+            "service status, and configuration."
+        ),
         "theme.system": "Use system setting",
         "theme.light": "Light",
         "theme.dark": "Dark",
@@ -698,6 +858,38 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status.ai_settings_storage_failed": (
             "AI Provider settings could not be saved locally; "
             "existing reading features are unaffected."
+        ),
+        "status.ai_settings_load_failed.permission": (
+            "AI Provider settings could not be read: the local data "
+            "directory is not readable."
+        ),
+        "status.ai_settings_load_failed.database": (
+            "AI Provider settings could not be read: the local configuration "
+            "database is unavailable or damaged."
+        ),
+        "status.ai_settings_load_failed.unavailable": (
+            "AI Provider settings could not be read: local storage is "
+            "currently unavailable."
+        ),
+        "status.ai_settings_load_failed.unknown": (
+            "AI Provider settings could not be read because of an unknown "
+            "local storage error."
+        ),
+        "status.ai_settings_save_failed.permission": (
+            "AI Provider settings could not be saved locally: the local data "
+            "directory is not writable."
+        ),
+        "status.ai_settings_save_failed.database": (
+            "AI Provider settings could not be saved locally: writing the "
+            "local configuration database failed."
+        ),
+        "status.ai_settings_save_failed.unavailable": (
+            "AI Provider settings could not be saved locally: the disk or "
+            "local storage is currently unavailable."
+        ),
+        "status.ai_settings_save_failed.unknown": (
+            "AI Provider settings could not be saved locally because of an "
+            "unknown local storage error."
         ),
         "status.add_feed_started": "Adding feed...",
         "status.import_opml_started": "Importing OPML...",

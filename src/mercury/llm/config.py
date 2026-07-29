@@ -5,6 +5,17 @@ from urllib.parse import urlparse
 
 MIN_TIMEOUT_SECONDS = 1.0
 MAX_TIMEOUT_SECONDS = 300.0
+VALIDATION_ERROR_MESSAGES = {
+    "base_url_required": "Base URL is required.",
+    "base_url_invalid": (
+        "Base URL must be a valid HTTP or HTTPS URL."
+    ),
+    "model_required": "Model name is required.",
+    "timeout_out_of_range": (
+        "Timeout must be between "
+        f"{MIN_TIMEOUT_SECONDS:g} and {MAX_TIMEOUT_SECONDS:g} seconds."
+    ),
+}
 
 
 class ProviderConfigError(ValueError):
@@ -29,26 +40,31 @@ class ProviderConfig:
         return bool(self.api_key)
 
     def validation_errors(self) -> tuple[str, ...]:
+        return tuple(
+            VALIDATION_ERROR_MESSAGES[code]
+            for code in self.validation_error_codes()
+        )
+
+    def validation_error_codes(self) -> tuple[str, ...]:
+        """Return stable codes that the UI can translate into clear reasons."""
+
         errors: list[str] = []
         base_url = self.base_url.strip()
         model = self.model.strip()
 
         if not base_url:
-            errors.append("Base URL is required.")
+            errors.append("base_url_required")
         else:
             parsed_url = urlparse(base_url)
 
             if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-                errors.append("Base URL must be a valid HTTP or HTTPS URL.")
+                errors.append("base_url_invalid")
 
         if not model:
-            errors.append("Model name is required.")
+            errors.append("model_required")
 
         if not MIN_TIMEOUT_SECONDS <= self.timeout_seconds <= MAX_TIMEOUT_SECONDS:
-            errors.append(
-                "Timeout must be between "
-                f"{MIN_TIMEOUT_SECONDS:g} and {MAX_TIMEOUT_SECONDS:g} seconds."
-            )
+            errors.append("timeout_out_of_range")
 
         return tuple(errors)
 
