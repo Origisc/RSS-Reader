@@ -96,7 +96,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "reader.tags_toggle": "标签",
         "reader.tags_toggle_tooltip": "显示或隐藏当前文章的标签编辑器",
         "feed.add_dialog.title": "添加 Feed",
-        "feed.add_dialog.label": "Feed URL：",
+        "feed.add_dialog.label": "Feed URL 或本地文件路径：",
         "feed.delete_dialog.title": "删除 Feed",
         "feed.delete_dialog.body": (
             "确定删除订阅源“{title}”及其本地缓存文章吗？此操作不可撤销。"
@@ -116,6 +116,33 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "opml.import_dialog.title": "导入 OPML",
         "opml.import_dialog.filter": "OPML 文件 (*.opml *.xml);;所有文件 (*)",
+        "feed.import_error.empty_source": (
+            "未提供 Feed URL、本地 Feed 路径或 OPML 路径。"
+        ),
+        "feed.import_error.file_not_found": "找不到本地文件：{source}",
+        "feed.import_error.not_a_file": "所选路径不是文件：{source}",
+        "feed.import_error.file_read_failed": (
+            "无法以 UTF-8 读取本地文件：{source}\n{detail}"
+        ),
+        "feed.import_error.unsupported_scheme": (
+            "不支持此 Feed 来源：{source}\n"
+            "请输入 HTTP(S) URL、相对文件路径或绝对文件路径。"
+        ),
+        "feed.import_error.network_failed": (
+            "无法下载 Feed：{source}\n{detail}"
+        ),
+        "feed.import_error.invalid_feed": (
+            "该来源不是有效的 RSS 或 Atom Feed：{source}\n{detail}"
+        ),
+        "feed.import_error.invalid_opml": (
+            "该文件不是有效的 OPML 文档：{source}\n{detail}"
+        ),
+        "feed.import_error.opml_no_feeds": (
+            "OPML 文档中没有包含 xmlUrl 的可导入 Feed：{source}"
+        ),
+        "feed.import_error.storage_failed": (
+            "Feed 已读取，但无法保存到本地数据库：{source}\n{detail}"
+        ),
         "settings.title": "设置",
         "settings.language": "界面语言：",
         "settings.theme": "界面主题：",
@@ -218,6 +245,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status.delete_feeds_started": "正在批量删除 {count} 个 Feeds...",
         "status.delete_feeds_finished": "已删除 {count} 个 Feeds。",
         "dialog.feature_failed.title": "操作失败",
+        "dialog.feature_failed.unknown": "操作失败，但服务没有提供详细原因。",
         "dialog.feature_pending.title": "功能入口已预留",
         "dialog.about.title": "关于 Mercury",
         "dialog.about.body": (
@@ -500,7 +528,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Show or hide the tag editor for the current article"
         ),
         "feed.add_dialog.title": "Add Feed",
-        "feed.add_dialog.label": "Feed URL:",
+        "feed.add_dialog.label": "Feed URL or local file path:",
         "feed.delete_dialog.title": "Delete Feed",
         "feed.delete_dialog.body": (
             "Delete the feed “{title}” and its locally cached articles? "
@@ -524,6 +552,39 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "opml.import_dialog.title": "Import OPML",
         "opml.import_dialog.filter": "OPML files (*.opml *.xml);;All files (*)",
+        "feed.import_error.empty_source": (
+            "No Feed URL, local Feed path, or OPML path was provided."
+        ),
+        "feed.import_error.file_not_found": (
+            "The local file was not found: {source}"
+        ),
+        "feed.import_error.not_a_file": (
+            "The selected path is not a file: {source}"
+        ),
+        "feed.import_error.file_read_failed": (
+            "The local file could not be read as UTF-8: {source}\n{detail}"
+        ),
+        "feed.import_error.unsupported_scheme": (
+            "This Feed source is unsupported: {source}\n"
+            "Enter an HTTP(S) URL, relative file path, or absolute file path."
+        ),
+        "feed.import_error.network_failed": (
+            "The Feed could not be downloaded: {source}\n{detail}"
+        ),
+        "feed.import_error.invalid_feed": (
+            "The source is not a valid RSS or Atom Feed: {source}\n{detail}"
+        ),
+        "feed.import_error.invalid_opml": (
+            "The file is not a valid OPML document: {source}\n{detail}"
+        ),
+        "feed.import_error.opml_no_feeds": (
+            "The OPML document has no importable Feed with an xmlUrl: "
+            "{source}"
+        ),
+        "feed.import_error.storage_failed": (
+            "The Feed was read but could not be saved locally: "
+            "{source}\n{detail}"
+        ),
         "settings.title": "Settings",
         "settings.language": "Interface language:",
         "settings.theme": "Interface theme:",
@@ -650,6 +711,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status.delete_feeds_started": "Deleting {count} feeds...",
         "status.delete_feeds_finished": "Deleted {count} feeds.",
         "dialog.feature_failed.title": "Action Failed",
+        "dialog.feature_failed.unknown": (
+            "The action failed without a detailed service error."
+        ),
         "dialog.feature_pending.title": "Feature Entry Ready",
         "dialog.about.title": "About Mercury",
         "dialog.about.body": (

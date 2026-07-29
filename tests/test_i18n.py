@@ -12,6 +12,26 @@ from mercury.i18n import Translator
 
 
 class TranslatorTest(unittest.TestCase):
+    def test_feed_import_errors_are_available_in_both_languages(self) -> None:
+        keys = (
+            "feed.import_error.empty_source",
+            "feed.import_error.file_not_found",
+            "feed.import_error.not_a_file",
+            "feed.import_error.file_read_failed",
+            "feed.import_error.unsupported_scheme",
+            "feed.import_error.network_failed",
+            "feed.import_error.invalid_feed",
+            "feed.import_error.invalid_opml",
+            "feed.import_error.opml_no_feeds",
+            "feed.import_error.storage_failed",
+            "dialog.feature_failed.unknown",
+        )
+
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+            for key in keys:
+                self.assertNotEqual(translator.text(key), key)
+
     def test_default_language_is_simplified_chinese(self) -> None:
         translator = Translator()
 

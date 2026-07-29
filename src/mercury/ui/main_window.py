@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from domain.feed.import_errors import FeedImportError
 from mercury.agents import SummarySource, TagSource, TranslationSource
 from mercury.domain import TranslationResult
 from mercury.i18n import Translator
@@ -1571,18 +1572,34 @@ class MainWindow(QMainWindow):
         try:
             message = action()
         except Exception as exc:
+            error_message = self._service_error_message(exc)
             QMessageBox.warning(
                 self,
                 self.translator.text("dialog.feature_failed.title"),
-                str(exc),
+                error_message,
             )
-            self.statusBar().showMessage(str(exc), 8000)
+            self.statusBar().showMessage(error_message, 8000)
             return
         finally:
             QApplication.restoreOverrideCursor()
 
         self._load_initial_data()
         self.statusBar().showMessage(message, 8000)
+
+    def _service_error_message(self, error: Exception) -> str:
+        if isinstance(error, FeedImportError):
+            key = f"feed.import_error.{error.code.value}"
+            template = self.translator.text(key)
+            if template != key:
+                return template.format(
+                    source=error.source,
+                    detail=error.detail,
+                )
+
+        message = str(error).strip()
+        return message or self.translator.text(
+            "dialog.feature_failed.unknown"
+        )
 
     def _open_settings(self) -> None:
         """打开设置窗口。"""

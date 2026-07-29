@@ -13,6 +13,10 @@ if str(SRC_DIR) not in sys.path:
 
 from PySide6.QtWidgets import QApplication
 
+from domain.feed.import_errors import (
+    FeedImportError,
+    FeedImportErrorCode,
+)
 from mercury.services.mock_article_service import MockArticleService
 from mercury.ui.article_list import ARTICLE_ID_ROLE
 from mercury.ui.main_window import MainWindow
@@ -58,6 +62,21 @@ class MainWindowSettingsTest(unittest.TestCase):
             24,
         )
         self.assertIn("Local cached entry", selected_item.text())
+
+    def test_feed_import_error_is_localized_with_exact_path(self) -> None:
+        error = FeedImportError(
+            FeedImportErrorCode.FILE_NOT_FOUND,
+            source="E:\\feeds\\missing.xml",
+        )
+
+        chinese_message = self.window._service_error_message(error)
+        self.window.translator.set_language("en_US")
+        english_message = self.window._service_error_message(error)
+
+        self.assertIn("找不到本地文件", chinese_message)
+        self.assertIn("E:\\feeds\\missing.xml", chinese_message)
+        self.assertIn("local file was not found", english_message)
+        self.assertIn("E:\\feeds\\missing.xml", english_message)
 
 
 if __name__ == "__main__":
