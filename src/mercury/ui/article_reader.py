@@ -602,7 +602,10 @@ class ArticleReader(QWidget):
     @staticmethod
     def _markdown_fragment(markdown: str) -> str:
         document = QTextDocument()
-        document.setMarkdown(markdown)
+        document.setMarkdown(
+            markdown,
+            QTextDocument.MarkdownFeature.MarkdownDialectGitHub,
+        )
         full_html = document.toHtml()
         lowered = full_html.lower()
         body_start = lowered.find("<body")

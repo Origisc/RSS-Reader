@@ -82,6 +82,30 @@ class MarkdownConverterTest(unittest.TestCase):
         self.assertIn("1. First", result.markdown)
         self.assertIn("2. Second", result.markdown)
 
+    def test_convert_nested_mixed_lists_preserves_markers_and_depth(
+        self,
+    ) -> None:
+        html = """<ol>
+<li>First
+<ul>
+<li>Nested bullet</li>
+</ul>
+</li>
+<li>Second
+<ol start="4">
+<li>Nested numbered</li>
+</ol>
+</li>
+</ol>"""
+
+        result = self.converter.convert(html)
+
+        self.assertTrue(result.success)
+        self.assertIn("1. First", result.markdown)
+        self.assertIn("    - Nested bullet", result.markdown)
+        self.assertIn("2. Second", result.markdown)
+        self.assertIn("    4. Nested numbered", result.markdown)
+
     def test_convert_tables(self) -> None:
         html = """<table>
 <tr><th>Name</th><th>Age</th></tr>
@@ -94,6 +118,22 @@ class MarkdownConverterTest(unittest.TestCase):
         self.assertIn("| --- | --- |", result.markdown)
         self.assertIn("| John | 30 |", result.markdown)
         self.assertIn("| Jane | 25 |", result.markdown)
+
+    def test_convert_table_cells_preserves_inline_markdown(self) -> None:
+        html = """<table>
+<tr><th>Kind</th><th>Value</th></tr>
+<tr><td><strong>Bold</strong></td><td><em>Italic</em></td></tr>
+<tr><td><code>inline()</code></td><td><a href="https://example.com">Link</a></td></tr>
+</table>"""
+
+        result = self.converter.convert(html)
+
+        self.assertTrue(result.success)
+        self.assertIn("| **Bold** | *Italic* |", result.markdown)
+        self.assertIn(
+            "| `inline()` | [Link](https://example.com) |",
+            result.markdown,
+        )
 
     def test_convert_code_blocks(self) -> None:
         html = """<pre><code>def hello():

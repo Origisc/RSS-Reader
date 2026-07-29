@@ -47,13 +47,13 @@ class _HTMLToMarkdownParser(HTMLParser):
         self._in_pre = False
         self._in_code = False
         self._in_table = False
-        self._in_list = False
-        self._list_depth = 0
+        self._list_stack = []
         self._table_rows = []
         self._current_row = []
+        self._current_cell = None
         self._block_start = False
         self._last_was_newline = False
-        self._href = ''
+        self._href_stack = []
 
     def handle_starttag(self, tag, attrs):
         tag_lower = tag.lower()
@@ -78,10 +78,10 @@ class _HTMLToMarkdownParser(HTMLParser):
             self._last_was_newline = True
 
         elif tag_lower == 'strong' or tag_lower == 'b':
-            self._result.append('**')
+            self._append_inline('**')
 
         elif tag_lower == 'em' or tag_lower == 'i':
-            self._result.append('*')
+            self._append_inline('*')
 
         elif tag_lower == 'a':
             href = ''
@@ -89,8 +89,8 @@ class _HTMLToMarkdownParser(HTMLParser):
                 if attr_name.lower() == 'href':
                     href = attr_value
                     break
-            self._result.append('[')
-            self._href = href
+            self._append_inline('[')
+            self._href_stack.append(href)
 
         elif tag_lower == 'img':
             src = ''
@@ -100,28 +100,36 @@ class _HTMLToMarkdownParser(HTMLParser):
                     src = attr_value
                 elif attr_name.lower() == 'alt':
                     alt = attr_value
-            self._result.append(f'![{alt}]({src})')
+            self._append_inline(f'![{alt}]({src})')
 
         elif tag_lower == 'ul':
-            self._ensure_newline(2)
-            self._in_list = True
-            self._list_depth += 1
+            self._ensure_newline(2 if not self._list_stack else 1)
+            self._list_stack.append({"kind": "ul", "counter": 0})
             self._block_start = True
 
         elif tag_lower == 'ol':
-            self._ensure_newline(2)
-            self._in_list = True
-            self._list_depth += 1
-            self._list_counter = 1
+            start = 1
+            for attr_name, attr_value in attrs:
+                if attr_name.lower() == "start":
+                    try:
+                        start = int(attr_value)
+                    except (TypeError, ValueError):
+                        start = 1
+                    break
+            self._ensure_newline(2 if not self._list_stack else 1)
+            self._list_stack.append({"kind": "ol", "counter": start})
             self._block_start = True
 
         elif tag_lower == 'li':
             self._ensure_newline()
-            if hasattr(self, '_list_counter'):
-                self._result.append(f"{self._list_counter}. ")
-                self._list_counter += 1
+            depth = max(len(self._list_stack) - 1, 0)
+            indent = "    " * depth
+            if self._list_stack and self._list_stack[-1]["kind"] == "ol":
+                counter = self._list_stack[-1]["counter"]
+                self._result.append(f"{indent}{counter}. ")
+                self._list_stack[-1]["counter"] = counter + 1
             else:
-                self._result.append(f"{'  ' * (self._list_depth - 1)}- ")
+                self._result.append(f"{indent}- ")
             self._block_start = True
 
         elif tag_lower == 'table':
@@ -145,7 +153,7 @@ class _HTMLToMarkdownParser(HTMLParser):
 
         elif tag_lower == 'code':
             if not self._in_pre:
-                self._result.append('`')
+                self._append_inline('`')
             self._in_code = True
 
         elif tag_lower == 'blockquote':
@@ -163,19 +171,22 @@ class _HTMLToMarkdownParser(HTMLParser):
             self._ensure_newline(2)
 
         elif tag_lower == 'strong' or tag_lower == 'b':
-            self._result.append('**')
+            self._append_inline('**')
 
         elif tag_lower == 'em' or tag_lower == 'i':
-            self._result.append('*')
+            self._append_inline('*')
 
         elif tag_lower == 'a':
-            self._result.append(f"]({self._href})")
+            href = self._href_stack.pop() if self._href_stack else ""
+            self._append_inline(f"]({href})")
 
         elif tag_lower == 'ul' or tag_lower == 'ol':
-            self._in_list = False
-            self._list_depth -= 1
-            if self._list_depth == 0:
+            if self._list_stack:
+                self._list_stack.pop()
+            if not self._list_stack:
                 self._ensure_newline(2)
+            else:
+                self._ensure_newline()
 
         elif tag_lower == 'li':
             self._ensure_newline()
@@ -191,9 +202,10 @@ class _HTMLToMarkdownParser(HTMLParser):
                 self._table_rows.append(self._current_row)
 
         elif tag_lower == 'td' or tag_lower == 'th':
-            if self._in_table:
+            if self._in_table and self._current_cell is not None:
                 cell_content = ''.join(self._current_cell).strip()
                 self._current_row.append(cell_content)
+                self._current_cell = None
 
         elif tag_lower == 'pre':
             self._ensure_newline()
@@ -203,7 +215,7 @@ class _HTMLToMarkdownParser(HTMLParser):
 
         elif tag_lower == 'code':
             if not self._in_pre:
-                self._result.append('`')
+                self._append_inline('`')
             self._in_code = False
 
         elif tag_lower == 'blockquote':
@@ -214,7 +226,7 @@ class _HTMLToMarkdownParser(HTMLParser):
     def handle_data(self, data):
         if self._in_pre:
             self._result.append(data)
-        elif self._in_table and hasattr(self, '_current_cell'):
+        elif self._in_table and self._current_cell is not None:
             self._current_cell.append(data)
         else:
             if (
@@ -237,7 +249,14 @@ class _HTMLToMarkdownParser(HTMLParser):
             'quot': '"',
             'apos': "'",
         }
-        self._result.append(entities.get(name, f'&{name};'))
+        self._append_inline(entities.get(name, f'&{name};'))
+
+    def _append_inline(self, value):
+        if self._in_table and self._current_cell is not None:
+            self._current_cell.append(value)
+            return
+
+        self._result.append(value)
 
     def _ensure_newline(self, count=1):
         if count <= 0:
@@ -261,16 +280,29 @@ class _HTMLToMarkdownParser(HTMLParser):
             return ''
 
         lines = []
-        header = self._table_rows[0]
+        column_count = max(len(row) for row in self._table_rows)
+        rows = [
+            [self._format_table_cell(cell) for cell in row]
+            + [""] * (column_count - len(row))
+            for row in self._table_rows
+        ]
+        header = rows[0]
         lines.append('| ' + ' | '.join(header) + ' |')
 
-        separator = '| ' + ' | '.join(['---'] * len(header)) + ' |'
+        separator = '| ' + ' | '.join(['---'] * column_count) + ' |'
         lines.append(separator)
 
-        for row in self._table_rows[1:]:
+        for row in rows[1:]:
             lines.append('| ' + ' | '.join(row) + ' |')
 
         return '\n'.join(lines)
+
+    @staticmethod
+    def _format_table_cell(value):
+        return value.replace("|", r"\|").replace("\r\n", "<br>").replace(
+            "\n",
+            "<br>",
+        )
 
     def get_result(self):
         result = ''.join(self._result)

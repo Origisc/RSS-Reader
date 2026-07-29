@@ -13,7 +13,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from PySide6.QtGui import QTextDocument
+from PySide6.QtGui import QFont, QTextDocument
 from PySide6.QtWidgets import QApplication
 
 from mercury.domain import (
@@ -124,6 +124,85 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("Second visible paragraph", rendered_text)
         self.assertGreaterEqual(markdown_fragment.lower().count("<p"), 2)
         self.assertIn("color:#d7e3ed", rendered_html)
+
+    def test_markdown_view_preserves_structural_formatting(self) -> None:
+        document = ReaderDocument(
+            raw_html="<p>Raw fallback</p>",
+            cleaned_markdown=(
+                "## Structured heading\n\n"
+                "- First list item with **Bold marker**\n"
+                "- Second list item with *Italic marker*\n\n"
+                "Use `inline_code()` here.\n\n"
+                "```python\n"
+                "print('fenced code')\n"
+                "```"
+            ),
+        )
+        self.reader.show_article(self.article, document)
+
+        self.reader.set_view(ReaderView.MARKDOWN)
+
+        rendered = self.reader.content.document()
+        blocks = []
+        block = rendered.begin()
+        while block.isValid():
+            blocks.append(block)
+            block = block.next()
+
+        heading = next(
+            block for block in blocks
+            if block.text() == "Structured heading"
+        )
+        first_list_item = next(
+            block for block in blocks
+            if block.text().startswith("First list item")
+        )
+        second_list_item = next(
+            block for block in blocks
+            if block.text().startswith("Second list item")
+        )
+
+        self.assertEqual(heading.blockFormat().headingLevel(), 2)
+        self.assertIsNotNone(first_list_item.textList())
+        self.assertIs(first_list_item.textList(), second_list_item.textList())
+
+        formats = {}
+        for block in blocks:
+            iterator = block.begin()
+            while not iterator.atEnd():
+                fragment = iterator.fragment()
+                if fragment.isValid():
+                    formats[fragment.text()] = fragment.charFormat()
+                iterator += 1
+
+        bold_format = next(
+            char_format
+            for text, char_format in formats.items()
+            if "Bold marker" in text
+        )
+        italic_format = next(
+            char_format
+            for text, char_format in formats.items()
+            if "Italic marker" in text
+        )
+        inline_code_format = next(
+            char_format
+            for text, char_format in formats.items()
+            if "inline_code()" in text
+        )
+        fenced_code_format = next(
+            char_format
+            for text, char_format in formats.items()
+            if "fenced code" in text
+        )
+
+        self.assertGreaterEqual(
+            bold_format.fontWeight(),
+            QFont.Weight.Bold,
+        )
+        self.assertTrue(italic_format.fontItalic())
+        self.assertIn("monospace", inline_code_format.fontFamilies())
+        self.assertIn("monospace", fenced_code_format.fontFamilies())
 
     def test_markdown_paragraph_gap_exceeds_intra_paragraph_line_height(
         self,
