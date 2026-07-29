@@ -14,6 +14,18 @@
 - 侧栏与文章选中项使用圆角整行高亮。
 - Reader 使用有限正文宽度、更大的页面留白和随主题变化的纸张配色。
 - Summary 保持为 Reader 底部的可折叠区域。
+- 应用 UI 使用跨平台无衬线字体栈：Windows 优先 Segoe UI Variable 与
+  Microsoft YaHei UI，macOS / Linux 分别回退到 PingFang SC 和
+  Noto Sans CJK SC；Reader 长文正文仍保留衬线阅读字体。
+- Agents 设置左侧使用无外框导航轨道、固定行高和明确的悬停/选中状态，
+  以右侧分隔线替代占满整列的列表框边框。
+- AI Provider 表单校验会逐项指出缺失或无效的 Base URL、模型和超时时间，
+  并聚焦第一个需要修正的字段。
+- Provider 连接测试会区分认证、权限、404、限流、超时、代理、TLS、
+  返回格式和本地/远程不可达；远程不可达时列出网络、DNS、VPN/代理及
+  Base URL 等可能原因，本地不可达时提示检查 Ollama/本地服务和端口。
+- 本地 AI 配置读取或保存失败时区分权限、数据库、本地存储不可用和未知
+  错误，同时不展示 API Key 或底层数据库细节。
 
 参考来源：
 
@@ -42,8 +54,10 @@ Reader 处理策略：
 - 网页抓取成功后可在后台升级为完整正文，不阻塞第一次切换。
 - 后台正文升级不会清空正在生成或已经显示的 Summary / Translation。
 - Agents 设置窗口为启用、禁用控件提供明确的深浅主题文字对比度。
-- Reader 会将纯图片 `figure` / `div` 规范化为 Qt 可正确计算
-  行高的展示段落，避免图片后出现成百上千像素的空白。
+- Reader 会将纯图片 `p` / `figure` / `div` 及其链接、`picture`
+  包装规范化为 Qt 可正确计算行高的展示段落；对 WordPress 常见的
+  “嵌套 `div` + 图片 + 说明段落”结构，图片块使用 100% 行高，
+  说明段落恢复正常行高，避免正文行高按图片高度重复预留空白。
 - Reader 图片同时受阅读宽度设置和当前可见区域约束；缩窄窗口时按
   原始宽高比重新计算尺寸，不再被右侧边界裁切。
 - 原文、Cleaned HTML、Markdown 与双语对照共用当前文章的本地图片
@@ -63,7 +77,7 @@ uv run python -m unittest tests.test_core_reading_acceptance tests.test_feed_imp
 uv run python -m unittest discover -s tests -v
 ```
 
-本轮执行结果：`349` 项测试全部通过；`compileall` 与
+本轮执行结果：`360` 项测试全部通过；`compileall` 与
 `git diff --check` 同时通过。
 
 ## 手动验收
@@ -75,3 +89,9 @@ uv run python -m unittest discover -s tests -v
 5. 选择文章并切换原始内容、Cleaned HTML、Markdown，确认标题、正文、图片、列表、表格和代码块仍可阅读。
 6. 对含图片的文章生成翻译并打开双语对照，确认原文段落、译文段落和
    图片都存在；随后再次缩窄窗口，确认图片仍完整显示。
+7. 在 Agents 设置中分别测试空配置、本地 Ollama 未启动、远程地址不可达
+   和错误 API Key，确认提示给出不同原因和可操作的排查方向。
+8. 打开包含 WordPress 图片说明的文章，在原始内容和 Cleaned HTML 中
+   确认图片紧接说明文字、说明后仅保留正常段落间距；本轮以本地缓存文章
+   `Scattered Spider Hackers Plead Guilty on Day 1 of Trial` 实测两种
+   视图的两张大图，图片到说明的额外间距均为 `0px`。

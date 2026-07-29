@@ -439,6 +439,129 @@ class ArticleReaderTest(unittest.TestCase):
             self.reader.reader_style.paragraph_spacing_px + 0.5,
         )
 
+    def test_wordpress_image_caption_does_not_scale_image_line_height(
+        self,
+    ) -> None:
+        image_url = "https://example.com/wordpress-caption.png"
+        fragment = (
+            '<div class="article-body">'
+            "<p>Paragraph before the image.</p>"
+            '<div class="wp-caption" style="width: 760px;">'
+            '<img aria-describedby="caption-fixture" '
+            f'src="{image_url}" width="750" height="421"></img>'
+            '<p class="wp-caption-text" id="caption-fixture">'
+            "Image caption from the article source."
+            "</p></div>"
+            "<p>Paragraph immediately after the caption.</p>"
+            "</div>"
+        )
+        resolved = self.reader._replace_resolved_images(
+            fragment,
+            {
+                image_url: _ResolvedImage(
+                    data_url="data:image/png;base64,fixture",
+                    width=750,
+                    height=421,
+                )
+            },
+        )
+
+        self.assertIn("<div", resolved)
+        self.assertIn("line-height:100%", resolved)
+        self.assertIn("line-height:normal", resolved)
+
+        rendered = QTextDocument()
+        rendered.setHtml(
+            self.reader._wrap_html(
+                f'<div class="reader-article">{resolved}</div>'
+            )
+        )
+        image_block = rendered.begin()
+        while image_block.isValid() and "\ufffc" not in image_block.text():
+            image_block = image_block.next()
+        caption_block = image_block.next()
+        while (
+            caption_block.isValid()
+            and "Image caption" not in caption_block.text()
+        ):
+            caption_block = caption_block.next()
+        next_block = caption_block.next()
+        while (
+            next_block.isValid()
+            and "Paragraph immediately" not in next_block.text()
+        ):
+            next_block = next_block.next()
+
+        self.assertTrue(image_block.isValid())
+        self.assertTrue(caption_block.isValid())
+        self.assertTrue(next_block.isValid())
+        layout = rendered.documentLayout()
+        image_rect = layout.blockBoundingRect(image_block)
+        caption_rect = layout.blockBoundingRect(caption_block)
+        next_rect = layout.blockBoundingRect(next_block)
+        self.assertLessEqual(
+            caption_rect.top() - image_rect.bottom(),
+            self.reader.reader_style.paragraph_spacing_px + 0.5,
+        )
+        self.assertLessEqual(
+            next_rect.top() - caption_rect.bottom(),
+            self.reader.reader_style.paragraph_spacing_px + 0.5,
+        )
+
+    def test_linked_picture_wrapper_is_treated_as_image_only_block(
+        self,
+    ) -> None:
+        image_url = "https://example.com/linked-picture.png"
+        fragment = (
+            '<div class="responsive-image">'
+            '<a href="https://example.com/full-size">'
+            "<picture>"
+            '<source srcset="fixture-small.png">'
+            f'<img src="{image_url}" alt="Fixture">'
+            "</picture>"
+            "</a>"
+            "</div>"
+            "<p>Text after linked picture.</p>"
+        )
+        resolved = self.reader._replace_resolved_images(
+            fragment,
+            {
+                image_url: _ResolvedImage(
+                    data_url="data:image/png;base64,fixture",
+                    width=640,
+                    height=360,
+                )
+            },
+        )
+
+        self.assertTrue(resolved.startswith("<p"))
+        self.assertIn("line-height:100%", resolved)
+
+        rendered = QTextDocument()
+        rendered.setHtml(
+            self.reader._wrap_html(
+                f'<div class="reader-article">{resolved}</div>'
+            )
+        )
+        image_block = rendered.begin()
+        while image_block.isValid() and "\ufffc" not in image_block.text():
+            image_block = image_block.next()
+        text_block = image_block.next()
+        while (
+            text_block.isValid()
+            and "Text after linked picture" not in text_block.text()
+        ):
+            text_block = text_block.next()
+
+        self.assertTrue(image_block.isValid())
+        self.assertTrue(text_block.isValid())
+        image_rect = rendered.documentLayout().blockBoundingRect(image_block)
+        text_rect = rendered.documentLayout().blockBoundingRect(text_block)
+        self.assertLessEqual(
+            text_rect.top() - image_rect.bottom(),
+            self.reader.reader_style.paragraph_spacing_px + 0.5,
+        )
+
     def test_cleaning_failure_keeps_original_article_readable(self) -> None:
         document = ReaderDocument(
             raw_html="<p>Readable fallback text</p>",

@@ -54,9 +54,20 @@ _IMAGE_SIZE_ATTRIBUTE_PATTERN = re.compile(
     r"(?:[\"'][^\"']*[\"']|[^\s>]+)",
     re.IGNORECASE,
 )
-_IMAGE_ONLY_BLOCK_PATTERN = re.compile(
+_IMAGE_BLOCK_PATTERNS = tuple(
+    re.compile(
+        (
+            rf"<(?P<tag>{tag})\b(?P<attrs>[^>]*)>"
+            rf"(?P<body>(?:(?!<{tag}\b).)*?)"
+            r"</(?P=tag)\s*>"
+        ),
+        re.IGNORECASE | re.DOTALL,
+    )
+    for tag in ("p", "figure", "div")
+)
+_IMAGE_CAPTION_BLOCK_PATTERN = re.compile(
     (
-        r"<(?P<tag>p|figure|div)\b(?P<attrs>[^>]*)>"
+        r"<(?P<tag>p|figcaption)\b(?P<attrs>[^>]*)>"
         r"(?P<body>.*?)</(?P=tag)\s*>"
     ),
     re.IGNORECASE | re.DOTALL,
@@ -1041,37 +1052,41 @@ class ArticleReader(QWidget):
 
     @staticmethod
     def _normalize_image_paragraphs(html: str) -> str:
-        """Prevent proportional line height from scaling image-only blocks."""
+        """Keep proportional article line height from scaling image blocks."""
 
         def normalize_block(match: re.Match[str]) -> str:
             body = match.group("body")
             if _IMAGE_TAG_PATTERN.search(body) is None:
                 return match.group(0)
-            if re.sub(r"<[^>]+>", "", body).strip():
-                return match.group(0)
 
-            attrs = match.group("attrs")
-            style_match = _STYLE_ATTRIBUTE_PATTERN.search(attrs)
-            if style_match is None:
-                attrs = f'{attrs} style="line-height:100%;"'
-            else:
-                style = re.sub(
-                    r"\s*line-height\s*:\s*[^;]+;?",
-                    "",
-                    style_match.group("style"),
-                    flags=re.IGNORECASE,
+            attrs = ArticleReader._set_inline_line_height(
+                match.group("attrs"),
+                "100%",
+            )
+            visible_text = unescape(
+                re.sub(r"<[^>]+>", "", body)
+            ).strip()
+
+            if visible_text:
+                body = _IMAGE_CAPTION_BLOCK_PATTERN.sub(
+                    lambda caption: (
+                        f'<{caption.group("tag")}'
+                        f'{ArticleReader._set_inline_line_height(
+                            caption.group("attrs"),
+                            "normal",
+                        )}>'
+                        f'{caption.group("body")}'
+                        f'</{caption.group("tag")}>'
+                    ),
+                    body,
                 )
-                replacement = (
-                    f'{style_match.group("prefix")}'
-                    f'{style_match.group("quote")}'
-                    f'line-height:100%;{style}'
-                    f'{style_match.group("quote")}'
-                )
-                attrs = (
-                    f"{attrs[:style_match.start()]}"
-                    f"{replacement}"
-                    f"{attrs[style_match.end():]}"
-                )
+
+                # WordPress commonly wraps an image and its caption in one
+                # ``div``. QTextDocument applies the article's proportional
+                # line height to the image-owning div, reserving a second
+                # fraction of the image below it. Keep the media block at
+                # 100%, while caption paragraphs return to normal line height.
+                return f"<div{attrs}>{body}</div>"
 
             # QTextDocument ignores ``figure`` styling and applies the
             # article line-height to the image itself. A presentation-only
@@ -1079,7 +1094,34 @@ class ArticleReader(QWidget):
             # giving Qt a block whose line height it can size correctly.
             return f"<p{attrs}>{body}</p>"
 
-        return _IMAGE_ONLY_BLOCK_PATTERN.sub(normalize_block, html)
+        normalized = html
+        for block_pattern in _IMAGE_BLOCK_PATTERNS:
+            normalized = block_pattern.sub(normalize_block, normalized)
+        return normalized
+
+    @staticmethod
+    def _set_inline_line_height(attrs: str, value: str) -> str:
+        style_match = _STYLE_ATTRIBUTE_PATTERN.search(attrs)
+        if style_match is None:
+            return f'{attrs} style="line-height:{value};"'
+
+        style = re.sub(
+            r"\s*line-height\s*:\s*[^;]+;?",
+            "",
+            style_match.group("style"),
+            flags=re.IGNORECASE,
+        )
+        replacement = (
+            f'{style_match.group("prefix")}'
+            f'{style_match.group("quote")}'
+            f'line-height:{value};{style}'
+            f'{style_match.group("quote")}'
+        )
+        return (
+            f"{attrs[:style_match.start()]}"
+            f"{replacement}"
+            f"{attrs[style_match.end():]}"
+        )
 
     def _apply_image_replacements(self) -> None:
         self._is_resolving_images = False
