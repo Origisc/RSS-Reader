@@ -116,19 +116,37 @@ class BackendArticleServiceTest(unittest.TestCase):
         opml_content = """<?xml version="1.0" encoding="UTF-8"?>
 <opml version="2.0">
   <body>
-    <outline text="Example Feed" xmlUrl="https://example.com/feed.xml" />
+    <outline text="Example Feed" xmlUrl="feed.xml" />
   </body>
 </opml>
+"""
+        feed_content = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Example Feed</title>
+    <link>https://example.com/</link>
+    <description>Local test feed</description>
+    <item>
+      <title>Imported article</title>
+      <link>https://example.com/imported</link>
+      <description>Imported content</description>
+    </item>
+  </channel>
+</rss>
 """
         with tempfile.TemporaryDirectory() as temp_dir:
             opml_path = Path(temp_dir) / "feeds.opml"
             opml_path.write_text(opml_content, encoding="utf-8")
+            feed_path = Path(temp_dir) / "feed.xml"
+            feed_path.write_text(feed_content, encoding="utf-8")
 
             message = self.service.import_opml(str(opml_path))
 
         feeds = self.service.list_feeds()
+        articles = self.service.list_articles(feeds[0].id)
         self.assertIn("1 new feeds", message)
         self.assertEqual(feeds[0].title, "Example Feed")
+        self.assertEqual(articles[0].title, "Imported article")
 
     def test_deletes_feed_and_its_cached_articles(self) -> None:
         feed_id = self.db.add_feed("Example", "https://example.com/rss")
@@ -312,6 +330,38 @@ class BackendArticleServiceTest(unittest.TestCase):
         article = self.service.get_article(article_id)
         self.assertIn("New Title", article.cleaned_html)
 
+    def test_clean_article_content_uses_cached_feed_body_without_fetch(
+        self,
+    ) -> None:
+        feed_id = self.db.add_feed("Example", "https://example.com/rss")
+        self.db.save_articles(
+            feed_id,
+            [
+                {
+                    "title": "Test Article",
+                    "link": "https://example.com/article",
+                    "summary": (
+                        "<h2>Cached heading</h2>"
+                        "<p>Cached Feed body.</p>"
+                    ),
+                    "published": "Today",
+                }
+            ],
+        )
+        articles = self.service.list_articles(str(feed_id))
+        article_id = articles[0].id
+        self.service._fetcher.fetch = Mock(
+            side_effect=AssertionError("Network fetch must not run.")
+        )
+
+        result = self.service.clean_article_content(article_id)
+
+        self.assertEqual(result, "Article content cleaned successfully.")
+        article = self.service.get_article(article_id)
+        self.assertIn("Cached Feed body", article.cleaned_html)
+        self.assertIn("## Cached heading", article.cleaned_markdown)
+        self.service._fetcher.fetch.assert_not_called()
+
     def test_clean_article_content_no_html(self) -> None:
         feed_id = self.db.add_feed("Example", "https://example.com/rss")
         self.db.save_articles(
@@ -320,13 +370,12 @@ class BackendArticleServiceTest(unittest.TestCase):
                 {
                     "title": "Test Article",
                     "link": "",
-                    "summary": "<p>Summary</p>",
+                    "summary": "",
                     "published": "Today",
                 }
             ],
         )
-        articles = self.service.list_articles(str(feed_id))
-        article_id = articles[0].id
+        article_id = self.service.list_articles(str(feed_id))[0].id
 
         result = self.service.clean_article_content(article_id)
 

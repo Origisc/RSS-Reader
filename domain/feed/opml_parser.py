@@ -31,7 +31,7 @@ def import_opml(feed_use_case, file_path: str) -> int:
             detail="The root element must be <opml>.",
         )
 
-    feeds: list[tuple[str, str]] = []
+    feeds: list[tuple[str, str, object]] = []
     seen_sources: set[str] = set()
     for outline in root.iter():
         if _local_name(outline.tag).casefold() != "outline":
@@ -45,9 +45,10 @@ def import_opml(feed_use_case, file_path: str) -> int:
             xml_url,
             base_directory=opml_path.parent,
         )
-        if resolved.is_local:
-            feed_use_case.validate_feed_source(resolved.value)
-        deduplication_key = resolved.value.casefold()
+        canonical_source, feed_data = (
+            feed_use_case.prepare_feed_source(resolved.value)
+        )
+        deduplication_key = canonical_source.casefold()
         if deduplication_key in seen_sources:
             continue
         seen_sources.add(deduplication_key)
@@ -57,7 +58,13 @@ def import_opml(feed_use_case, file_path: str) -> int:
             or outline.get("title")
             or "Unnamed feed"
         ).strip()
-        feeds.append((title or "Unnamed feed", resolved.value))
+        feeds.append(
+            (
+                title or "Unnamed feed",
+                canonical_source,
+                feed_data,
+            )
+        )
 
     if not feeds:
         raise FeedImportError(
@@ -66,8 +73,12 @@ def import_opml(feed_use_case, file_path: str) -> int:
         )
 
     try:
-        for title, xml_url in feeds:
-            feed_use_case.db.add_feed(title, xml_url)
+        for title, xml_url, feed_data in feeds:
+            feed_use_case.add_prepared_feed(
+                xml_url,
+                feed_data,
+                title_override=title,
+            )
     except Exception as exc:
         raise FeedImportError(
             FeedImportErrorCode.STORAGE_FAILED,

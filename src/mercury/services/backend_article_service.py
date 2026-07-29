@@ -309,8 +309,19 @@ class BackendArticleService:
         return f"OPML import finished. {max(imported_count, 0)} new feeds added."
 
     def refresh_all(self) -> str:
-        self._feed_use_case.refresh_all()
-        return "All feeds refreshed."
+        result = self._feed_use_case.refresh_all()
+        if not result.failures:
+            return f"All {result.succeeded} feeds refreshed."
+
+        failure_details = "; ".join(
+            f"{failure.title} ({failure.source}): {failure.error}"
+            for failure in result.failures
+        )
+        return (
+            "Feed sync completed with errors: "
+            f"{result.succeeded}/{result.total} succeeded; "
+            f"{result.failed} failed. {failure_details}"
+        )
 
     def delete_feed(self, feed_id: str) -> None:
         try:
@@ -357,7 +368,10 @@ class BackendArticleService:
         if not force and article.clean_status == "success":
             return "Article content already cleaned."
 
-        if not article.original_html:
+        html_source = article.original_html or self._feed_content_source(
+            article_id
+        )
+        if not html_source:
             detail = self._db.get_article_detail(int(article_id))
             has_link = detail is not None and detail[2]
             if has_link and article.fetch_status != "success":
@@ -365,10 +379,11 @@ class BackendArticleService:
                 article = self.get_article(article_id)
                 if article is None or article.fetch_status != "success":
                     return "Cannot clean: article fetch failed."
-            if not article.original_html:
+            html_source = article.original_html
+            if not html_source:
                 return "Article has no original HTML content."
 
-        result = self._cleaner.clean(article.original_html)
+        result = self._cleaner.clean(html_source)
         cleaned_at = datetime.now().isoformat()
 
         if result.success:
@@ -403,7 +418,11 @@ class BackendArticleService:
         if not force and article.cleaned_markdown:
             return "Article content already converted to Markdown."
 
-        if not article.original_html:
+        local_html_source = (
+            article.original_html
+            or self._feed_content_source(article_id)
+        )
+        if not local_html_source:
             detail = self._db.get_article_detail(int(article_id))
             has_link = detail is not None and detail[2]
             if has_link and article.fetch_status != "success":
@@ -411,19 +430,20 @@ class BackendArticleService:
                 article = self.get_article(article_id)
                 if article is None or article.fetch_status != "success":
                     return "Cannot convert: article fetch failed."
-            if not article.original_html:
+            local_html_source = article.original_html
+            if not local_html_source:
                 return "Article has no HTML content to convert."
 
         html_source = article.cleaned_html
         needs_clean = False
 
         if not html_source or article.clean_status != "success":
-            clean_result = self._cleaner.clean(article.original_html)
+            clean_result = self._cleaner.clean(local_html_source)
             if clean_result.success:
                 html_source = clean_result.cleaned_html
                 needs_clean = True
             else:
-                html_source = article.original_html
+                html_source = local_html_source
 
         result = self._converter.convert(html_source)
         cleaned_at = datetime.now().isoformat()
@@ -700,6 +720,15 @@ class BackendArticleService:
             )
 
         return description_html or "<p>No article summary is available.</p>"
+
+    def _feed_content_source(self, article_id: str) -> str:
+        """Return locally cached Feed content without a network request."""
+        detail = self._db.get_article_detail(int(article_id))
+        if detail is None:
+            return ""
+
+        description = detail[1]
+        return str(description or "").strip()
 
     def _looks_like_url(self, value: str) -> bool:
         parsed = urlparse(value)

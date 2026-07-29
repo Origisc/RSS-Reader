@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 
 import feedparser
@@ -14,13 +15,44 @@ from domain.feed.source_paths import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class FeedRefreshFailure:
+    title: str
+    source: str
+    error: str
+
+
+@dataclass(frozen=True, slots=True)
+class FeedRefreshResult:
+    total: int
+    succeeded: int
+    failures: tuple[FeedRefreshFailure, ...] = ()
+
+    @property
+    def failed(self) -> int:
+        return len(self.failures)
+
+
 class FeedUseCase:
     def __init__(self, db: DBManager):
         self.db = db
 
     def add_single_feed(self, xml_url: str) -> int:
         canonical_source, feed_data = self._load_feed(xml_url)
-        feed_title = feed_data.feed.get("title", canonical_source)
+        return self.add_prepared_feed(canonical_source, feed_data)
+
+    def add_prepared_feed(
+        self,
+        canonical_source: str,
+        feed_data,
+        *,
+        title_override: str | None = None,
+    ) -> int:
+        feed_title = (
+            title_override
+            or feed_data.feed.get("title")
+            or canonical_source
+        )
         html_url = feed_data.feed.get("link", "")
 
         try:
@@ -39,6 +71,17 @@ class FeedUseCase:
 
         return int(feed_id)
 
+    def prepare_feed_source(
+        self,
+        source: str,
+        *,
+        base_directory: Path | None = None,
+    ) -> tuple[str, object]:
+        return self._load_feed(
+            source,
+            base_directory=base_directory,
+        )
+
     def validate_feed_source(
         self,
         source: str,
@@ -51,16 +94,29 @@ class FeedUseCase:
         )
         return canonical_source
 
-    def refresh_all(self) -> None:
+    def refresh_all(self) -> FeedRefreshResult:
         feeds = self.db.get_all_feeds()
-        print(f"开始刷新全部 {len(feeds)} 个订阅源...")
+        succeeded = 0
+        failures: list[FeedRefreshFailure] = []
         for feed_id, title, xml_url in feeds:
             try:
                 _canonical_source, feed_data = self._load_feed(xml_url)
                 self.db.save_articles(feed_id, feed_data.entries)
-                print(f"已更新: {title}")
+                succeeded += 1
             except FeedImportError as exc:
-                print(f"更新失败 [{title}]: {exc}")
+                failures.append(
+                    FeedRefreshFailure(
+                        title=str(title or xml_url),
+                        source=str(xml_url),
+                        error=str(exc),
+                    )
+                )
+
+        return FeedRefreshResult(
+            total=len(feeds),
+            succeeded=succeeded,
+            failures=tuple(failures),
+        )
 
     def remove_feed_by_id(self, feed_id: int) -> dict:
         """
