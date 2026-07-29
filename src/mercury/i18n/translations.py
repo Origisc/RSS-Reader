@@ -76,6 +76,21 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "reader.status.markdown": "正在显示 Cleaned Markdown",
         "reader.status.fallback_unavailable": "{view} 暂不可用，已显示原始内容。",
         "reader.status.fallback_error": "清洗失败：{error}。已显示原始内容。",
+        "reader.issue.link_only_loading": (
+            "此 Feed 只提供了文章链接，Mercury 正在后台尝试加载网页正文。"
+        ),
+        "reader.issue.link_only_not_found": (
+            "无法加载文章正文：目标网页返回 404，文章可能已被删除或链接已失效。"
+            "你仍可使用下方链接在浏览器中确认。"
+        ),
+        "reader.issue.link_only_failed": (
+            "无法加载文章正文：{error}。此 Feed 只提供了链接，"
+            "你仍可使用下方链接在浏览器中打开。"
+        ),
+        "reader.issue.link_only_available": (
+            "此 Feed 的原始内容只有链接；网页正文已经加载，"
+            "可切换到 Cleaned HTML 或 Markdown 阅读。"
+        ),
         "reader.summary_toggle": "摘要",
         "reader.summary_toggle_tooltip": (
             "显示或隐藏摘要面板（Ctrl+Shift+S）"
@@ -505,6 +520,23 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "reader.status.fallback_error": (
             "Cleaning failed: {error}. Showing original content."
+        ),
+        "reader.issue.link_only_loading": (
+            "This Feed only provides an article link. Mercury is trying "
+            "to load the webpage content in the background."
+        ),
+        "reader.issue.link_only_not_found": (
+            "The article body could not be loaded because the webpage "
+            "returned 404. It may have been removed or moved. You can "
+            "still use the link below to check it in a browser."
+        ),
+        "reader.issue.link_only_failed": (
+            "The article body could not be loaded: {error}. This Feed only "
+            "provides a link, which you can still open in a browser."
+        ),
+        "reader.issue.link_only_available": (
+            "The original Feed content only contains a link. The webpage "
+            "body is available in Cleaned HTML or Markdown."
         ),
         "reader.summary_toggle": "Summary",
         "reader.summary_toggle_tooltip": (

@@ -75,6 +75,14 @@ class TranslatorTest(unittest.TestCase):
                 "{error}",
                 translator.text("reader.status.fallback_error"),
             )
+            self.assertNotEqual(
+                translator.text("reader.issue.link_only_not_found"),
+                "reader.issue.link_only_not_found",
+            )
+            self.assertIn(
+                "{error}",
+                translator.text("reader.issue.link_only_failed"),
+            )
 
     def test_reader_style_settings_are_available_in_both_languages(self) -> None:
         for language in ("zh_CN", "en_US"):

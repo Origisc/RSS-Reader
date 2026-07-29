@@ -101,6 +101,10 @@ class Sidebar(QWidget):
         )
         self.menu_refresh_action = QAction(self)
         self.menu_refresh_action.triggered.connect(self.refresh_requested)
+        self.menu_batch_delete_action = QAction(self)
+        self.menu_batch_delete_action.triggered.connect(
+            self._handle_batch_delete_button
+        )
         self.menu_delete_feed_action = QAction(self)
         self.menu_delete_feed_action.setEnabled(False)
         self.menu_delete_feed_action.triggered.connect(
@@ -113,6 +117,7 @@ class Sidebar(QWidget):
         self.feed_actions_menu.addSeparator()
         self.feed_actions_menu.addAction(self.menu_refresh_action)
         self.feed_actions_menu.addSeparator()
+        self.feed_actions_menu.addAction(self.menu_batch_delete_action)
         self.feed_actions_menu.addAction(self.menu_delete_feed_action)
 
         self.add_feed_button = QToolButton()
@@ -417,6 +422,7 @@ class Sidebar(QWidget):
         self.menu_add_feed_action.setText(add_feed)
         self.menu_import_opml_action.setText(import_opml)
         self.menu_refresh_action.setText(refresh)
+        self.menu_batch_delete_action.setText(batch_delete)
         self.menu_delete_feed_action.setText(delete_feed)
         self._batch_delete_text = batch_delete
         self._delete_selected_text = delete_selected
@@ -565,7 +571,11 @@ class Sidebar(QWidget):
         )
         self.add_feed_button.setVisible(not self._batch_delete_mode)
         self.feed_menu_button.setVisible(not self._batch_delete_mode)
+        self.menu_batch_delete_action.setEnabled(
+            not self._batch_delete_mode and self._feed_count > 0
+        )
         if self._batch_delete_mode:
+            self.batch_delete_button.setVisible(True)
             self.batch_delete_button.setText(
                 self._delete_selected_text.format(count=selected_count)
             )
@@ -574,6 +584,7 @@ class Sidebar(QWidget):
 
         self.batch_delete_button.setText(self._batch_delete_text)
         self.batch_delete_button.setEnabled(self._feed_count > 0)
+        self.batch_delete_button.setVisible(False)
 
     def _emit_feed_deletion_request(
         self,

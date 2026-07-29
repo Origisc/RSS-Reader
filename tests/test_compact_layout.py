@@ -87,6 +87,28 @@ class CompactLayoutTest(unittest.TestCase):
             self.window.summary_title_bar.sizeHint().height() + 1,
         )
 
+    def test_reference_layout_uses_header_and_comfortable_three_columns(
+        self,
+    ) -> None:
+        self.assertIs(
+            self.window.centralWidget(),
+            self.window.app_shell,
+        )
+        self.assertEqual(self.window.app_header.height(), 48)
+        self.assertEqual(self.window.app_brand.text(), "Mercury")
+        self.assertIs(
+            self.window.header_refresh_button.defaultAction(),
+            self.window.refresh_action,
+        )
+        self.assertIs(
+            self.window.header_settings_button.defaultAction(),
+            self.window.open_settings_action,
+        )
+        self.assertGreaterEqual(self.window.sidebar.minimumWidth(), 210)
+        self.assertGreaterEqual(self.window.article_list.minimumWidth(), 300)
+        self.assertGreaterEqual(self.window.article_reader.minimumWidth(), 560)
+        self.assertFalse(self.window.splitter.childrenCollapsible())
+
 
 if __name__ == "__main__":
     unittest.main()

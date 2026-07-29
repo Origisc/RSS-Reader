@@ -8,11 +8,14 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QInputDialog,
+    QLabel,
     QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
     QSplitter,
+    QStyle,
+    QToolButton,
     QVBoxLayout,
 )
 
@@ -201,7 +204,8 @@ class MainWindow(QMainWindow):
         self._tags: list[Tag] = []
         self._system_selected_article_id: str | None = None
 
-        self.resize(1320, 820)
+        self.resize(1440, 900)
+        self.setMinimumSize(1100, 680)
 
         self.sidebar = Sidebar()
         self.article_list = ArticleList()
@@ -220,12 +224,57 @@ class MainWindow(QMainWindow):
         self._apply_theme()
 
     def _setup_ui(self) -> None:
+        self.app_shell = QFrame()
+        self.app_shell.setObjectName("AppShell")
+
+        self.app_header = QFrame()
+        self.app_header.setObjectName("AppHeader")
+        self.app_header.setFixedHeight(48)
+
+        self.app_brand = QLabel("Mercury")
+        self.app_brand.setObjectName("AppBrand")
+
+        self.header_refresh_button = QToolButton()
+        self.header_refresh_button.setObjectName("TopActionButton")
+        self.header_refresh_button.setDefaultAction(self.refresh_action)
+        self.header_refresh_button.setIcon(
+            self.style().standardIcon(
+                QStyle.StandardPixmap.SP_BrowserReload
+            )
+        )
+        self.header_refresh_button.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonIconOnly
+        )
+
+        self.header_settings_button = QToolButton()
+        self.header_settings_button.setObjectName("TopActionButton")
+        self.header_settings_button.setDefaultAction(
+            self.open_settings_action
+        )
+        self.header_settings_button.setIcon(
+            self.style().standardIcon(
+                QStyle.StandardPixmap.SP_FileDialogDetailedView
+            )
+        )
+        self.header_settings_button.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonIconOnly
+        )
+
+        header_layout = QHBoxLayout(self.app_header)
+        header_layout.setContentsMargins(16, 6, 12, 6)
+        header_layout.setSpacing(8)
+        header_layout.addWidget(self.app_brand)
+        header_layout.addStretch(1)
+        header_layout.addWidget(self.header_refresh_button)
+        header_layout.addWidget(self.header_settings_button)
+
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setObjectName("MainSplitter")
+        self.splitter.setChildrenCollapsible(False)
 
-        self.sidebar.setMinimumWidth(170)
-        self.article_list.setMinimumWidth(230)
-        self.article_reader.setMinimumWidth(540)
+        self.sidebar.setMinimumWidth(210)
+        self.article_list.setMinimumWidth(300)
+        self.article_reader.setMinimumWidth(560)
 
         self.reader_splitter = QSplitter(Qt.Orientation.Vertical)
         self.reader_splitter.setObjectName("ReaderSummarySplitter")
@@ -235,12 +284,17 @@ class MainWindow(QMainWindow):
         self.splitter.addWidget(self.article_list)
         self.splitter.addWidget(self.reader_splitter)
 
-        self.splitter.setSizes([185, 255, 880])
+        self.splitter.setSizes([230, 360, 850])
         self.splitter.setStretchFactor(0, 0)
         self.splitter.setStretchFactor(1, 0)
         self.splitter.setStretchFactor(2, 1)
 
-        self.setCentralWidget(self.splitter)
+        shell_layout = QVBoxLayout(self.app_shell)
+        shell_layout.setContentsMargins(0, 0, 0, 0)
+        shell_layout.setSpacing(0)
+        shell_layout.addWidget(self.app_header)
+        shell_layout.addWidget(self.splitter, 1)
+        self.setCentralWidget(self.app_shell)
 
     def _setup_actions(self) -> None:
         self.add_feed_action = QAction(self)
@@ -901,16 +955,39 @@ class MainWindow(QMainWindow):
                     if article is None:
                         return
 
-                    if not article.original_html:
+                    if article.clean_status != "success":
+                        previous_clean_status = article.clean_status
+                        self.service.clean_article_content(self.article_id)
+                        article = self.service.get_article(self.article_id)
+                        if article is None:
+                            return
+                        if (
+                            article.clean_status != previous_clean_status
+                            or bool(article.cleaned_html)
+                            or bool(article.cleaned_markdown)
+                        ):
+                            self.signals.processed.emit(self.article_id)
+
+                    if (
+                        not article.original_html
+                        and article.fetch_status != "success"
+                    ):
+                        previous_fetch_status = article.fetch_status
+                        previous_fetch_error = article.fetch_error
                         self.service.fetch_article_content(self.article_id)
                         article = self.service.get_article(self.article_id)
-                        if article is None or not article.original_html:
+                        if article is not None and article.original_html:
+                            self.service.clean_article_content(
+                                self.article_id,
+                                force=True,
+                            )
+                            self.signals.processed.emit(self.article_id)
                             return
-
-                    if article.original_html and article.clean_status != "success":
-                        self.service.clean_article_content(self.article_id)
-
-                    self.signals.processed.emit(self.article_id)
+                        if article is not None and (
+                            article.fetch_status != previous_fetch_status
+                            or article.fetch_error != previous_fetch_error
+                        ):
+                            self.signals.processed.emit(self.article_id)
                 except Exception as e:
                     print(f"Error processing article {self.article_id}: {e}")
                 finally:
@@ -932,7 +1009,7 @@ class MainWindow(QMainWindow):
 
         document = ReaderDocument.from_article(article)
         self.article_reader.show_article(article, document)
-        self.summary_panel.set_article(
+        self.summary_panel.update_article_source(
             SummarySource(
                 article_id=article.id,
                 title=article.title,
@@ -941,7 +1018,7 @@ class MainWindow(QMainWindow):
                 cleaned_html=document.cleaned_html,
             )
         )
-        self.translation_panel.set_article(
+        self.translation_panel.update_article_source(
             TranslationSource(
                 article_id=article.id,
                 title=article.title,
@@ -949,6 +1026,9 @@ class MainWindow(QMainWindow):
                 cleaned_markdown=document.cleaned_markdown,
                 cleaned_html=document.cleaned_html,
             )
+        )
+        self.article_reader.set_translation_result(
+            self.translation_panel.displayed_result
         )
         self.tag_suggestion_panel.set_article(
             self._tag_source(article, document)
@@ -1873,6 +1953,20 @@ class MainWindow(QMainWindow):
             ),
             fallback_error=self.translator.text("reader.status.fallback_error"),
         )
+        self.article_reader.set_content_issue_texts(
+            link_only_loading=self.translator.text(
+                "reader.issue.link_only_loading"
+            ),
+            link_only_not_found=self.translator.text(
+                "reader.issue.link_only_not_found"
+            ),
+            link_only_failed=self.translator.text(
+                "reader.issue.link_only_failed"
+            ),
+            link_only_available=self.translator.text(
+                "reader.issue.link_only_available"
+            ),
+        )
         self.article_reader.set_read_state_texts(
             mark_read=self.translator.text("action.mark_read"),
             mark_unread=self.translator.text("action.mark_unread"),
@@ -1941,5 +2035,6 @@ class MainWindow(QMainWindow):
 
         app.setStyleSheet(stylesheet_for_theme(self._theme))
         self.article_list.set_color_scheme(self._theme)
+        self.article_reader.set_color_scheme(self._theme)
         self.summary_panel.set_color_scheme(self._theme)
         self.translation_panel.set_color_scheme(self._theme)

@@ -36,6 +36,7 @@ READ_STATE_ROLE = Qt.ItemDataRole.UserRole + 1
 ARTICLE_TITLE_ROLE = Qt.ItemDataRole.UserRole + 2
 ARTICLE_SOURCE_ROLE = Qt.ItemDataRole.UserRole + 3
 STARRED_STATE_ROLE = Qt.ItemDataRole.UserRole + 4
+ARTICLE_META_ROLE = Qt.ItemDataRole.UserRole + 5
 
 
 class WrappingArticleDelegate(QStyledItemDelegate):
@@ -54,10 +55,10 @@ class WrappingArticleDelegate(QStyledItemDelegate):
         option: QStyleOptionViewItem,
         index,
     ) -> QSize:
-        wrapped_option = QStyleOptionViewItem(option)
-        self.initStyleOption(wrapped_option, index)
-
-        horizontal_padding = 60
+        title = str(index.data(ARTICLE_TITLE_ROLE) or "")
+        title_font = option.font
+        title_font.setBold(not bool(index.data(READ_STATE_ROLE)))
+        horizontal_padding = 76
         available_width = max(
             self._article_list.viewport().width() - horizontal_padding,
             80,
@@ -67,16 +68,16 @@ class WrappingArticleDelegate(QStyledItemDelegate):
             | Qt.AlignmentFlag.AlignTop
             | Qt.TextFlag.TextWordWrap
         )
-        text_bounds = QFontMetrics(wrapped_option.font).boundingRect(
+        text_bounds = QFontMetrics(title_font).boundingRect(
             QRect(0, 0, available_width, 100_000),
             text_flags,
-            wrapped_option.text,
+            title,
         )
-        default_size = super().sizeHint(wrapped_option, index)
+        metadata_height = QFontMetrics(option.font).height() * 2 + 14
 
         return QSize(
             available_width + horizontal_padding,
-            max(default_size.height(), text_bounds.height() + 16),
+            max(72, text_bounds.height() + metadata_height + 16),
         )
 
     def paint(
@@ -85,11 +86,8 @@ class WrappingArticleDelegate(QStyledItemDelegate):
         option: QStyleOptionViewItem,
         index,
     ) -> None:
-        content_option = QStyleOptionViewItem(option)
-        content_option.rect = content_option.rect.adjusted(0, 0, -36, 0)
-        super().paint(painter, content_option, index)
-
         is_starred = bool(index.data(STARRED_STATE_ROLE))
+        is_read = bool(index.data(READ_STATE_ROLE))
         is_hovered = bool(
             option.state & QStyle.StateFlag.State_MouseOver
         )
@@ -97,10 +95,122 @@ class WrappingArticleDelegate(QStyledItemDelegate):
             option.state & QStyle.StateFlag.State_Selected
         )
 
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        scheme = str(
+            self._article_list.property("colorScheme") or "dark"
+        )
+        row_rect = option.rect.adjusted(6, 3, -6, -3)
+
+        if is_selected:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(
+                QColor("#0b6fe8" if scheme == "dark" else "#dbeafe")
+            )
+            painter.drawRoundedRect(QRectF(row_rect), 8, 8)
+        elif is_hovered:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(
+                QColor("#2a2f35" if scheme == "dark" else "#eef1f4")
+            )
+            painter.drawRoundedRect(QRectF(row_rect), 8, 8)
+
+        if is_selected and scheme == "dark":
+            title_color = QColor("#ffffff")
+            meta_color = QColor("#d7e6fa")
+        elif is_selected:
+            title_color = QColor("#17324d")
+            meta_color = QColor("#486581")
+        else:
+            title_color = QColor(
+                "#7f8790"
+                if is_read
+                else ("#f1f3f5" if scheme == "dark" else "#202124")
+            )
+            meta_color = QColor(
+                "#9aa1a9" if scheme == "dark" else "#737980"
+            )
+
+        content_left = row_rect.left() + 22
+        content_right = row_rect.right() - 34
+        available_width = max(content_right - content_left, 80)
+
+        if not is_read:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#4c9aff"))
+            painter.drawEllipse(
+                QRectF(row_rect.left() + 8, row_rect.top() + 12, 6, 6)
+            )
+
+        title_font = option.font
+        title_font.setBold(not is_read)
+        painter.setFont(title_font)
+        painter.setPen(title_color)
+        title = str(index.data(ARTICLE_TITLE_ROLE) or "")
+        title_metrics = QFontMetrics(title_font)
+        title_flags = int(
+            Qt.AlignmentFlag.AlignLeft
+            | Qt.AlignmentFlag.AlignTop
+            | Qt.TextFlag.TextWordWrap
+        )
+        title_bounds = title_metrics.boundingRect(
+            QRect(0, 0, available_width, 100_000),
+            title_flags,
+            title,
+        )
+        title_rect = QRect(
+            content_left,
+            row_rect.top() + 7,
+            available_width,
+            title_bounds.height(),
+        )
+        painter.drawText(title_rect, title_flags, title)
+
+        meta_font = option.font
+        meta_font.setBold(False)
+        meta_font.setPointSizeF(max(meta_font.pointSizeF() - 1, 8))
+        painter.setFont(meta_font)
+        painter.setPen(meta_color)
+        meta_metrics = QFontMetrics(meta_font)
+        source_top = title_rect.bottom() + 5
+        meta_flags = int(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        painter.drawText(
+            QRect(
+                content_left,
+                source_top,
+                available_width,
+                meta_metrics.height(),
+            ),
+            meta_flags,
+            str(index.data(ARTICLE_SOURCE_ROLE) or ""),
+        )
+        painter.drawText(
+            QRect(
+                content_left,
+                source_top + meta_metrics.height() + 2,
+                available_width,
+                meta_metrics.height(),
+            ),
+            meta_flags,
+            str(index.data(ARTICLE_META_ROLE) or ""),
+        )
+
+        painter.setPen(
+            QColor("#34393f" if scheme == "dark" else "#e2e5e8")
+        )
+        painter.drawLine(
+            row_rect.left() + 16,
+            option.rect.bottom(),
+            row_rect.right(),
+            option.rect.bottom(),
+        )
+
         if not (is_starred or is_hovered or is_selected):
+            painter.restore()
             return
 
-        painter.save()
         star_rect = self._star_rect(option)
         icon_size = 15.0
         draw_star(
@@ -279,6 +389,7 @@ class ArticleList(QWidget):
                 item.setData(ARTICLE_TITLE_ROLE, display_title)
                 item.setData(ARTICLE_SOURCE_ROLE, article.source_title)
                 item.setData(STARRED_STATE_ROLE, article.is_starred)
+                item.setData(ARTICLE_META_ROLE, self._entry_meta_text)
                 item.setToolTip(display_title)
                 self._update_item_text(item)
                 self._apply_read_style(item)
@@ -309,6 +420,10 @@ class ArticleList(QWidget):
 
     def set_color_scheme(self, theme: str) -> None:
         self._color_scheme = "light" if theme == "light" else "dark"
+        self.list_widget.setProperty(
+            "colorScheme",
+            self._color_scheme,
+        )
 
         for index in range(self.list_widget.count()):
             self._apply_read_style(self.list_widget.item(index))
@@ -473,6 +588,7 @@ class ArticleList(QWidget):
     def _update_item_text(self, item: QListWidgetItem) -> None:
         title = item.data(ARTICLE_TITLE_ROLE) or ""
         source_title = item.data(ARTICLE_SOURCE_ROLE) or ""
+        item.setData(ARTICLE_META_ROLE, self._entry_meta_text)
         item.setText(
-            f"• {title}\n{source_title}\n{self._entry_meta_text}"
+            f"{title}\n{source_title}\n{self._entry_meta_text}"
         )

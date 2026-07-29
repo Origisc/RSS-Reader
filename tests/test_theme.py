@@ -15,6 +15,9 @@ class ThemeTest(unittest.TestCase):
     def test_dark_theme_contains_reader_panel_styles(self) -> None:
         stylesheet = stylesheet_for_theme("dark")
 
+        self.assertIn("QFrame#AppHeader", stylesheet)
+        self.assertIn("QLabel#AppBrand", stylesheet)
+        self.assertIn("QToolButton#TopActionButton", stylesheet)
         self.assertIn("QWidget#ReaderPanel", stylesheet)
         self.assertIn('QLabel[chip="true"]', stylesheet)
         self.assertIn("QFrame#TagEditorPopover", stylesheet)
@@ -24,6 +27,7 @@ class ThemeTest(unittest.TestCase):
     def test_light_theme_sets_compact_navigation_colors(self) -> None:
         stylesheet = stylesheet_for_theme("light")
 
+        self.assertIn("QFrame#AppHeader", stylesheet)
         self.assertIn("QPushButton#PrimarySegment", stylesheet)
         self.assertIn("QPushButton#EntryFilterButton", stylesheet)
         self.assertIn("color: #1f2933", stylesheet)
@@ -39,6 +43,10 @@ class ThemeTest(unittest.TestCase):
         self.assertIn("color: #e5edf5", stylesheet)
         self.assertIn("QDialog QDoubleSpinBox", stylesheet)
         self.assertIn("QDialog QLineEdit", stylesheet)
+        self.assertIn("QDialog QCheckBox", stylesheet)
+        self.assertIn("QDialog QCheckBox:disabled", stylesheet)
+        self.assertIn("QDialog QLineEdit:disabled", stylesheet)
+        self.assertIn("QDialog QPushButton:disabled", stylesheet)
         self.assertIn("background: #202833", stylesheet)
         self.assertIn("QDialog QComboBox QAbstractItemView", stylesheet)
         self.assertIn("selection-color: #ffffff", stylesheet)
@@ -52,6 +60,10 @@ class ThemeTest(unittest.TestCase):
         self.assertIn("QDialog QLabel", stylesheet)
         self.assertIn("color: #1f2933", stylesheet)
         self.assertIn("QDialog QLineEdit", stylesheet)
+        self.assertIn("QDialog QCheckBox", stylesheet)
+        self.assertIn("QDialog QCheckBox:disabled", stylesheet)
+        self.assertIn("QDialog QLineEdit:disabled", stylesheet)
+        self.assertIn("QDialog QPushButton:disabled", stylesheet)
 
     def test_system_theme_uses_default_dark_reader_style(self) -> None:
         self.assertIn("QTextBrowser#ReaderContent", stylesheet_for_theme("system"))

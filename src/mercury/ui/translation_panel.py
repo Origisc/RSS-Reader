@@ -242,6 +242,14 @@ class TranslationPanel(QFrame):
         self._state = "ready" if self._generator is not None else "unavailable"
         self._render_state()
 
+    def update_article_source(self, source: TranslationSource) -> None:
+        """Refresh processed content without resetting same-article state."""
+        if self.current_article_id != source.article_id:
+            self.set_article(source)
+            return
+
+        self._current_source = source
+
     def clear_article(self) -> None:
         self._invalidate_active_generation()
         self._current_source = None
