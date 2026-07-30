@@ -14,6 +14,7 @@ class Article:
     title: str
     source_title: str
     content_html: str
+    link: str = ""
     original_html: str = ""
     fetched_at: str | None = None
     fetch_status: str = "pending"

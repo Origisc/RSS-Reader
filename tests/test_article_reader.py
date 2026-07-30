@@ -64,6 +64,7 @@ class ArticleReaderTest(unittest.TestCase):
             title="Reader fixture",
             source_title="Local fixture",
             content_html="<p>First-stage original</p>",
+            link="https://example.com/articles/reader-fixture/",
         )
 
     def tearDown(self) -> None:
@@ -434,6 +435,63 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("Text immediately", text_block.text())
         image_rect = rendered.documentLayout().blockBoundingRect(image_block)
         text_rect = rendered.documentLayout().blockBoundingRect(text_block)
+        self.assertLessEqual(
+            text_rect.top() - image_rect.bottom(),
+            self.reader.reader_style.paragraph_spacing_px + 0.5,
+        )
+
+    def test_bare_image_after_translation_uses_its_own_media_block(
+        self,
+    ) -> None:
+        image_url = "https://example.com/bilingual-bare-image.jpg"
+        fragment = (
+            "<p>Original paragraph.</p>"
+            '<div class="translation-block"><p>译文段落。</p></div>'
+            f'<img src="{image_url}" width="700" height="auto">'
+            "<p>Text immediately after the image.</p>"
+        )
+        resolved = self.reader._replace_resolved_images(
+            fragment,
+            {
+                image_url: _ResolvedImage(
+                    data_url="data:image/jpeg;base64,fixture",
+                    width=700,
+                    height=420,
+                )
+            },
+        )
+
+        self.assertIn(
+            '<p style="line-height:100%;"><img',
+            resolved,
+        )
+        self.assertNotIn('height="auto"', resolved)
+
+        rendered = QTextDocument()
+        rendered.setTextWidth(840)
+        rendered.setHtml(
+            self.reader._wrap_html(
+                f'<div class="reader-article bilingual-article">'
+                f"{resolved}</div>"
+            )
+        )
+        image_block = rendered.begin()
+        while image_block.isValid() and "\ufffc" not in image_block.text():
+            image_block = image_block.next()
+        text_block = image_block.next()
+        while (
+            text_block.isValid()
+            and "Text immediately" not in text_block.text()
+        ):
+            text_block = text_block.next()
+
+        self.assertTrue(image_block.isValid())
+        self.assertTrue(text_block.isValid())
+        self.assertEqual(image_block.text(), "\ufffc")
+        layout = rendered.documentLayout()
+        image_rect = layout.blockBoundingRect(image_block)
+        text_rect = layout.blockBoundingRect(text_block)
+        self.assertLessEqual(image_rect.height(), 420.5)
         self.assertLessEqual(
             text_rect.top() - image_rect.bottom(),
             self.reader.reader_style.paragraph_spacing_px + 0.5,
@@ -860,6 +918,112 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("data:image/png;base64,fixture", rendered_html)
         self.assertNotIn(image_url, rendered_html)
         self.assertIn("原文段落译文", self.reader.content.toPlainText())
+
+    def test_bilingual_view_reuses_absolute_cache_for_relative_image(
+        self,
+    ) -> None:
+        article_url = (
+            "https://www.jeffgeerling.com/blog/2026/"
+            "build-your-own-dial-up-isp-with-a-raspberry-pi/"
+        )
+        relative_url = (
+            "/blog/2026/build-your-own-dial-up-isp-with-a-raspberry-pi/"
+            "pi-isp-ibook-hero.jpeg"
+        )
+        absolute_url = f"https://www.jeffgeerling.com{relative_url}"
+        source_html = (
+            "<p>Original paragraph.</p>"
+            f'<p><img src="{relative_url}" alt="Relative fixture"></p>'
+        )
+        self.reader._resolve_images_async = lambda _html: None
+        self.reader.show_article(
+            replace(self.article, link=article_url),
+            ReaderDocument(
+                raw_html=source_html,
+                cleaned_html=source_html,
+            ),
+        )
+        self.reader._image_replacements[absolute_url] = _ResolvedImage(
+            data_url="data:image/jpeg;base64,relative-fixture",
+            width=700,
+            height=420,
+            natural_width=700,
+            natural_height=420,
+        )
+
+        self.reader.set_translation_result(
+            self._translation_result(
+                (
+                    self._paragraph(
+                        0,
+                        "Original paragraph.",
+                        "原文段落译文。",
+                    ),
+                ),
+                source_format=TranslationSourceFormat.CLEANED_HTML,
+            )
+        )
+
+        rendered_html = self.reader.content.toHtml()
+        self.assertIn(
+            "data:image/jpeg;base64,relative-fixture",
+            rendered_html,
+        )
+        self.assertNotIn(relative_url, rendered_html)
+        self.assertIn("原文段落译文", self.reader.content.toPlainText())
+
+    def test_relative_and_absolute_image_sources_share_one_download(
+        self,
+    ) -> None:
+        article_url = (
+            "https://www.jeffgeerling.com/blog/2026/"
+            "build-your-own-dial-up-isp-with-a-raspberry-pi/"
+        )
+        relative_url = "/blog/2026/article/image.jpeg"
+        absolute_url = "https://www.jeffgeerling.com/blog/2026/article/image.jpeg"
+
+        class FinishedSignal:
+            def connect(self, callback) -> None:
+                self.callback = callback
+
+        class PendingReply:
+            def __init__(self) -> None:
+                self.finished = FinishedSignal()
+
+        class RecordingNetworkManager:
+            def __init__(self) -> None:
+                self.urls: list[str] = []
+
+            def get(self, request):
+                self.urls.append(request.url().toString())
+                return PendingReply()
+
+        manager = RecordingNetworkManager()
+        self.reader._current_article = replace(
+            self.article,
+            link=article_url,
+        )
+        self.reader._network_manager = manager
+
+        self.reader._resolve_images_async(
+            f'<img src="{relative_url}"><img src="{absolute_url}">'
+        )
+
+        self.assertEqual(manager.urls, [absolute_url])
+
+    def test_failed_image_batch_still_rerenders_current_view(self) -> None:
+        render_calls: list[str] = []
+        self.reader._current_article = self.article
+        self.reader._is_resolving_images = True
+        self.reader._image_replacements.clear()
+        self.reader._render_current_view = lambda: render_calls.append(
+            "rendered"
+        )
+
+        self.reader._apply_image_replacements()
+
+        self.assertFalse(self.reader._is_resolving_images)
+        self.assertEqual(render_calls, ["rendered"])
 
     def test_bilingual_legacy_br_fragment_uses_structured_pairs(
         self,

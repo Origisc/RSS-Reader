@@ -352,7 +352,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "dialog.about.body": (
             "<h2>Mercury</h2>"
             "<p>一款本地优先、跨平台的 RSS 阅读器。</p>"
-            "<p>当前版本：成员 B UI 原型</p>"
+            "<p>当前版本：Mercury {version}</p>"
         ),
         "shortcuts.title": "键盘快捷键",
         "shortcuts.description": "当前页面可用的快捷键及其功能。",
@@ -943,7 +943,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "dialog.about.body": (
             "<h2>Mercury</h2>"
             "<p>A local-first, cross-platform RSS reader.</p>"
-            "<p>Current version: Member B UI prototype</p>"
+            "<p>Current version: Mercury {version}</p>"
         ),
         "shortcuts.title": "Keyboard Shortcuts",
         "shortcuts.description": (

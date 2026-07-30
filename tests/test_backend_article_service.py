@@ -58,8 +58,10 @@ class BackendArticleServiceTest(unittest.TestCase):
         detail = self.service.get_article(articles[0].id)
 
         self.assertEqual(articles[0].title, "Readable title")
+        self.assertEqual(articles[0].link, "https://example.com/article")
         self.assertIsNotNone(detail)
         self.assertEqual(detail.title, "Readable title")
+        self.assertEqual(detail.link, "https://example.com/article")
         self.assertIn("https://example.com/article", detail.content_html)
 
     def test_fetch_uses_url_from_legacy_swapped_title_link_row(self) -> None:

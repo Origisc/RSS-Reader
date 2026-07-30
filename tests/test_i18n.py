@@ -9,9 +9,21 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from mercury.i18n import Translator
+from mercury.version import APP_VERSION
 
 
 class TranslatorTest(unittest.TestCase):
+    def test_about_dialog_uses_release_version_in_both_languages(
+        self,
+    ) -> None:
+        for language in ("zh_CN", "en_US"):
+            body = Translator(language).text("dialog.about.body")
+
+            self.assertIn("{version}", body)
+            self.assertIn(APP_VERSION, body.format(version=APP_VERSION))
+            self.assertNotIn("prototype", body.lower())
+            self.assertNotIn("原型", body)
+
     def test_feed_import_errors_are_available_in_both_languages(self) -> None:
         keys = (
             "feed.import_error.empty_source",

@@ -92,6 +92,7 @@ class BackendArticleService:
             title=title,
             source_title=source_title,
             content_html=content_html,
+            link=link,
             original_html=original_html or "",
             fetched_at=fetched_at,
             fetch_status=fetch_status or "pending",
@@ -132,7 +133,7 @@ class BackendArticleService:
             source_title,
             translated_title,
         ) in self._db.get_starred_articles():
-            title, _link = self._normalise_title_and_link(
+            title, link = self._normalise_title_and_link(
                 stored_title,
                 stored_link,
             )
@@ -145,6 +146,7 @@ class BackendArticleService:
                     title=display_title,
                     source_title=source_title or "",
                     content_html=f"<p>{meta}</p>" if meta else "",
+                    link=link,
                     is_starred=bool(is_starred),
                     translated_title=translated_title or "",
                 )
@@ -604,7 +606,10 @@ class BackendArticleService:
         ) in self._db.get_articles_by_feed(feed_id_int):
             detail = self._db.get_article_detail(article_id)
             stored_link = detail[2] if detail is not None else ""
-            title, _link = self._normalise_title_and_link(stored_title, stored_link)
+            title, link = self._normalise_title_and_link(
+                stored_title,
+                stored_link,
+            )
             display_title = translated_title or title
             meta = escape(published or "")
             articles.append(
@@ -614,6 +619,7 @@ class BackendArticleService:
                     title=display_title,
                     source_title=source_title or "",
                     content_html=f"<p>{meta}</p>" if meta else "",
+                    link=link,
                     is_starred=bool(is_starred),
                     translated_title=translated_title or "",
                 )
@@ -659,7 +665,7 @@ class BackendArticleService:
             is_starred,
             source_title,
         ) = row
-        title, _link = self._normalise_title_and_link(
+        title, link = self._normalise_title_and_link(
             stored_title,
             stored_link,
         )
@@ -670,6 +676,7 @@ class BackendArticleService:
             title=title,
             source_title=source_title or "",
             content_html=f"<p>{meta}</p>" if meta else "",
+            link=link,
             is_starred=bool(is_starred),
         )
 

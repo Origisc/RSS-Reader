@@ -62,6 +62,12 @@ Reader 处理策略：
   原始宽高比重新计算尺寸，不再被右侧边界裁切。
 - 原文、Cleaned HTML、Markdown 与双语对照共用当前文章的本地图片
   缓存；生成翻译后会保留图片，并避免为视图切换重复下载。
+- Reader 以文章链接为基准，将相对图片 `src` 规范化为绝对 URL；因此
+  原始 Feed 的绝对地址、Cleaned HTML/Markdown 的相对地址和双语对照
+  会命中同一个内存缓存。图片批次部分或全部失败后仍会重新渲染当前视图，
+  继续发现尚未请求的图片，同时避免对已失败 URL 无限重试。
+- 双语对照中的裸 `<img>` 会放入独立媒体块，不再继承前一条译文卡片的
+  背景和比例行高，图片下方不会保留与图片高度成比例的空白。
 - 仅包含网站链接的 Feed 条目会显示本地状态提示，明确区分后台加载、
   404/链接失效和其他抓取错误，同时保留可点击的原网址。
 
@@ -77,7 +83,7 @@ uv run python -m unittest tests.test_core_reading_acceptance tests.test_feed_imp
 uv run python -m unittest discover -s tests -v
 ```
 
-本轮执行结果：`360` 项测试全部通过；`compileall` 与
+本轮执行结果：`365` 项测试全部通过；`compileall` 与
 `git diff --check` 同时通过。
 
 ## 手动验收
@@ -95,3 +101,7 @@ uv run python -m unittest discover -s tests -v
    确认图片紧接说明文字、说明后仅保留正常段落间距；本轮以本地缓存文章
    `Scattered Spider Hackers Plead Guilty on Day 1 of Trial` 实测两种
    视图的两张大图，图片到说明的额外间距均为 `0px`。
+9. 对本地缓存文章
+   `Build your own Dial-up ISP with a Raspberry Pi` 的真实
+   `cleaned_html` 与 56 段翻译执行双语渲染：段落完全对齐，相对图片地址
+   成功命中绝对 URL 缓存，渲染结果包含图片数据且不再保留损坏的相对地址。

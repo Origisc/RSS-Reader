@@ -63,6 +63,7 @@ from mercury.ui.translation_panel import (
     TranslationPanel,
     TranslationResultLoader,
 )
+from mercury.version import APP_VERSION
 
 
 class _TitleTranslatorSignals(QObject):
@@ -1801,7 +1802,9 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self,
             self.translator.text("dialog.about.title"),
-            self.translator.text("dialog.about.body"),
+            self.translator.text("dialog.about.body").format(
+                version=APP_VERSION,
+            ),
         )
 
     def _show_shortcut_help(self) -> None:

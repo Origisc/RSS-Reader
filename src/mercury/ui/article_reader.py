@@ -1,6 +1,8 @@
 import re
 from dataclasses import dataclass
 from html import escape, unescape
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlparse
 
 from PySide6.QtCore import Qt, QTimer, Signal, QUrl
 from PySide6.QtGui import QImage, QTextDocument
@@ -77,6 +79,114 @@ _STYLE_ATTRIBUTE_PATTERN = re.compile(
     r"(?P<style>.*?)(?P=quote)",
     re.IGNORECASE | re.DOTALL,
 )
+_VOID_HTML_TAGS = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+}
+
+
+class _BareImageBlockNormalizer(HTMLParser):
+    """Give bare images a block independent from adjacent translations."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self._output: list[str] = []
+        self._stack: list[tuple[str, bool]] = []
+
+    @property
+    def html(self) -> str:
+        return "".join(self._output)
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        lowered = tag.lower()
+        raw_tag = self.get_starttag_text() or f"<{tag}>"
+        if lowered == "img" and not self._inside_media_block():
+            self._output.append(
+                '<p style="line-height:100%;">'
+                f"{raw_tag}"
+                "</p>"
+            )
+            return
+
+        self._output.append(raw_tag)
+        if lowered not in _VOID_HTML_TAGS:
+            self._stack.append(
+                (lowered, self._is_media_block(lowered, attrs))
+            )
+
+    def handle_startendtag(self, tag: str, attrs) -> None:
+        lowered = tag.lower()
+        raw_tag = self.get_starttag_text() or f"<{tag} />"
+        if lowered == "img" and not self._inside_media_block():
+            self._output.append(
+                '<p style="line-height:100%;">'
+                f"{raw_tag}"
+                "</p>"
+            )
+            return
+        self._output.append(raw_tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        lowered = tag.lower()
+        self._output.append(f"</{tag}>")
+        for index in range(len(self._stack) - 1, -1, -1):
+            if self._stack[index][0] == lowered:
+                del self._stack[index:]
+                break
+
+    def handle_data(self, data: str) -> None:
+        self._output.append(data)
+
+    def handle_entityref(self, name: str) -> None:
+        self._output.append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        self._output.append(f"&#{name};")
+
+    def handle_comment(self, data: str) -> None:
+        self._output.append(f"<!--{data}-->")
+
+    def handle_decl(self, decl: str) -> None:
+        self._output.append(f"<!{decl}>")
+
+    def handle_pi(self, data: str) -> None:
+        self._output.append(f"<?{data}>")
+
+    def _inside_media_block(self) -> bool:
+        return any(is_media_block for _, is_media_block in self._stack)
+
+    @staticmethod
+    def _is_media_block(tag: str, attrs) -> bool:
+        if tag in {"p", "figure"}:
+            return True
+
+        style = next(
+            (
+                str(value or "")
+                for name, value in attrs
+                if name.lower() == "style"
+            ),
+            "",
+        )
+        return bool(
+            re.search(
+                r"(?:^|;)\s*line-height\s*:\s*100%\s*(?:;|$)",
+                style,
+                flags=re.IGNORECASE,
+            )
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -246,6 +356,7 @@ class ArticleReader(QWidget):
         self._network_manager = QNetworkAccessManager()
         self.content.document().setMetaInformation(QTextDocument.DocumentUrl, "")
         self._image_replacements: dict[str, _ResolvedImage] = {}
+        self._failed_image_urls: set[str] = set()
         self._image_generation = 0
         self._is_resolving_images = False
         self._pending_images = 0
@@ -334,6 +445,7 @@ class ArticleReader(QWidget):
     def _reset_image_context(self) -> None:
         self._image_generation += 1
         self._image_replacements.clear()
+        self._failed_image_urls.clear()
         self._is_resolving_images = False
         self._pending_images = 0
         self._last_image_max_width = 0
@@ -667,13 +779,14 @@ class ArticleReader(QWidget):
             return
 
         scroll_pos = self.content.verticalScrollBar().value()
+        article = self._current_article
         normalized_html = self._normalize_image_paragraphs(interleaved_html)
         display_html = self._replace_resolved_images(
             normalized_html,
             self._scaled_image_replacements(),
+            base_url=article.link,
         )
 
-        article = self._current_article
         safe_title = escape(article.title)
         safe_source = escape(article.source_title)
         body = f"""
@@ -683,6 +796,7 @@ class ArticleReader(QWidget):
                 {display_html}
             </div>
         """
+        self._set_document_base_url(article.link)
         self.content.setHtml(self._wrap_html(body))
         self.content.verticalScrollBar().setValue(scroll_pos)
         self._resolve_images_async(normalized_html)
@@ -727,15 +841,16 @@ class ArticleReader(QWidget):
             return
 
         scroll_pos = self.content.verticalScrollBar().value()
+        article = self._current_article
         normalized_content_html = self._normalize_image_paragraphs(
             content_html
         )
         display_content_html = self._replace_resolved_images(
             normalized_content_html,
             self._scaled_image_replacements(),
+            base_url=article.link,
         )
 
-        article = self._current_article
         safe_title = escape(article.title)
         safe_source = escape(article.source_title)
         fallback_html = ""
@@ -758,6 +873,7 @@ class ArticleReader(QWidget):
             {issue_html}
             <div class="reader-article">{display_content_html}</div>
         """
+        self._set_document_base_url(article.link)
         self.content.setHtml(self._wrap_html(body))
         self.content.verticalScrollBar().setValue(scroll_pos)
         self._resolve_images_async(normalized_content_html)
@@ -901,9 +1017,13 @@ class ArticleReader(QWidget):
         img_urls = re.findall(r'src=["\']([^"\']+)["\']', html)
         http_urls = [
             url
-            for url in dict.fromkeys(img_urls)
-            if url.startswith('http')
+            for url in dict.fromkeys(
+                self._canonical_image_url(source)
+                for source in img_urls
+            )
+            if urlparse(url).scheme in {"http", "https"}
             and url not in self._image_replacements
+            and url not in self._failed_image_urls
         ]
 
         if not http_urls:
@@ -930,6 +1050,7 @@ class ArticleReader(QWidget):
             reply.deleteLater()
             return
 
+        resolved = False
         try:
             error = reply.error()
 
@@ -959,9 +1080,12 @@ class ArticleReader(QWidget):
                         natural_width=image.width(),
                         natural_height=image.height(),
                     )
+                    resolved = True
         except Exception:
             # A failed image must never make the cached article unreadable.
             pass
+        if not resolved:
+            self._failed_image_urls.add(url)
 
         reply.deleteLater()
 
@@ -1019,6 +1143,8 @@ class ArticleReader(QWidget):
     def _replace_resolved_images(
         html: str,
         replacements: dict[str, _ResolvedImage],
+        *,
+        base_url: str = "",
     ) -> str:
         def replace_tag(match: re.Match[str]) -> str:
             tag = match.group(0)
@@ -1026,7 +1152,10 @@ class ArticleReader(QWidget):
             if source_match is None:
                 return tag
 
-            replacement = replacements.get(source_match.group("source"))
+            source = unescape(source_match.group("source")).strip()
+            replacement = replacements.get(source)
+            if replacement is None and base_url:
+                replacement = replacements.get(urljoin(base_url, source))
             if replacement is None:
                 return tag
 
@@ -1049,6 +1178,24 @@ class ArticleReader(QWidget):
 
         resolved_html = _IMAGE_TAG_PATTERN.sub(replace_tag, html)
         return ArticleReader._normalize_image_paragraphs(resolved_html)
+
+    def _canonical_image_url(self, source: str) -> str:
+        source = unescape(source).strip()
+        if not source:
+            return ""
+
+        article_url = (
+            self._current_article.link
+            if self._current_article is not None
+            else ""
+        )
+        return urljoin(article_url, source)
+
+    def _set_document_base_url(self, article_url: str) -> None:
+        if article_url:
+            self.content.document().setBaseUrl(QUrl(article_url))
+        else:
+            self.content.document().setBaseUrl(QUrl())
 
     @staticmethod
     def _normalize_image_paragraphs(html: str) -> str:
@@ -1097,7 +1244,19 @@ class ArticleReader(QWidget):
         normalized = html
         for block_pattern in _IMAGE_BLOCK_PATTERNS:
             normalized = block_pattern.sub(normalize_block, normalized)
-        return normalized
+
+        # Some cleaned articles place ``img`` directly between paragraphs.
+        # After translation cards are interleaved, QTextDocument otherwise
+        # merges that inline image into the preceding translation block. The
+        # inherited proportional line height then reserves a large empty area
+        # below the image and can carry the translation background beside it.
+        bare_image_normalizer = _BareImageBlockNormalizer()
+        try:
+            bare_image_normalizer.feed(normalized)
+            bare_image_normalizer.close()
+        except Exception:
+            return normalized
+        return bare_image_normalizer.html
 
     @staticmethod
     def _set_inline_line_height(attrs: str, value: str) -> str:
@@ -1125,7 +1284,7 @@ class ArticleReader(QWidget):
 
     def _apply_image_replacements(self) -> None:
         self._is_resolving_images = False
-        if self._current_article is not None and self._image_replacements:
+        if self._current_article is not None:
             self._render_current_view()
 
     def _wrap_html(self, body: str) -> str:
