@@ -1,6 +1,8 @@
+import re
 from dataclasses import dataclass
-from typing import Optional
+from html import escape
 from html.parser import HTMLParser
+from typing import Optional
 
 
 @dataclass
@@ -308,3 +310,380 @@ class _HTMLToMarkdownParser(HTMLParser):
         result = ''.join(self._result)
         result = '\n'.join(line.rstrip() for line in result.split('\n'))
         return result.strip()
+
+
+_HEADING_RE = re.compile(r'^(#{1,6})\s+(.*)')
+_ORDERED_LIST_RE = re.compile(r'^(\s*)(\d+)\.\s+(.*)')
+_UNORDERED_LIST_RE = re.compile(r'^(\s*)[-*+]\s+(.*)')
+_BLOCKQUOTE_RE = re.compile(r'^>\s?(.*)')
+_CODE_FENCE_RE = re.compile(r'^```')
+_TABLE_ROW_RE = re.compile(r'^\|.*\|$')
+_TABLE_SEPARATOR_RE = re.compile(r'^\|[\s:-]+\|$')
+_HORIZONTAL_RULE_RE = re.compile(r'^\s*---\s*$')
+_LINK_RE = re.compile(r'\[([^\]]*)\]\(([^)]+)\)')
+_IMAGE_RE = re.compile(r'!\[([^\]]*)\]\(([^)]+)\)')
+_BOLD_RE = re.compile(r'\*\*(.+?)\*\*')
+_ITALIC_RE = re.compile(r'(?<!\*)\*(?!\s)(.+?)(?<!\s)\*')
+_CODE_SPAN_RE = re.compile(r'`([^`]+)`')
+
+
+class MarkdownRenderer:
+    """Render a limited Markdown subset to HTML for display in QTextBrowser.
+
+    Supports the exact subset produced by :class:`MarkdownConverter`:
+    headings, paragraphs, bold/italic/code spans, links, images,
+    ordered/unordered lists (with nesting), code fences, blockquotes,
+    GFM tables, and horizontal rules.
+    """
+
+    def render(self, markdown: str) -> str:
+        if not markdown or not markdown.strip():
+            return ""
+
+        lines = markdown.split('\n')
+        blocks = self._parse_blocks(lines)
+        html_parts: list[str] = []
+        for block in blocks:
+            html_parts.append(self._render_block(block))
+        return '\n'.join(html_parts)
+
+    def _parse_blocks(self, lines: list[str]) -> list[dict]:
+        blocks: list[dict] = []
+        i = 0
+        n = len(lines)
+
+        while i < n:
+            line = lines[i]
+
+            if _HORIZONTAL_RULE_RE.match(line):
+                blocks.append({'type': 'hr'})
+                i += 1
+                continue
+
+            heading_match = _HEADING_RE.match(line)
+            if heading_match:
+                level = len(heading_match.group(1))
+                text = heading_match.group(2).strip()
+                blocks.append({'type': 'heading', 'level': level, 'text': text})
+                i += 1
+                continue
+
+            if _CODE_FENCE_RE.match(line):
+                lang = line.strip()[3:].strip()
+                code_lines: list[str] = []
+                i += 1
+                while i < n and not _CODE_FENCE_RE.match(lines[i]):
+                    code_lines.append(lines[i])
+                    i += 1
+                if i < n:
+                    i += 1
+                blocks.append({
+                    'type': 'code_block',
+                    'lang': lang,
+                    'code': '\n'.join(code_lines),
+                })
+                continue
+
+            if _TABLE_ROW_RE.match(line):
+                table_lines: list[str] = [line]
+                i += 1
+                while i < n and _TABLE_ROW_RE.match(lines[i]):
+                    table_lines.append(lines[i])
+                    i += 1
+                blocks.append(self._parse_table(table_lines))
+                continue
+
+            list_blocks, consumed = self._try_parse_list(lines, i)
+            if list_blocks:
+                blocks.extend(list_blocks)
+                i += consumed
+                continue
+
+            quote_lines: list[str] = []
+            while i < n:
+                m = _BLOCKQUOTE_RE.match(lines[i])
+                if m:
+                    quote_lines.append(m.group(1))
+                    i += 1
+                else:
+                    break
+            if quote_lines:
+                quote_text = ' '.join(l.strip() for l in quote_lines)
+                blocks.append({'type': 'blockquote', 'text': quote_text})
+                continue
+
+            if line.strip() == '':
+                i += 1
+                continue
+
+            para_lines: list[str] = []
+            while i < n and lines[i].strip() != '':
+                if self._is_block_start(lines[i]):
+                    break
+                para_lines.append(lines[i])
+                i += 1
+            if para_lines:
+                text = ' '.join(l.strip() for l in para_lines)
+                blocks.append({'type': 'paragraph', 'text': text})
+                continue
+
+            i += 1
+
+        return blocks
+
+    @staticmethod
+    def _is_block_start(line: str) -> bool:
+        if not line.strip():
+            return False
+        return bool(
+            _HEADING_RE.match(line)
+            or _ORDERED_LIST_RE.match(line)
+            or _UNORDERED_LIST_RE.match(line)
+            or _CODE_FENCE_RE.match(line)
+            or _TABLE_ROW_RE.match(line)
+            or _BLOCKQUOTE_RE.match(line)
+            or _HORIZONTAL_RULE_RE.match(line)
+        )
+
+    def _try_parse_list(
+        self,
+        lines: list[str],
+        start: int,
+    ) -> tuple[list[dict], int]:
+        if start >= len(lines):
+            return [], 0
+
+        first = lines[start]
+        ordered_match = _ORDERED_LIST_RE.match(first)
+        unordered_match = _UNORDERED_LIST_RE.match(first)
+
+        if not ordered_match and not unordered_match:
+            return [], 0
+
+        raw_items: list[dict] = []
+        i = start
+
+        while i < len(lines):
+            line = lines[i]
+            if line.strip() == '':
+                break
+
+            om = _ORDERED_LIST_RE.match(line)
+            um = _UNORDERED_LIST_RE.match(line)
+
+            if not om and not um:
+                break
+
+            if om:
+                indent = len(om.group(1))
+                number = int(om.group(2))
+                text = om.group(3).strip()
+                raw_items.append({
+                    'kind': 'ol',
+                    'indent': indent,
+                    'text': text,
+                    'number': number,
+                })
+            else:
+                indent = len(um.group(1))
+                text = um.group(2).strip()
+                raw_items.append({
+                    'kind': 'ul',
+                    'indent': indent,
+                    'text': text,
+                    'number': 0,
+                })
+            i += 1
+
+        if not raw_items:
+            return [], 0
+
+        list_root = self._build_list_tree(raw_items)
+        return [list_root], i - start
+
+    def _build_list_tree(self, items: list[dict]) -> dict:
+        if not items:
+            return {'type': 'list', 'kind': 'ul', 'items': []}
+
+        min_indent = min(it['indent'] for it in items)
+        kind = items[0]['kind']
+
+        root_items: list[dict] = []
+        i = 0
+        n = len(items)
+
+        while i < n:
+            item = items[i]
+            if item['indent'] == min_indent:
+                sub_items: list[dict] = []
+                j = i + 1
+                while j < n and items[j]['indent'] > min_indent:
+                    sub_items.append(items[j])
+                    j += 1
+
+                child_list = None
+                if sub_items:
+                    child_list = self._build_list_tree(sub_items)
+
+                root_items.append({
+                    'text': item['text'],
+                    'number': item['number'],
+                    'child': child_list,
+                })
+                i = j
+            else:
+                i += 1
+
+        return {
+            'type': 'list',
+            'kind': kind,
+            'items': root_items,
+        }
+
+    @staticmethod
+    def _parse_table(table_lines: list[str]) -> dict:
+        rows: list[list[str]] = []
+        for line in table_lines:
+            cells = [c.strip() for c in line.strip('|').split('|')]
+            rows.append(cells)
+
+        if len(rows) >= 2:
+            header = rows[0]
+            data_rows = rows[2:]
+        elif len(rows) == 1:
+            header = rows[0]
+            data_rows = []
+        else:
+            header = []
+            data_rows = []
+
+        return {
+            'type': 'table',
+            'header': header,
+            'rows': data_rows,
+        }
+
+    def _render_block(self, block: dict) -> str:
+        block_type = block['type']
+
+        if block_type == 'heading':
+            level = block['level']
+            text = self._render_inline(block['text'])
+            return f'<h{level}>{text}</h{level}>'
+
+        if block_type == 'paragraph':
+            text = self._render_inline(block['text'])
+            return f'<p>{text}</p>'
+
+        if block_type == 'code_block':
+            lang = block.get('lang', '')
+            code = block['code']
+            lang_attr = f' class="language-{lang}"' if lang else ''
+            return f'<pre><code{lang_attr}>{escape(code)}</code></pre>'
+
+        if block_type == 'blockquote':
+            text = self._render_inline(block['text'])
+            return f'<blockquote>{text}</blockquote>'
+
+        if block_type == 'hr':
+            return '<hr/>'
+
+        if block_type == 'table':
+            return self._render_table(block)
+
+        if block_type == 'list':
+            return self._render_list(block)
+
+        return ''
+
+    def _render_list(self, list_block: dict) -> str:
+        kind = list_block['kind']
+        items = list_block['items']
+        tag = 'ol' if kind == 'ol' else 'ul'
+
+        parts: list[str] = [f'<{tag}>']
+        for item in items:
+            text_html = self._render_inline(item['text'])
+            child_html = ''
+            if item.get('child'):
+                child_html = self._render_list(item['child'])
+            parts.append(f'<li>{text_html}{child_html}</li>')
+        parts.append(f'</{tag}>')
+        return ''.join(parts)
+
+    def _render_table(self, table: dict) -> str:
+        header = table['header']
+        rows = table['rows']
+        parts: list[str] = ['<table>']
+
+        if header:
+            parts.append('<thead><tr>')
+            for cell in header:
+                cell_html = self._render_inline(cell)
+                parts.append(f'<th>{cell_html}</th>')
+            parts.append('</tr></thead>')
+
+        if rows:
+            parts.append('<tbody>')
+            for row in rows:
+                parts.append('<tr>')
+                for cell in row:
+                    cell_html = self._render_inline(cell)
+                    parts.append(f'<td>{cell_html}</td>')
+                parts.append('</tr>')
+            parts.append('</tbody>')
+
+        parts.append('</table>')
+        return ''.join(parts)
+
+    def _render_inline(self, text: str) -> str:
+        result = text
+
+        result = self._process_code_spans(result)
+        result = self._process_images(result)
+        result = self._process_links(result)
+        result = self._process_bold(result)
+        result = self._process_italic(result)
+
+        return result
+
+    def _process_code_spans(self, text: str) -> str:
+        result_parts: list[str] = []
+        last_end = 0
+        for match in _CODE_SPAN_RE.finditer(text):
+            result_parts.append(text[last_end:match.start()])
+            code_content = escape(match.group(1))
+            result_parts.append(f'<code>{code_content}</code>')
+            last_end = match.end()
+        result_parts.append(text[last_end:])
+        return ''.join(result_parts)
+
+    def _process_images(self, text: str) -> str:
+        def replacer(m: re.Match[str]) -> str:
+            alt = escape(m.group(1))
+            src = escape(m.group(2), quote=True)
+            return f'<img src="{src}" alt="{alt}"/>'
+
+        return _IMAGE_RE.sub(replacer, text)
+
+    def _process_links(self, text: str) -> str:
+        def replacer(m: re.Match[str]) -> str:
+            inner_text = self._render_inline(m.group(1))
+            href = escape(m.group(2), quote=True)
+            return f'<a href="{href}">{inner_text}</a>'
+
+        return _LINK_RE.sub(replacer, text)
+
+    def _process_bold(self, text: str) -> str:
+        def replacer(m: re.Match[str]) -> str:
+            inner = self._render_inline(m.group(1))
+            return f'<strong>{inner}</strong>'
+
+        return _BOLD_RE.sub(replacer, text)
+
+    def _process_italic(self, text: str) -> str:
+        def replacer(m: re.Match[str]) -> str:
+            inner = self._render_inline(m.group(1))
+            return f'<em>{inner}</em>'
+
+        return _ITALIC_RE.sub(replacer, text)

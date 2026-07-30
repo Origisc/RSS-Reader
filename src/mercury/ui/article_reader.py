@@ -36,15 +36,6 @@ from mercury.ui.reader_document import (
 from mercury.ui.reader_style import ReaderStyle
 
 
-_MARKDOWN_PARAGRAPH_STYLE_PATTERN = re.compile(
-    r"(<p\b[^>]*\bstyle\s*=\s*)"
-    r"(?P<quote>[\"'])(?P<style>.*?)(?P=quote)",
-    re.IGNORECASE | re.DOTALL,
-)
-_MARKDOWN_VERTICAL_MARGIN_PATTERN = re.compile(
-    r"\s*margin-(?:top|bottom)\s*:\s*[^;]+;?",
-    re.IGNORECASE,
-)
 _IMAGE_TAG_PATTERN = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
 _IMAGE_SOURCE_PATTERN = re.compile(
     r"(?P<prefix>\bsrc\s*=\s*)(?P<quote>[\"'])"
@@ -807,34 +798,9 @@ class ArticleReader(QWidget):
 
     @staticmethod
     def _markdown_fragment(markdown: str) -> str:
-        document = QTextDocument()
-        document.setMarkdown(
-            markdown,
-            QTextDocument.MarkdownFeature.MarkdownDialectGitHub,
-        )
-        full_html = document.toHtml()
-        lowered = full_html.lower()
-        body_start = lowered.find("<body")
-        body_open_end = full_html.find(">", body_start)
-        body_end = lowered.rfind("</body>")
-
-        if body_start < 0 or body_open_end < 0 or body_end < 0:
-            return f"<p>{escape(markdown)}</p>"
-
-        fragment = full_html[body_open_end + 1 : body_end]
-
-        def restore_paragraph_spacing(match: re.Match[str]) -> str:
-            style = _MARKDOWN_VERTICAL_MARGIN_PATTERN.sub(
-                "",
-                match.group("style"),
-            )
-            quote = match.group("quote")
-            return f"{match.group(1)}{quote}{style}{quote}"
-
-        return _MARKDOWN_PARAGRAPH_STYLE_PATTERN.sub(
-            restore_paragraph_spacing,
-            fragment,
-        )
+        from mercury.services.markdown_converter import MarkdownRenderer
+        renderer = MarkdownRenderer()
+        return renderer.render(markdown)
 
     def _show_html(self, content_html: str, fallback_status: str) -> None:
         if self._current_article is None:
@@ -1454,6 +1420,46 @@ class ArticleReader(QWidget):
                 }}
                 .reader-article a {{
                     color: {palette["link"]};
+                    word-break: break-all;
+                }}
+                .reader-article ul,
+                .reader-article ol {{
+                    margin: 0 0 {paragraph_spacing}px;
+                    padding-left: 2em;
+                }}
+                .reader-article li {{
+                    margin: 0.3em 0;
+                }}
+                .reader-article li > ul,
+                .reader-article li > ol {{
+                    margin: 0.3em 0;
+                }}
+                .reader-article h1,
+                .reader-article h2,
+                .reader-article h3,
+                .reader-article h4,
+                .reader-article h5,
+                .reader-article h6 {{
+                    color: {palette["title"]};
+                    line-height: 1.3;
+                    margin: 1em 0 0.5em;
+                }}
+                .reader-article h1 {{ font-size: 28px; }}
+                .reader-article h2 {{ font-size: 24px; }}
+                .reader-article h3 {{ font-size: 20px; }}
+                .reader-article h4 {{ font-size: 18px; }}
+                .reader-article h5 {{ font-size: 16px; }}
+                .reader-article h6 {{ font-size: 14px; }}
+                .reader-article blockquote {{
+                    border-left: 3px solid {palette["border"]};
+                    color: {palette["muted"]};
+                    margin: {paragraph_spacing}px 0;
+                    padding: 8px 16px;
+                }}
+                .reader-article hr {{
+                    border: none;
+                    border-top: 1px solid {palette["border"]};
+                    margin: {paragraph_spacing}px 0;
                 }}
             </style>
         </head>

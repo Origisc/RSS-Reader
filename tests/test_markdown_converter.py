@@ -11,7 +11,11 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from mercury.services.markdown_converter import MarkdownConverter, ConvertResult
+from mercury.services.markdown_converter import (
+    MarkdownConverter,
+    MarkdownRenderer,
+    ConvertResult,
+)
 
 
 class MarkdownConverterTest(unittest.TestCase):
@@ -206,6 +210,143 @@ class MarkdownConverterTest(unittest.TestCase):
         result_fail = ConvertResult(success=False, error_message="conversion failed")
         self.assertFalse(result_fail.success)
         self.assertEqual(result_fail.error_message, "conversion failed")
+
+
+class MarkdownRendererTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.renderer = MarkdownRenderer()
+
+    def test_render_empty_returns_empty_string(self) -> None:
+        self.assertEqual(self.renderer.render(""), "")
+        self.assertEqual(self.renderer.render("   "), "")
+
+    def test_render_headings(self) -> None:
+        md = "# H1\n\n## H2\n\n### H3"
+        html = self.renderer.render(md)
+        self.assertIn("<h1>H1</h1>", html)
+        self.assertIn("<h2>H2</h2>", html)
+        self.assertIn("<h3>H3</h3>", html)
+
+    def test_render_paragraphs(self) -> None:
+        md = "First paragraph.\n\nSecond paragraph."
+        html = self.renderer.render(md)
+        self.assertIn("<p>First paragraph.</p>", html)
+        self.assertIn("<p>Second paragraph.</p>", html)
+
+    def test_render_long_url_link_is_not_broken_character_by_character(
+        self,
+    ) -> None:
+        long_url = (
+            "https://www.lukesavage.com/p/"
+            "the-enshittification-of-life-the-universe-and-everything"
+        )
+        md = f"[Luke Savage]({long_url})"
+        html = self.renderer.render(md)
+        self.assertIn(f'href="{long_url}"', html)
+        self.assertIn(">Luke Savage<", html)
+        self.assertNotIn("href=\"h\"", html)
+
+    def test_render_unordered_list(self) -> None:
+        md = "- Item 1\n- Item 2"
+        html = self.renderer.render(md)
+        self.assertIn("<ul>", html)
+        self.assertIn("<li>Item 1</li>", html)
+        self.assertIn("<li>Item 2</li>", html)
+        self.assertIn("</ul>", html)
+
+    def test_render_ordered_list(self) -> None:
+        md = "1. First\n2. Second"
+        html = self.renderer.render(md)
+        self.assertIn("<ol>", html)
+        self.assertIn("<li>First</li>", html)
+        self.assertIn("<li>Second</li>", html)
+        self.assertIn("</ol>", html)
+
+    def test_render_nested_list(self) -> None:
+        md = "- Top\n    - Nested\n        - Deep"
+        html = self.renderer.render(md)
+        self.assertIn("<ul>", html)
+        self.assertIn("</ul>", html)
+        self.assertIn("<li>Top", html)
+        self.assertIn("<li>Nested", html)
+        self.assertIn("<li>Deep", html)
+
+    def test_render_inline_bold(self) -> None:
+        md = "**bold text**"
+        html = self.renderer.render(md)
+        self.assertIn("<strong>bold text</strong>", html)
+
+    def test_render_inline_italic(self) -> None:
+        md = "*italic text*"
+        html = self.renderer.render(md)
+        self.assertIn("<em>italic text</em>", html)
+
+    def test_render_inline_code(self) -> None:
+        md = "Use `python` here"
+        html = self.renderer.render(md)
+        self.assertIn("<code>python</code>", html)
+
+    def test_render_link(self) -> None:
+        md = "[Click here](https://example.com)"
+        html = self.renderer.render(md)
+        self.assertIn('<a href="https://example.com">Click here</a>', html)
+
+    def test_render_image(self) -> None:
+        md = "![Alt text](https://example.com/img.png)"
+        html = self.renderer.render(md)
+        self.assertIn(
+            '<img src="https://example.com/img.png" alt="Alt text"/>',
+            html,
+        )
+
+    def test_render_code_block(self) -> None:
+        md = "```python\nprint('hello')\n```"
+        html = self.renderer.render(md)
+        self.assertIn("<pre><code", html)
+        self.assertIn("print(&#x27;hello&#x27;)", html)
+        self.assertIn("</code></pre>", html)
+
+    def test_render_blockquote(self) -> None:
+        md = "> This is a quote"
+        html = self.renderer.render(md)
+        self.assertIn("<blockquote>This is a quote</blockquote>", html)
+
+    def test_render_table(self) -> None:
+        md = "| Name | Age |\n| --- | --- |\n| John | 30 |"
+        html = self.renderer.render(md)
+        self.assertIn("<table>", html)
+        self.assertIn("<th>Name</th>", html)
+        self.assertIn("<th>Age</th>", html)
+        self.assertIn("<td>John</td>", html)
+        self.assertIn("<td>30</td>", html)
+        self.assertIn("</table>", html)
+
+    def test_render_horizontal_rule(self) -> None:
+        md = "---"
+        html = self.renderer.render(md)
+        self.assertIn("<hr/>", html)
+
+    def test_render_mixed_inline_formatting(self) -> None:
+        md = "**Bold** and *italic* and `code` and [link](https://example.com)"
+        html = self.renderer.render(md)
+        self.assertIn("<strong>Bold</strong>", html)
+        self.assertIn("<em>italic</em>", html)
+        self.assertIn("<code>code</code>", html)
+        self.assertIn('<a href="https://example.com">link</a>', html)
+
+    def test_render_link_with_inline_formatting(self) -> None:
+        md = "[**bold link**](https://example.com)"
+        html = self.renderer.render(md)
+        self.assertIn('<a href="https://example.com">', html)
+        self.assertIn("<strong>bold link</strong>", html)
+
+    def test_render_produces_valid_html_structure(self) -> None:
+        md = "# Title\n\nParagraph text.\n\n- List item"
+        html = self.renderer.render(md)
+        self.assertTrue(html.startswith("<h1>"))
+        self.assertIn("<p>", html)
+        self.assertIn("<ul>", html)
+        self.assertIn("<li>", html)
 
 
 if __name__ == "__main__":
