@@ -221,6 +221,7 @@ class ArticleReader(QWidget):
     summary_panel_visibility_requested = Signal(bool)
     translation_panel_visibility_requested = Signal(bool)
     tag_panel_visibility_requested = Signal(bool)
+    bilingual_visibility_change_requested = Signal(str, bool)
 
     def __init__(self) -> None:
         super().__init__()
@@ -355,7 +356,7 @@ class ArticleReader(QWidget):
         self.bilingual_view_button.setObjectName("ReaderUtilityButton")
         self.bilingual_view_button.setCheckable(True)
         self.bilingual_view_button.clicked.connect(
-            self.set_bilingual_visible
+            self._request_bilingual_visibility_change
         )
         toolbar_layout.addWidget(self.bilingual_view_button)
 
@@ -550,7 +551,11 @@ class ArticleReader(QWidget):
     def set_translation_result(
         self,
         result: TranslationResult | None,
+        *,
+        visible: bool | None = None,
     ) -> None:
+        previous_result = self._translation_result
+        previous_visible = self._bilingual_visible
         if (
             result is None
             or self._current_article is None
@@ -561,11 +566,28 @@ class ArticleReader(QWidget):
             self._bilingual_visible = False
         else:
             self._translation_result = result
-            self._bilingual_visible = True
+            same_result_article = (
+                previous_result is not None
+                and previous_result.article_id == result.article_id
+            )
+            if visible is not None:
+                self._bilingual_visible = bool(visible)
+            elif same_result_article:
+                self._bilingual_visible = previous_visible
+            else:
+                self._bilingual_visible = True
 
         self._update_bilingual_button()
         if self._current_article is not None:
             self._render_current_view()
+
+    def _request_bilingual_visibility_change(self, visible: bool) -> None:
+        self.set_bilingual_visible(visible)
+        if self._current_article is not None:
+            self.bilingual_visibility_change_requested.emit(
+                self._current_article.id,
+                self._bilingual_visible,
+            )
 
     def set_bilingual_visible(self, visible: bool) -> None:
         can_show = (

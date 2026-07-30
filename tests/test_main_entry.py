@@ -70,6 +70,9 @@ class MainEntryTest(unittest.TestCase):
                 "mercury.main.SQLiteTranslationResultStore"
             ) as translation_store_class,
             patch(
+                "mercury.main.QSettingsBilingualViewStateStore"
+            ) as bilingual_state_store_class,
+            patch(
                 "mercury.main.database_path",
                 return_value=Path("local-data") / "database.db",
             ) as database_path_function,
@@ -138,8 +141,12 @@ class MainEntryTest(unittest.TestCase):
             providers[1],
             translation_store_class.return_value,
         )
+        bilingual_state_store_class.assert_called_once_with()
         window_class.assert_called_once_with(
             article_service,
+            bilingual_view_state_store=(
+                bilingual_state_store_class.return_value
+            ),
             feed_deletion_service=article_service,
             agent_provider_config_stores={
                 "summary": config_stores[0],

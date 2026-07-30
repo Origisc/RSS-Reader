@@ -28,6 +28,7 @@ from mercury.domain import (
 )
 from mercury.i18n import Translator
 from mercury.services.mock_article_service import MockArticleService
+from mercury.ui.bilingual_state import InMemoryBilingualViewStateStore
 from mercury.ui.main_window import MainWindow
 from mercury.ui.translation_panel import TranslationPanel
 
@@ -526,6 +527,59 @@ class TranslationPanelMainWindowTest(unittest.TestCase):
             "Mercury is a local-first RSS reader built with PySide6.",
             rendered,
         )
+        window.close()
+        window.deleteLater()
+
+    def test_reopening_article_restores_last_bilingual_visibility(self) -> None:
+        result = translation_result(
+            article_id="mercury-start",
+            paragraphs=(
+                paragraph(
+                    0,
+                    "Stable original paragraph.",
+                    "Stored translated paragraph.",
+                    TranslationParagraphStatus.TRANSLATED,
+                ),
+            ),
+            status=TranslationStatus.COMPLETED,
+        )
+        state_store = InMemoryBilingualViewStateStore()
+        window = MainWindow(
+            MockArticleService(),
+            bilingual_view_state_store=state_store,
+            translation_result_loader=(
+                lambda article_id: (
+                    result if article_id == "mercury-start" else None
+                )
+            ),
+        )
+        window.show()
+        window._show_article("mercury-start")
+        self.app.processEvents()
+
+        self.assertTrue(window.article_reader.bilingual_visible)
+
+        window.article_reader.bilingual_view_button.click()
+        self.app.processEvents()
+
+        self.assertFalse(window.article_reader.bilingual_visible)
+        self.assertIs(state_store.load("mercury-start"), False)
+
+        window._show_article("pyside-layout")
+        window._show_article("mercury-start")
+        self.app.processEvents()
+
+        self.assertFalse(window.article_reader.bilingual_visible)
+        self.assertFalse(
+            window.article_reader.bilingual_view_button.isChecked()
+        )
+        self.assertNotIn(
+            "Stored translated paragraph.",
+            window.article_reader.content.toPlainText(),
+        )
+
+        window.article_reader.bilingual_view_button.click()
+        self.assertIs(state_store.load("mercury-start"), True)
         window.close()
         window.deleteLater()
 

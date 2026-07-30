@@ -36,6 +36,10 @@ from mercury.ui.ai_settings import (
 )
 from mercury.ui.article_list import ArticleList
 from mercury.ui.article_reader import ArticleReader
+from mercury.ui.bilingual_state import (
+    BilingualViewStateStore,
+    InMemoryBilingualViewStateStore,
+)
 from mercury.ui.feed_deletion import FeedDeletionService
 from mercury.ui.read_state import InMemoryReadStateStore, ReadStateStore
 from mercury.ui.reader_document import ReaderDocument
@@ -139,6 +143,7 @@ class MainWindow(QMainWindow):
         article_service: ArticleService,
         reader_style_store: ReaderStyleStore | None = None,
         read_state_store: ReadStateStore | None = None,
+        bilingual_view_state_store: BilingualViewStateStore | None = None,
         feed_deletion_service: FeedDeletionService | None = None,
         provider_config_store: ProviderConfigStore | None = None,
         provider_connection_tester: ConnectionTester | None = None,
@@ -167,6 +172,10 @@ class MainWindow(QMainWindow):
         )
         self._reader_style = self._reader_style_store.load().normalized()
         self._read_state_store = read_state_store or InMemoryReadStateStore()
+        self._bilingual_view_state_store = (
+            bilingual_view_state_store
+            or InMemoryBilingualViewStateStore()
+        )
         self._feed_deletion_service = feed_deletion_service
         if agent_provider_config_stores is not None:
             self._agent_provider_config_stores = {
@@ -272,7 +281,7 @@ class MainWindow(QMainWindow):
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setObjectName("MainSplitter")
-        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setChildrenCollapsible(True)
 
         self.sidebar.setMinimumWidth(210)
         self.article_list.setMinimumWidth(300)
@@ -542,6 +551,9 @@ class MainWindow(QMainWindow):
         self.article_list.translate_no_article.connect(self._show_translate_no_article)
         self.article_reader.read_state_change_requested.connect(
             self._set_read_state
+        )
+        self.article_reader.bilingual_visibility_change_requested.connect(
+            self._save_bilingual_visibility
         )
         self.article_reader.summary_panel_visibility_requested.connect(
             self.toggle_summary_action.setChecked
@@ -1030,7 +1042,8 @@ class MainWindow(QMainWindow):
             )
         )
         self.article_reader.set_translation_result(
-            self.translation_panel.displayed_result
+            self.translation_panel.displayed_result,
+            visible=self._load_bilingual_visibility(article.id),
         )
         self.tag_suggestion_panel.set_article(
             self._tag_source(article, document)
@@ -1074,7 +1087,8 @@ class MainWindow(QMainWindow):
             self._tag_source(article, document)
         )
         self.article_reader.set_translation_result(
-            self.translation_panel.displayed_result
+            self.translation_panel.displayed_result,
+            visible=self._load_bilingual_visibility(article.id),
         )
         self._refresh_tag_editor(article.id)
         if not system_selected:
@@ -1422,8 +1436,30 @@ class MainWindow(QMainWindow):
         if self.article_reader.current_article_id != value.article_id:
             return
 
-        self.article_reader.set_translation_result(value)
+        self.article_reader.set_translation_result(value, visible=True)
+        self._save_bilingual_visibility(value.article_id, True)
         self.toggle_translation_action.setChecked(False)
+
+    def _load_bilingual_visibility(
+        self,
+        article_id: str,
+    ) -> bool | None:
+        try:
+            return self._bilingual_view_state_store.load(article_id)
+        except Exception:
+            # Preference failures must never affect article reading.
+            return None
+
+    def _save_bilingual_visibility(
+        self,
+        article_id: str,
+        visible: bool,
+    ) -> None:
+        try:
+            self._bilingual_view_state_store.save(article_id, visible)
+        except Exception:
+            # The current Reader state remains usable even if settings fail.
+            pass
 
     def _set_read_state(
         self,
