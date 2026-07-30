@@ -933,6 +933,43 @@ class ArticleReaderTest(unittest.TestCase):
             )
         )
 
+    def test_loaded_translation_respects_last_original_only_preference(
+        self,
+    ) -> None:
+        document = ReaderDocument(
+            raw_html="<p>Original-only reader body.</p>",
+            cleaned_markdown="Stable original paragraph.",
+        )
+        self.reader.show_article(self.article, document)
+        result = self._translation_result(
+            (
+                self._paragraph(
+                    0,
+                    "Stable original paragraph.",
+                    "Stored translated paragraph.",
+                ),
+            )
+        )
+
+        self.reader.set_translation_result(result, visible=False)
+
+        self.assertFalse(self.reader.bilingual_visible)
+        self.assertFalse(self.reader.bilingual_view_button.isChecked())
+        self.assertIn(
+            "Original-only reader body.",
+            self.reader.content.toPlainText(),
+        )
+        self.assertNotIn(
+            "Stored translated paragraph.",
+            self.reader.content.toPlainText(),
+        )
+
+        self.reader.set_translation_result(result)
+
+        self.assertFalse(self.reader.bilingual_visible)
+        self.reader.set_translation_result(result, visible=True)
+        self.assertTrue(self.reader.bilingual_visible)
+
     def test_failed_translation_keeps_original_in_reader(self) -> None:
         document = ReaderDocument(
             raw_html="<p>Fallback body.</p>",

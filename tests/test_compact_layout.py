@@ -107,7 +107,31 @@ class CompactLayoutTest(unittest.TestCase):
         self.assertGreaterEqual(self.window.sidebar.minimumWidth(), 210)
         self.assertGreaterEqual(self.window.article_list.minimumWidth(), 300)
         self.assertGreaterEqual(self.window.article_reader.minimumWidth(), 560)
-        self.assertFalse(self.window.splitter.childrenCollapsible())
+        self.assertTrue(self.window.splitter.childrenCollapsible())
+
+    def test_navigation_columns_can_collapse_to_zero_and_expand_again(
+        self,
+    ) -> None:
+        self.window.splitter.setSizes([0, 0, 1200])
+        self.app.processEvents()
+
+        collapsed_sizes = self.window.splitter.sizes()
+        self.assertEqual(collapsed_sizes[0], 0)
+        self.assertEqual(collapsed_sizes[1], 0)
+        self.assertGreater(collapsed_sizes[2], 0)
+
+        self.window.splitter.setSizes([230, 360, 850])
+        self.app.processEvents()
+
+        expanded_sizes = self.window.splitter.sizes()
+        self.assertGreaterEqual(
+            expanded_sizes[0],
+            self.window.sidebar.minimumWidth(),
+        )
+        self.assertGreaterEqual(
+            expanded_sizes[1],
+            self.window.article_list.minimumWidth(),
+        )
 
 
 if __name__ == "__main__":

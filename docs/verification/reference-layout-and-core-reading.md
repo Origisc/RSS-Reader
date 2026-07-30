@@ -13,6 +13,9 @@
 - 文章列表分别呈现未读圆点、标题、来源、元信息和收藏按钮。
 - 侧栏与文章选中项使用圆角整行高亮。
 - Reader 使用有限正文宽度、更大的页面留白和随主题变化的纸张配色。
+- Feeds 与 Entries 正常展开时保留舒适最小宽度；继续向左拖动分隔线可将
+  任一列折叠到 `0`，Reader 随即占用释放出的窗口空间，向右拖动可恢复。
+- 深色主题的标签筛选复选框使用白色高对比度边框和选中填充。
 - Summary 保持为 Reader 底部的可折叠区域。
 - 应用 UI 使用跨平台无衬线字体栈：Windows 优先 Segoe UI Variable 与
   Microsoft YaHei UI，macOS / Linux 分别回退到 PingFang SC 和
@@ -65,6 +68,9 @@ Reader 处理策略：
   `wp-caption` 因此不会把窄窗口中的 Qt 文档强制撑宽。
 - 原文、Cleaned HTML、Markdown 与双语对照共用当前文章的本地图片
   缓存；生成翻译后会保留图片，并避免为视图切换重复下载。
+- Reader 按文章在本地保存“仅原文/双语对照”的最后显示状态；离开文章再
+  返回以及重新启动应用后都会恢复该选择。新生成或重新生成译文完成时会主动
+  显示双语结果，后续仍以用户最后一次手动切换为准。
 - 图片下载完成后以 `60ms` 去抖批次渐进显示，不再等待最慢图片；瞬时网络
   失败会在 `250ms` 后重试一次。下载结果注册为 Qt 文档内部图片资源，
   翻译/取消翻译时不再反复生成和解析 Base64 HTML。
@@ -95,7 +101,7 @@ uv run python -m unittest tests.test_core_reading_acceptance tests.test_feed_imp
 uv run python -m unittest discover -s tests -v
 ```
 
-本轮执行结果：`373` 项测试全部通过；`compileall` 与
+本轮执行结果：`398` 项测试全部通过；`compileall` 与
 `git diff --check` 同时通过。
 
 ## 手动验收
@@ -129,3 +135,10 @@ uv run python -m unittest discover -s tests -v
 13. 抓取 `krebsonsecurity.com` 的完整网页并生成原始视图：展示内容包含
     文章结尾，但不包含 `<head>`、源站 `<style>`、Post navigation 或评论；
     深色 Reader 背景保持 `#191b1f`，不再被源站白底覆盖。
+14. 对已有译文的文章关闭双语对照，切换到另一篇文章后再返回：Reader 保持
+    “仅原文”；重新创建窗口并复用本地 QSettings 后仍保持该状态。再次手动
+    打开双语对照后，持久化状态更新为显示译文。
+15. 依次将 Feeds、Entries 右侧分隔线拖到最左侧，确认两列均可折叠到
+    `0` 且 Reader 自动扩展；向右拖回后确认两列恢复到各自舒适最小宽度。
+16. 在深色主题的 Tags 列表中确认未选复选框为白色轮廓，选中后为白色实心，
+    在暗色背景上均能清楚辨认。

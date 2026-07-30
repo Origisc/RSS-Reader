@@ -1273,6 +1273,23 @@ QListWidget#SidebarTagList::item:selected {
     color: #ffffff;
 }
 
+QListWidget#SidebarTagList::indicator {
+    width: 14px;
+    height: 14px;
+}
+
+QListWidget#SidebarTagList::indicator:unchecked {
+    background: transparent;
+    border: 1px solid #ffffff;
+    border-radius: 3px;
+}
+
+QListWidget#SidebarTagList::indicator:checked {
+    background: #ffffff;
+    border: 1px solid #ffffff;
+    border-radius: 3px;
+}
+
 QWidget#ReaderPanel,
 QTextBrowser#ReaderContent {
     background: #191b1f;

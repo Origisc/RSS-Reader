@@ -39,6 +39,22 @@ class ThemeTest(unittest.TestCase):
         self.assertIn("QPushButton#ReaderUtilityButton", stylesheet)
         self.assertIn("color: #e5edf5", stylesheet)
 
+    def test_dark_tag_checkbox_has_a_high_contrast_white_indicator(
+        self,
+    ) -> None:
+        stylesheet = stylesheet_for_theme("dark")
+
+        self.assertIn(
+            "QListWidget#SidebarTagList::indicator:unchecked",
+            stylesheet,
+        )
+        self.assertIn(
+            "QListWidget#SidebarTagList::indicator:checked",
+            stylesheet,
+        )
+        self.assertIn("border: 1px solid #ffffff", stylesheet)
+        self.assertIn("background: #ffffff", stylesheet)
+
     def test_light_theme_sets_compact_navigation_colors(self) -> None:
         stylesheet = stylesheet_for_theme("light")
 

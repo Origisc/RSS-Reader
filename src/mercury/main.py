@@ -28,6 +28,7 @@ from mercury.storage import (
     SQLiteTranslationResultStore,
     database_path,
 )
+from mercury.ui.bilingual_state import QSettingsBilingualViewStateStore
 from mercury.ui.main_window import MainWindow
 from mercury.ui.theme import preferred_ui_font
 
@@ -84,6 +85,7 @@ def main() -> int:
 
     window = MainWindow(
         article_service,
+        bilingual_view_state_store=QSettingsBilingualViewStateStore(),
         feed_deletion_service=article_service,
         agent_provider_config_stores=provider_config_stores,
         agent_connection_testers={
