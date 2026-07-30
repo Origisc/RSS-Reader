@@ -61,8 +61,8 @@ class SidebarTest(unittest.TestCase):
             QToolButton.ToolButtonPopupMode.InstantPopup,
         )
         self.assertEqual(
-            self.sidebar.feed_menu_button.arrowType(),
-            Qt.ArrowType.DownArrow,
+            self.sidebar.feed_menu_button.text(),
+            "▾",
         )
 
     def test_feeds_and_tags_use_the_same_sidebar_space(self) -> None:

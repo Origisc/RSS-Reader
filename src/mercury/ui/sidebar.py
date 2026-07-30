@@ -128,7 +128,7 @@ class Sidebar(QWidget):
 
         self.feed_menu_button = QToolButton()
         self.feed_menu_button.setObjectName("FeedMenuButton")
-        self.feed_menu_button.setArrowType(Qt.ArrowType.DownArrow)
+        self.feed_menu_button.setText("▾")
         self.feed_menu_button.setAutoRaise(True)
         self.feed_menu_button.setMenu(self.feed_actions_menu)
         self.feed_menu_button.setPopupMode(
