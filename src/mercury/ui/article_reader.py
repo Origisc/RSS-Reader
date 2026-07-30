@@ -1,3 +1,4 @@
+import hashlib
 import re
 from dataclasses import dataclass
 from html import escape, unescape
@@ -79,6 +80,19 @@ _STYLE_ATTRIBUTE_PATTERN = re.compile(
     r"(?P<style>.*?)(?P=quote)",
     re.IGNORECASE | re.DOTALL,
 )
+_MEDIA_DIMENSION_STYLE_PATTERN = re.compile(
+    r"(?<![-\w])(?:(?:min|max)-)?(?:width|height)"
+    r"\s*:\s*[^;]*(?:;|$)",
+    re.IGNORECASE,
+)
+_NUMERIC_IMAGE_WIDTH_PATTERN = re.compile(
+    r"\bwidth\s*=\s*[\"']?(?P<value>\d+)",
+    re.IGNORECASE,
+)
+_NUMERIC_IMAGE_HEIGHT_PATTERN = re.compile(
+    r"\bheight\s*=\s*[\"']?(?P<value>\d+)",
+    re.IGNORECASE,
+)
 _VOID_HTML_TAGS = {
     "area",
     "base",
@@ -95,6 +109,15 @@ _VOID_HTML_TAGS = {
     "track",
     "wbr",
 }
+_IMAGE_REFRESH_INTERVAL_MS = 60
+_IMAGE_RETRY_DELAY_MS = 250
+_IMAGE_RETRY_LIMIT = 1
+_IMAGE_REQUEST_TIMEOUT_MS = 15000
+_IMAGE_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
 
 
 class _BareImageBlockNormalizer(HTMLParser):
@@ -196,6 +219,8 @@ class _ResolvedImage:
     height: int
     natural_width: int | None = None
     natural_height: int | None = None
+    resource_url: str = ""
+    image: QImage | None = None
 
 
 class ArticleReader(QWidget):
@@ -357,10 +382,19 @@ class ArticleReader(QWidget):
         self.content.document().setMetaInformation(QTextDocument.DocumentUrl, "")
         self._image_replacements: dict[str, _ResolvedImage] = {}
         self._failed_image_urls: set[str] = set()
+        self._image_retry_counts: dict[str, int] = {}
         self._image_generation = 0
         self._is_resolving_images = False
         self._pending_images = 0
         self._last_image_max_width = 0
+        self._image_refresh_timer = QTimer(self)
+        self._image_refresh_timer.setSingleShot(True)
+        self._image_refresh_timer.setInterval(
+            _IMAGE_REFRESH_INTERVAL_MS
+        )
+        self._image_refresh_timer.timeout.connect(
+            self._render_progressive_images
+        )
         self._image_resize_timer = QTimer(self)
         self._image_resize_timer.setSingleShot(True)
         self._image_resize_timer.setInterval(80)
@@ -446,9 +480,11 @@ class ArticleReader(QWidget):
         self._image_generation += 1
         self._image_replacements.clear()
         self._failed_image_urls.clear()
+        self._image_retry_counts.clear()
         self._is_resolving_images = False
         self._pending_images = 0
         self._last_image_max_width = 0
+        self._image_refresh_timer.stop()
         self._image_resize_timer.stop()
 
     def resizeEvent(self, event) -> None:
@@ -780,10 +816,13 @@ class ArticleReader(QWidget):
 
         scroll_pos = self.content.verticalScrollBar().value()
         article = self._current_article
-        normalized_html = self._normalize_image_paragraphs(interleaved_html)
+        normalized_html = self._normalize_image_paragraphs(
+            ReaderDocument.prepare_for_embedding(interleaved_html)
+        )
+        image_replacements = self._scaled_image_replacements()
         display_html = self._replace_resolved_images(
             normalized_html,
-            self._scaled_image_replacements(),
+            image_replacements,
             base_url=article.link,
         )
 
@@ -797,6 +836,7 @@ class ArticleReader(QWidget):
             </div>
         """
         self._set_document_base_url(article.link)
+        self._register_image_resources(image_replacements)
         self.content.setHtml(self._wrap_html(body))
         self.content.verticalScrollBar().setValue(scroll_pos)
         self._resolve_images_async(normalized_html)
@@ -843,11 +883,12 @@ class ArticleReader(QWidget):
         scroll_pos = self.content.verticalScrollBar().value()
         article = self._current_article
         normalized_content_html = self._normalize_image_paragraphs(
-            content_html
+            ReaderDocument.prepare_for_embedding(content_html)
         )
+        image_replacements = self._scaled_image_replacements()
         display_content_html = self._replace_resolved_images(
             normalized_content_html,
-            self._scaled_image_replacements(),
+            image_replacements,
             base_url=article.link,
         )
 
@@ -874,6 +915,7 @@ class ArticleReader(QWidget):
             <div class="reader-article">{display_content_html}</div>
         """
         self._set_document_base_url(article.link)
+        self._register_image_resources(image_replacements)
         self.content.setHtml(self._wrap_html(body))
         self.content.verticalScrollBar().setValue(scroll_pos)
         self._resolve_images_async(normalized_content_html)
@@ -1034,14 +1076,46 @@ class ArticleReader(QWidget):
         generation = self._image_generation
 
         for url in http_urls:
-            request = QNetworkRequest(QUrl(url))
-            request.setTransferTimeout(10000)
-            reply = self._network_manager.get(request)
-            reply.finished.connect(
-                lambda r=reply, u=url, g=generation: (
-                    self._on_image_downloaded(r, u, g)
-                )
+            self._request_image(url, generation)
+
+    def _request_image(self, url: str, generation: int) -> None:
+        if generation != self._image_generation:
+            return
+
+        request = QNetworkRequest(QUrl(url))
+        request.setTransferTimeout(_IMAGE_REQUEST_TIMEOUT_MS)
+        request.setHeader(
+            QNetworkRequest.UserAgentHeader,
+            _IMAGE_USER_AGENT,
+        )
+        request.setRawHeader(
+            b"Accept",
+            (
+                b"image/png,image/jpeg,image/webp,image/gif,"
+                b"image/svg+xml,image/*;q=0.8,*/*;q=0.5"
+            ),
+        )
+        article = self._current_article
+        if article is not None and article.link:
+            request.setRawHeader(
+                b"Referer",
+                QUrl(article.link).toEncoded(),
             )
+
+        reply = self._network_manager.get(request)
+        reply.finished.connect(
+            lambda r=reply, u=url, g=generation: (
+                self._on_image_downloaded(r, u, g)
+            )
+        )
+
+    def _retry_image(self, url: str, generation: int) -> None:
+        if (
+            generation != self._image_generation
+            or not self._is_resolving_images
+        ):
+            return
+        self._request_image(url, generation)
 
     def _on_image_downloaded(self, reply, url, generation: int):
         from PySide6.QtNetwork import QNetworkReply
@@ -1059,39 +1133,47 @@ class ArticleReader(QWidget):
                 image_bytes = bytes(content)
                 image = QImage.fromData(image_bytes)
 
-                content_type = reply.header(QNetworkRequest.ContentTypeHeader)
-                if content_type is None:
-                    content_type = 'image/jpeg'
-
-                import base64
-                encoded = base64.b64encode(image_bytes).decode('utf-8')
                 if not image.isNull():
                     width, height = self._scaled_image_size(
                         image.width(),
                         image.height(),
                     )
+                    resource_url = self._image_resource_url(url)
                     self._image_replacements[url] = _ResolvedImage(
-                        data_url=(
-                            f'data:{str(content_type).split(";", 1)[0]};'
-                            f'base64,{encoded}'
-                        ),
+                        data_url="",
                         width=width,
                         height=height,
                         natural_width=image.width(),
                         natural_height=image.height(),
+                        resource_url=resource_url,
+                        image=image,
                     )
                     resolved = True
         except Exception:
             # A failed image must never make the cached article unreadable.
             pass
-        if not resolved:
-            self._failed_image_urls.add(url)
 
         reply.deleteLater()
 
+        if resolved:
+            self._image_retry_counts.pop(url, None)
+            self._image_refresh_timer.start()
+        else:
+            retry_count = self._image_retry_counts.get(url, 0)
+            if retry_count < _IMAGE_RETRY_LIMIT:
+                self._image_retry_counts[url] = retry_count + 1
+                QTimer.singleShot(
+                    _IMAGE_RETRY_DELAY_MS,
+                    lambda u=url, g=generation: self._retry_image(u, g),
+                )
+                return
+            self._failed_image_urls.add(url)
+
         self._pending_images -= 1
         if self._pending_images == 0:
-            self._apply_image_replacements()
+            self._is_resolving_images = False
+            if not self._image_refresh_timer.isActive():
+                self._apply_image_replacements()
 
     def _scaled_image_size(
         self,
@@ -1133,14 +1215,16 @@ class ArticleReader(QWidget):
                 height=height,
                 natural_width=natural_width,
                 natural_height=natural_height,
+                resource_url=image.resource_url,
+                image=image.image,
             )
 
         if scaled:
             self._last_image_max_width = self._image_max_width()
         return scaled
 
-    @staticmethod
     def _replace_resolved_images(
+        self,
         html: str,
         replacements: dict[str, _ResolvedImage],
         *,
@@ -1157,13 +1241,16 @@ class ArticleReader(QWidget):
             if replacement is None and base_url:
                 replacement = replacements.get(urljoin(base_url, source))
             if replacement is None:
-                return tag
+                return self._fit_declared_image_size(tag)
 
             tag = _IMAGE_SIZE_ATTRIBUTE_PATTERN.sub("", tag)
+            display_source = (
+                replacement.resource_url or replacement.data_url
+            )
             tag = _IMAGE_SOURCE_PATTERN.sub(
                 lambda source: (
                     f'{source.group("prefix")}{source.group("quote")}'
-                    f'{replacement.data_url}{source.group("quote")}'
+                    f'{display_source}{source.group("quote")}'
                 ),
                 tag,
                 count=1,
@@ -1177,7 +1264,53 @@ class ArticleReader(QWidget):
             return f"{tag[:-1].rstrip()}{size_attributes}>"
 
         resolved_html = _IMAGE_TAG_PATTERN.sub(replace_tag, html)
-        return ArticleReader._normalize_image_paragraphs(resolved_html)
+        return self._normalize_image_paragraphs(resolved_html)
+
+    def _fit_declared_image_size(self, tag: str) -> str:
+        """Keep pending remote images inside the current Reader viewport."""
+        width_match = _NUMERIC_IMAGE_WIDTH_PATTERN.search(tag)
+        height_match = _NUMERIC_IMAGE_HEIGHT_PATTERN.search(tag)
+        if width_match is None or height_match is None:
+            return tag
+
+        source_width = int(width_match.group("value"))
+        source_height = int(height_match.group("value"))
+        width, height = self._scaled_image_size(
+            source_width,
+            source_height,
+        )
+        if (width, height) == (source_width, source_height):
+            return tag
+
+        tag = _IMAGE_SIZE_ATTRIBUTE_PATTERN.sub("", tag)
+        size_attributes = f' width="{width}" height="{height}"'
+        if tag.endswith("/>"):
+            return f"{tag[:-2].rstrip()}{size_attributes} />"
+        return f"{tag[:-1].rstrip()}{size_attributes}>"
+
+    @staticmethod
+    def _image_resource_url(source_url: str) -> str:
+        digest = hashlib.sha256(
+            source_url.encode("utf-8")
+        ).hexdigest()
+        return f"mercury-image://cache/{digest}"
+
+    def _register_image_resources(
+        self,
+        replacements: dict[str, _ResolvedImage],
+    ) -> None:
+        for resolved in replacements.values():
+            if (
+                not resolved.resource_url
+                or resolved.image is None
+                or resolved.image.isNull()
+            ):
+                continue
+            self.content.document().addResource(
+                QTextDocument.ImageResource,
+                QUrl(resolved.resource_url),
+                resolved.image,
+            )
 
     def _canonical_image_url(self, source: str) -> str:
         source = unescape(source).strip()
@@ -1207,7 +1340,9 @@ class ArticleReader(QWidget):
                 return match.group(0)
 
             attrs = ArticleReader._set_inline_line_height(
-                match.group("attrs"),
+                ArticleReader._strip_media_container_dimensions(
+                    match.group("attrs")
+                ),
                 "100%",
             )
             visible_text = unescape(
@@ -1259,6 +1394,34 @@ class ArticleReader(QWidget):
         return bare_image_normalizer.html
 
     @staticmethod
+    def _strip_media_container_dimensions(attrs: str) -> str:
+        """Remove source-site fixed sizing from image-owning wrappers.
+
+        WordPress captions commonly use a wrapper such as
+        ``style="width: 760px"``. QTextDocument treats that as a hard minimum
+        even after the image itself is scaled, which clips the Reader on a
+        narrow window. The downloaded image receives explicit proportional
+        dimensions separately, so wrapper dimensions are presentation-only.
+        """
+        attrs = _IMAGE_SIZE_ATTRIBUTE_PATTERN.sub("", attrs)
+
+        def clean_style(match: re.Match[str]) -> str:
+            style = _MEDIA_DIMENSION_STYLE_PATTERN.sub(
+                "",
+                match.group("style"),
+            )
+            style = re.sub(r";{2,}", ";", style).strip(" ;")
+            if not style:
+                return ""
+            quote = match.group("quote")
+            return (
+                f"{match.group('prefix')}{quote}"
+                f"{style};{quote}"
+            )
+
+        return _STYLE_ATTRIBUTE_PATTERN.sub(clean_style, attrs)
+
+    @staticmethod
     def _set_inline_line_height(attrs: str, value: str) -> str:
         style_match = _STYLE_ATTRIBUTE_PATTERN.search(attrs)
         if style_match is None:
@@ -1282,7 +1445,12 @@ class ArticleReader(QWidget):
             f"{attrs[style_match.end():]}"
         )
 
+    def _render_progressive_images(self) -> None:
+        if self._current_article is not None:
+            self._render_current_view()
+
     def _apply_image_replacements(self) -> None:
+        self._image_refresh_timer.stop()
         self._is_resolving_images = False
         if self._current_article is not None:
             self._render_current_view()

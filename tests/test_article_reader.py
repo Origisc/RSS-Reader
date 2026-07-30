@@ -4,6 +4,7 @@ import unittest
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -13,7 +14,9 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from PySide6.QtGui import QFont, QTextDocument
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QUrl
+from PySide6.QtGui import QFont, QImage, QTextDocument
+from PySide6.QtNetwork import QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import QApplication
 
 from mercury.domain import (
@@ -125,6 +128,47 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("Second visible paragraph", rendered_text)
         self.assertGreaterEqual(markdown_fragment.lower().count("<p"), 2)
         self.assertIn("color:#e8e3da", rendered_html)
+
+    def test_source_page_styles_cannot_override_dark_reader_theme(self) -> None:
+        source_page = """
+            <!doctype html>
+            <html bgcolor="#ffffff">
+            <head>
+                <style>
+                    body, .source-shell {
+                        background: #ffffff;
+                        color: #111111;
+                    }
+                </style>
+                <script>window.sourceApp = true;</script>
+            </head>
+            <body>
+                <div class="source-shell"
+                     style="background-color: white; color: black;
+                            text-align: center;">
+                    <p>Theme-safe original article.</p>
+                </div>
+            </body>
+            </html>
+        """
+
+        self.reader.show_article(
+            self.article,
+            ReaderDocument(raw_html=source_page),
+        )
+
+        rendered_html = self.reader.content.toHtml().replace(" ", "").lower()
+        rendered_text = self.reader.content.toPlainText()
+        safe_fragment = ReaderDocument.prepare_for_embedding(source_page)
+
+        self.assertIn("Theme-safe original article", rendered_text)
+        self.assertIn('bgcolor="#191b1f"', rendered_html)
+        self.assertNotIn("<head", safe_fragment.lower())
+        self.assertNotIn("<style", safe_fragment.lower())
+        self.assertNotIn("<script", safe_fragment.lower())
+        self.assertNotIn("background-color:white", safe_fragment.lower())
+        self.assertNotIn("color:black", safe_fragment.lower())
+        self.assertIn("text-align: center", safe_fragment.lower())
 
     def test_light_theme_renders_reader_as_a_light_paper_surface(self) -> None:
         self.reader.set_color_scheme("light")
@@ -527,6 +571,7 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("<div", resolved)
         self.assertIn("line-height:100%", resolved)
         self.assertIn("line-height:normal", resolved)
+        self.assertNotIn("width: 760px", resolved)
 
         rendered = QTextDocument()
         rendered.setHtml(
@@ -564,6 +609,47 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertLessEqual(
             next_rect.top() - caption_rect.bottom(),
             self.reader.reader_style.paragraph_spacing_px + 0.5,
+        )
+
+    def test_wordpress_caption_cannot_force_narrow_reader_to_overflow(
+        self,
+    ) -> None:
+        self.reader.show()
+        self.reader.resize(560, 720)
+        self.app.processEvents()
+        image_url = (
+            "https://krebsonsecurity.com/wp-content/uploads/"
+            "2025/09/rocketace-tmobile.png"
+        )
+        fragment = (
+            '<div class="wp-caption aligncenter" width="819" '
+            'style="margin: 0 auto; width: 819px; max-width: 100%; '
+            'height: 915px; border: 1px solid transparent;">'
+            f'<img src="{image_url}" width="809" height="915">'
+            '<p class="wp-caption-text">KrebsOnSecurity caption.</p>'
+            "</div>"
+        )
+
+        resolved = self.reader._replace_resolved_images(
+            fragment,
+            {},
+        )
+        expected_width, expected_height = self.reader._scaled_image_size(
+            809,
+            915,
+        )
+
+        self.assertNotIn('width="819"', resolved)
+        self.assertNotIn("width: 819px", resolved)
+        self.assertNotIn("max-width: 100%", resolved)
+        self.assertNotIn("height: 915px", resolved)
+        self.assertIn("margin: 0 auto", resolved)
+        self.assertIn("border: 1px solid transparent", resolved)
+        self.assertIn(f'width="{expected_width}"', resolved)
+        self.assertIn(f'height="{expected_height}"', resolved)
+        self.assertLessEqual(
+            expected_width,
+            self.reader._image_max_width(),
         )
 
     def test_linked_picture_wrapper_is_treated_as_image_only_block(
@@ -642,7 +728,7 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("First-stage original", self.reader.content.toPlainText())
         self.assertIn("unavailable", self.reader.view_status_label.text())
 
-    def test_document_keeps_feed_content_as_original_view(self) -> None:
+    def test_document_keeps_feed_content_before_successful_fetch(self) -> None:
         article = Article(
             id="processed-article",
             feed_id="feed-1",
@@ -662,6 +748,103 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertIn("Cleaned result", document.cleaned_html or "")
         self.assertEqual(document.cleaned_markdown, "## Cleaned Markdown")
         self.assertEqual(document.cleaning_error, "previous cleaning warning")
+
+    def test_document_uses_complete_fetch_when_feed_is_only_excerpt(
+        self,
+    ) -> None:
+        complete_body = " ".join(
+            f"<p>Complete article paragraph {index}.</p>"
+            for index in range(30)
+        )
+        article = Article(
+            id="complete-fetch",
+            feed_id="feed-1",
+            title="Complete fetch fixture",
+            source_title="Local fixture",
+            content_html="<p>Short Feed excerpt.</p>",
+            original_html=(
+                "<html><body><article>"
+                f"{complete_body}"
+                "<h2>Conclusion marker</h2>"
+                "</article></body></html>"
+            ),
+            fetched_at="2026-07-30T10:00:00",
+            fetch_status="success",
+        )
+
+        document = ReaderDocument.from_article(article)
+
+        self.assertIn("Complete article paragraph 29", document.raw_html)
+        self.assertIn("Conclusion marker", document.raw_html)
+        self.assertNotIn("Short Feed excerpt", document.raw_html)
+
+    def test_complete_page_uses_clean_article_without_site_shell(self) -> None:
+        complete_body = " ".join(
+            f"<p>Full safe paragraph {index}.</p>"
+            for index in range(20)
+        )
+        cleaned_html = (
+            "<article>"
+            f"{complete_body}"
+            "<h2>Safe conclusion marker</h2>"
+            "</article>"
+        )
+        article = Article(
+            id="complete-page-shell",
+            feed_id="feed-1",
+            title="Complete page shell fixture",
+            source_title="Local fixture",
+            content_html="<p>Short Feed excerpt.</p>",
+            original_html=(
+                "<!doctype html><html><head>"
+                "<style>body { background: white; color: black; }</style>"
+                "</head><body>"
+                "<header>Source navigation and advertisement</header>"
+                f"<main>{cleaned_html}</main>"
+                "<aside>Unrelated source sidebar</aside>"
+                "</body></html>"
+            ),
+            cleaned_html=cleaned_html,
+            fetched_at="2026-07-30T10:00:00",
+            fetch_status="success",
+        )
+
+        document = ReaderDocument.from_article(article)
+
+        self.assertEqual(document.raw_html, cleaned_html)
+        self.assertIn("Full safe paragraph 19", document.raw_html)
+        self.assertIn("Safe conclusion marker", document.raw_html)
+        self.assertNotIn("background: white", document.raw_html)
+        self.assertNotIn("Source navigation", document.raw_html)
+        self.assertNotIn("Unrelated source sidebar", document.raw_html)
+
+    def test_document_keeps_feed_when_successful_fetch_is_short_shell(
+        self,
+    ) -> None:
+        feed_body = " ".join(
+            f"<p>Useful Feed paragraph {index}.</p>"
+            for index in range(20)
+        )
+        article = Article(
+            id="short-shell",
+            feed_id="feed-1",
+            title="Short shell fixture",
+            source_title="Local fixture",
+            content_html=feed_body,
+            original_html=(
+                "<html><body>"
+                f"<script>{'x' * 5000}</script>"
+                "<p>Please enable JavaScript.</p>"
+                "</body></html>"
+            ),
+            fetched_at="2026-07-30T10:00:00",
+            fetch_status="success",
+        )
+
+        document = ReaderDocument.from_article(article)
+
+        self.assertIn("Useful Feed paragraph 19", document.raw_html)
+        self.assertNotIn("Please enable JavaScript", document.raw_html)
 
     def test_document_uses_fetched_html_when_feed_content_is_empty(self) -> None:
         article = Article(
@@ -919,6 +1102,63 @@ class ArticleReaderTest(unittest.TestCase):
         self.assertNotIn(image_url, rendered_html)
         self.assertIn("原文段落译文", self.reader.content.toPlainText())
 
+    def test_translation_toggle_reuses_qt_resource_without_network(
+        self,
+    ) -> None:
+        image_url = "https://example.com/toggle-resource.png"
+        source_html = (
+            "<p>Original paragraph.</p>"
+            f'<img src="{image_url}" alt="Cached resource">'
+        )
+
+        class NoNetworkManager:
+            def __init__(self) -> None:
+                self.request_count = 0
+
+            def get(self, _request):
+                self.request_count += 1
+                raise AssertionError("A cached image must not be requested.")
+
+        image = QImage(320, 180, QImage.Format.Format_RGB32)
+        image.fill(0xFF336699)
+        resource_url = self.reader._image_resource_url(image_url)
+        manager = NoNetworkManager()
+        self.reader._current_article = self.article
+        self.reader._current_document = ReaderDocument(raw_html=source_html)
+        self.reader._network_manager = manager
+        self.reader._image_replacements[image_url] = _ResolvedImage(
+            data_url="",
+            width=320,
+            height=180,
+            natural_width=320,
+            natural_height=180,
+            resource_url=resource_url,
+            image=image,
+        )
+
+        self.reader._render_current_view()
+        self.reader.set_translation_result(
+            self._translation_result(
+                (
+                    self._paragraph(
+                        0,
+                        "Original paragraph.",
+                        "原文段落译文。",
+                    ),
+                ),
+                source_format=TranslationSourceFormat.RAW_HTML,
+            )
+        )
+        for _ in range(3):
+            self.reader.set_bilingual_visible(False)
+            self.reader.set_bilingual_visible(True)
+
+        rendered_html = self.reader.content.toHtml()
+        self.assertEqual(manager.request_count, 0)
+        self.assertIn(resource_url, rendered_html)
+        self.assertNotIn("base64", rendered_html)
+        self.assertIn("原文段落译文", self.reader.content.toPlainText())
+
     def test_bilingual_view_reuses_absolute_cache_for_relative_image(
         self,
     ) -> None:
@@ -992,10 +1232,10 @@ class ArticleReaderTest(unittest.TestCase):
 
         class RecordingNetworkManager:
             def __init__(self) -> None:
-                self.urls: list[str] = []
+                self.requests = []
 
             def get(self, request):
-                self.urls.append(request.url().toString())
+                self.requests.append(request)
                 return PendingReply()
 
         manager = RecordingNetworkManager()
@@ -1009,7 +1249,167 @@ class ArticleReaderTest(unittest.TestCase):
             f'<img src="{relative_url}"><img src="{absolute_url}">'
         )
 
-        self.assertEqual(manager.urls, [absolute_url])
+        self.assertEqual(
+            [
+                request.url().toString()
+                for request in manager.requests
+            ],
+            [absolute_url],
+        )
+        request = manager.requests[0]
+        self.assertEqual(
+            bytes(request.rawHeader("Referer")).decode("utf-8"),
+            article_url,
+        )
+        self.assertIn(
+            "image/",
+            bytes(request.rawHeader("Accept")).decode("ascii"),
+        )
+        self.assertIn(
+            "Mozilla/5.0",
+            str(request.header(QNetworkRequest.UserAgentHeader)),
+        )
+
+    def test_completed_image_can_render_before_slow_batch_finishes(
+        self,
+    ) -> None:
+        class SuccessfulReply:
+            def __init__(self, payload: bytes) -> None:
+                self.payload = payload
+                self.deleted = False
+
+            def error(self):
+                return QNetworkReply.NoError
+
+            def readAll(self):
+                return self.payload
+
+            def deleteLater(self) -> None:
+                self.deleted = True
+
+        image = QImage(32, 18, QImage.Format.Format_RGB32)
+        image.fill(0xFF336699)
+        encoded = QByteArray()
+        buffer = QBuffer(encoded)
+        self.assertTrue(buffer.open(QIODevice.WriteOnly))
+        self.assertTrue(image.save(buffer, "PNG"))
+        buffer.close()
+
+        image_url = "https://example.com/progressive.png"
+        render_calls: list[str] = []
+        self.reader._current_article = self.article
+        self.reader._pending_images = 2
+        self.reader._is_resolving_images = True
+        self.reader._render_current_view = lambda: render_calls.append(
+            "rendered"
+        )
+
+        reply = SuccessfulReply(bytes(encoded))
+        self.reader._on_image_downloaded(
+            reply,
+            image_url,
+            self.reader._image_generation,
+        )
+
+        self.assertTrue(reply.deleted)
+        self.assertEqual(self.reader._pending_images, 1)
+        self.assertTrue(self.reader._is_resolving_images)
+        self.assertTrue(self.reader._image_refresh_timer.isActive())
+        resolved = self.reader._image_replacements[image_url]
+        self.assertEqual(resolved.data_url, "")
+        self.assertTrue(resolved.resource_url.startswith("mercury-image://"))
+        self.assertIsNotNone(resolved.image)
+        display_html = self.reader._replace_resolved_images(
+            f'<img src="{image_url}">',
+            {image_url: resolved},
+        )
+        self.assertIn(resolved.resource_url, display_html)
+        self.assertNotIn("base64", display_html)
+        self.reader._register_image_resources({image_url: resolved})
+        for _ in range(2):
+            self.reader.content.setHtml(
+                self.reader._wrap_html(display_html)
+            )
+            cached_image = self.reader.content.document().resource(
+                QTextDocument.ImageResource,
+                QUrl(resolved.resource_url),
+            )
+            self.assertIsInstance(cached_image, QImage)
+            self.assertFalse(cached_image.isNull())
+
+        self.reader._image_refresh_timer.stop()
+        self.reader._render_progressive_images()
+        self.assertEqual(render_calls, ["rendered"])
+
+    def test_transient_image_failure_retries_once_then_stops(self) -> None:
+        class FailedReply:
+            def __init__(self) -> None:
+                self.deleted = False
+
+            def error(self):
+                return QNetworkReply.ConnectionRefusedError
+
+            def deleteLater(self) -> None:
+                self.deleted = True
+
+        class FinishedSignal:
+            def connect(self, callback) -> None:
+                self.callback = callback
+
+        class PendingReply:
+            def __init__(self) -> None:
+                self.finished = FinishedSignal()
+
+        class RecordingNetworkManager:
+            def __init__(self) -> None:
+                self.requests = []
+
+            def get(self, request):
+                self.requests.append(request)
+                return PendingReply()
+
+        image_url = "https://example.com/transient.png"
+        manager = RecordingNetworkManager()
+        render_calls: list[str] = []
+        self.reader._current_article = self.article
+        self.reader._network_manager = manager
+        self.reader._pending_images = 1
+        self.reader._is_resolving_images = True
+        self.reader._render_current_view = lambda: render_calls.append(
+            "rendered"
+        )
+
+        with patch(
+            "mercury.ui.article_reader.QTimer.singleShot"
+        ) as single_shot:
+            first_reply = FailedReply()
+            self.reader._on_image_downloaded(
+                first_reply,
+                image_url,
+                self.reader._image_generation,
+            )
+
+            self.assertTrue(first_reply.deleted)
+            self.assertEqual(self.reader._pending_images, 1)
+            self.assertNotIn(image_url, self.reader._failed_image_urls)
+            single_shot.assert_called_once()
+            retry_callback = single_shot.call_args.args[1]
+            retry_callback()
+
+        self.assertEqual(len(manager.requests), 1)
+
+        second_reply = FailedReply()
+        self.reader._on_image_downloaded(
+            second_reply,
+            image_url,
+            self.reader._image_generation,
+        )
+
+        self.assertTrue(second_reply.deleted)
+        self.assertEqual(self.reader._pending_images, 0)
+        self.assertFalse(self.reader._is_resolving_images)
+        self.assertIn(image_url, self.reader._failed_image_urls)
+        self.assertEqual(render_calls, ["rendered"])
 
     def test_failed_image_batch_still_rerenders_current_view(self) -> None:
         render_calls: list[str] = []
