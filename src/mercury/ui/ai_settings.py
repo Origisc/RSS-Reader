@@ -56,6 +56,7 @@ class AISettingsDialog(QDialog):
 
         self._translator = translator
         self._connection_tester = connection_tester
+        self._preserve_fields_on_custom_switch = False
         config = current_config or ProviderConfig()
 
         self.setMinimumWidth(480)
@@ -257,8 +258,12 @@ class AISettingsDialog(QDialog):
         status_match = re.search(r"http status (\d{3})", normalized)
         status = int(status_match.group(1)) if status_match else None
 
-        if status == 401:
+        if status in {400, 422}:
+            key = "bad_request"
+        elif status == 401:
             key = "authentication"
+        elif status == 402:
+            key = "billing"
         elif status == 403:
             key = "permission"
         elif status == 404:
@@ -321,6 +326,14 @@ class AISettingsDialog(QDialog):
         self.connection_status.clear()
 
         if preset.config is None:
+            if self._preserve_fields_on_custom_switch:
+                return
+
+            empty_config = ProviderConfig()
+            self.base_url_edit.clear()
+            self.model_edit.clear()
+            self.api_key_edit.clear()
+            self.timeout_spin.setValue(empty_config.timeout_seconds)
             return
 
         self.base_url_edit.setText(preset.config.base_url)
@@ -335,7 +348,11 @@ class AISettingsDialog(QDialog):
         custom_index = self.provider_preset_combo.findData(
             CUSTOM_PRESET_ID
         )
-        self.provider_preset_combo.setCurrentIndex(custom_index)
+        self._preserve_fields_on_custom_switch = True
+        try:
+            self.provider_preset_combo.setCurrentIndex(custom_index)
+        finally:
+            self._preserve_fields_on_custom_switch = False
 
     def _update_preset_notice(self, identifier: str) -> None:
         preset = preset_by_id(identifier)

@@ -166,6 +166,29 @@ class AISettingsDialogTest(unittest.TestCase):
             dialog.base_url_edit.text(),
             "http://localhost:9000/v1",
         )
+        self.assertEqual(dialog.model_edit.text(), "deepseek-r1:1.5b")
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_selecting_custom_clears_values_inherited_from_preset(
+        self,
+    ) -> None:
+        dialog = AISettingsDialog(Translator("zh_CN"))
+        qwen_index = dialog.provider_preset_combo.findData(
+            "ollama-local-qwen25-7b"
+        )
+        custom_index = dialog.provider_preset_combo.findData("custom")
+
+        dialog.provider_preset_combo.setCurrentIndex(qwen_index)
+        self.assertEqual(dialog.model_edit.text(), "qwen2.5:7b-instruct")
+
+        dialog.provider_preset_combo.setCurrentIndex(custom_index)
+
+        self.assertEqual(dialog.provider_preset_combo.currentData(), "custom")
+        self.assertEqual(dialog.base_url_edit.text(), "")
+        self.assertEqual(dialog.model_edit.text(), "")
+        self.assertEqual(dialog.api_key_edit.text(), "")
+        self.assertEqual(dialog.timeout_spin.value(), 30.0)
         dialog.close()
         dialog.deleteLater()
 
@@ -317,6 +340,40 @@ class AISettingsDialogTest(unittest.TestCase):
         self.assertIn("无效", dialog.connection_status.text())
         dialog.close()
         dialog.deleteLater()
+
+    def test_http_request_and_billing_failures_have_clear_reasons(
+        self,
+    ) -> None:
+        cases = (
+            (
+                400,
+                "请检查 Base URL、模型名称",
+            ),
+            (
+                402,
+                "账单与额度",
+            ),
+        )
+
+        for status, expected in cases:
+            with self.subTest(status=status):
+                dialog = AISettingsDialog(
+                    Translator("zh_CN"),
+                    self._valid_config(),
+                    connection_tester=lambda _config, code=status: (
+                        ProviderConnectionResult(
+                            False,
+                            "Provider request failed with HTTP status "
+                            f"{code}.",
+                        )
+                    ),
+                )
+
+                dialog._test_connection()
+
+                self.assertIn(expected, dialog.connection_status.text())
+                dialog.close()
+                dialog.deleteLater()
 
     def test_failed_result_redacts_full_api_key(self) -> None:
         secret = "never-show-this-key"

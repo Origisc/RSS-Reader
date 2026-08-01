@@ -78,6 +78,54 @@ class RecordingTransport:
 
 
 class HTTPChatCompletionsProviderTest(unittest.TestCase):
+    def test_supports_openai_and_gemini_compatible_endpoints(self) -> None:
+        cases = (
+            (
+                "openai",
+                "https://api.openai.com/v1",
+                "openai-account-model",
+                "https://api.openai.com/v1/chat/completions",
+            ),
+            (
+                "gemini",
+                (
+                    "https://generativelanguage.googleapis.com/"
+                    "v1beta/openai/"
+                ),
+                "gemini-account-model",
+                (
+                    "https://generativelanguage.googleapis.com/"
+                    "v1beta/openai/chat/completions"
+                ),
+            ),
+        )
+
+        for provider_name, base_url, model, expected_url in cases:
+            with self.subTest(provider=provider_name):
+                transport = RecordingTransport()
+                provider = HTTPChatCompletionsProvider(
+                    InMemoryProviderConfigStore(
+                        configured(
+                            base_url=base_url,
+                            model=model,
+                            api_key="provider-test-secret",
+                        )
+                    ),
+                    transport,
+                )
+
+                result = provider.test_connection()
+
+                self.assertTrue(result.success)
+                url, headers, payload, _timeout = transport.calls[0]
+                self.assertEqual(url, expected_url)
+                self.assertEqual(
+                    headers["Authorization"],
+                    "Bearer provider-test-secret",
+                )
+                self.assertEqual(payload["model"], model)
+                self.assertEqual(payload["messages"][-1]["role"], "user")
+
     def test_local_deepseek_preset_builds_keyless_ollama_request(
         self,
     ) -> None:

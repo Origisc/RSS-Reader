@@ -1,7 +1,7 @@
 [project]
 name = "rss-reader"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.3"
+description = "A local-first, cross-platform RSS reader with optional AI tools"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -9,6 +9,18 @@ dependencies = [
     "pyside6>=6.11.1",
     "requests>=2.34.2",
 ]
+
+[project.scripts]
+mercury = "mercury.main:main"
+
+[build-system]
+requires = ["setuptools>=83"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = [".", "src"]
+include = ["core*", "domain*", "mercury*"]
+namespaces = false
 
 [dependency-groups]
 dev = [

@@ -961,30 +961,6 @@ class ArticleReader(QWidget):
 
         return True
 
-    def _resolve_markdown_images(self, markdown: str) -> str:
-        import re
-        import base64
-        import requests
-
-        def replace_image(match):
-            alt = match.group(1)
-            src = match.group(2)
-            if not src.startswith('http'):
-                return match.group(0)
-            
-            try:
-                response = requests.get(src, timeout=10)
-                if response.status_code == 200:
-                    content_type = response.headers.get('content-type', 'image/jpeg')
-                    encoded = base64.b64encode(response.content).decode('utf-8')
-                    return f'![{alt}](data:{content_type};base64,{encoded})'
-            except Exception:
-                pass
-            
-            return match.group(0)
-
-        return re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', replace_image, markdown)
-
     def _show_markdown(self, markdown: str) -> None:
         if self._current_article is None:
             return
@@ -1011,34 +987,6 @@ class ArticleReader(QWidget):
             return
 
         self._render_current_view()
-
-    def _resolve_images(self, html: str) -> str:
-        import re
-        import base64
-        import requests
-
-        def replace_image(match):
-            img_tag = match.group(0)
-            src_match = re.search(r'src=["\']([^"\']+)["\']', img_tag)
-            if not src_match:
-                return img_tag
-            
-            src = src_match.group(1)
-            if not src.startswith('http'):
-                return img_tag
-            
-            try:
-                response = requests.get(src, timeout=10)
-                if response.status_code == 200:
-                    content_type = response.headers.get('content-type', 'image/jpeg')
-                    encoded = base64.b64encode(response.content).decode('utf-8')
-                    return img_tag.replace(src, f'data:{content_type};base64,{encoded}')
-            except Exception:
-                pass
-            
-            return img_tag
-
-        return re.sub(r'<img[^>]+>', replace_image, html)
 
     def _resolve_images_async(self, html: str) -> None:
         if self._is_resolving_images:

@@ -177,7 +177,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ai_settings.preset": "配置模板：",
         "ai_settings.preset.custom": "自定义（OpenAI 兼容）",
         "ai_settings.preset.custom_description": (
-            "Base URL 和模型均可编辑，适用于兼容 Chat Completions 的服务。"
+            "Base URL 和模型均可编辑，适用于 OpenAI、Gemini 及其他兼容 "
+            "Chat Completions 的服务；选择自定义后不会自动填入任何模型。"
         ),
         "ai_settings.preset.ollama_qwen25_7b": (
             "本地 Qwen2.5 7B（Ollama，推荐翻译）"
@@ -229,8 +230,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "ai_settings.connection_success": "连接测试成功。",
         "ai_settings.connection_failed": "连接测试失败。",
+        "ai_settings.connection_reason.bad_request": (
+            "Provider 拒绝了请求，请检查 Base URL、模型名称以及该模型是否支持 "
+            "Chat Completions。"
+        ),
         "ai_settings.connection_reason.authentication": (
             "API Key 缺失、无效或已过期，请检查凭据。"
+        ),
+        "ai_settings.connection_reason.billing": (
+            "Provider 要求付费或账户余额不足，请检查 API 账户的账单与额度。"
         ),
         "ai_settings.connection_reason.permission": (
             "Provider 已拒绝访问，请检查 API Key 权限、模型权限或账户状态。"
@@ -722,8 +730,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ai_settings.preset": "Configuration template:",
         "ai_settings.preset.custom": "Custom (OpenAI-compatible)",
         "ai_settings.preset.custom_description": (
-            "The Base URL and model remain editable for any compatible "
-            "Chat Completions service."
+            "The Base URL and model remain editable for OpenAI, Gemini, and "
+            "other compatible Chat Completions services. Selecting Custom "
+            "does not insert a model automatically."
         ),
         "ai_settings.preset.ollama_qwen25_7b": (
             "Local Qwen2.5 7B (Ollama, recommended for translation)"
@@ -786,8 +795,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "ai_settings.connection_success": "Connection test succeeded.",
         "ai_settings.connection_failed": "Connection test failed.",
+        "ai_settings.connection_reason.bad_request": (
+            "The Provider rejected the request. Check the Base URL, model "
+            "name, and whether that model supports Chat Completions."
+        ),
         "ai_settings.connection_reason.authentication": (
             "The API key is missing, invalid, or expired. Check the credential."
+        ),
+        "ai_settings.connection_reason.billing": (
+            "The Provider requires payment or the account has insufficient "
+            "credit. Check API billing and quota."
         ),
         "ai_settings.connection_reason.permission": (
             "The Provider denied access. Check API-key permissions, model "

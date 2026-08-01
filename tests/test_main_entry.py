@@ -1,5 +1,6 @@
 import sys
 import runpy
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
@@ -15,6 +16,19 @@ from mercury.main import main
 
 
 class MainEntryTest(unittest.TestCase):
+    def test_project_installs_mercury_console_entry(self) -> None:
+        with (PROJECT_ROOT / "pyproject.toml").open("rb") as pyproject_file:
+            pyproject = tomllib.load(pyproject_file)
+
+        self.assertEqual(
+            pyproject["project"]["scripts"]["mercury"],
+            "mercury.main:main",
+        )
+        self.assertEqual(
+            pyproject["build-system"]["build-backend"],
+            "setuptools.build_meta",
+        )
+
     def test_root_script_delegates_to_current_source_entry(self) -> None:
         with patch("mercury.main.main", return_value=17) as source_main:
             with self.assertRaises(SystemExit) as context:
