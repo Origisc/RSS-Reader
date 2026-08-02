@@ -78,7 +78,7 @@ class RecordingTransport:
 
 
 class HTTPChatCompletionsProviderTest(unittest.TestCase):
-    def test_supports_openai_and_gemini_compatible_endpoints(self) -> None:
+    def test_supports_cloud_compatible_endpoints(self) -> None:
         cases = (
             (
                 "openai",
@@ -97,6 +97,12 @@ class HTTPChatCompletionsProviderTest(unittest.TestCase):
                     "https://generativelanguage.googleapis.com/"
                     "v1beta/openai/chat/completions"
                 ),
+            ),
+            (
+                "deepseek",
+                "https://api.deepseek.com",
+                "deepseek-v4-flash",
+                "https://api.deepseek.com/chat/completions",
             ),
         )
 
@@ -148,6 +154,7 @@ class HTTPChatCompletionsProviderTest(unittest.TestCase):
         )
         self.assertNotIn("Authorization", headers)
         self.assertEqual(payload["model"], "deepseek-r1:1.5b")
+        self.assertNotIn("temperature", payload)
         self.assertEqual(timeout, 120.0)
 
     def test_builds_chat_request_from_user_configuration(self) -> None:

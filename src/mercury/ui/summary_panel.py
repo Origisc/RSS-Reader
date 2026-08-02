@@ -115,6 +115,7 @@ class SummaryPanel(QFrame):
         self._is_running = False
         self._state = "no_article"
         self._last_error_code: SummaryErrorCode | None = None
+        self._last_error_message = ""
 
         self.language_label = QLabel()
         self.language_label.setObjectName("SummaryFieldLabel")
@@ -201,6 +202,7 @@ class SummaryPanel(QFrame):
         self._invalidate_active_generation()
         self._current_source = source
         self._last_error_code = None
+        self._last_error_message = ""
 
         result = self._result_cache.get(source.article_id)
         if result is None and self._result_loader is not None:
@@ -240,6 +242,7 @@ class SummaryPanel(QFrame):
         self._current_source = None
         self._displayed_result = None
         self._last_error_code = None
+        self._last_error_message = ""
         self._state = "no_article"
         self.summary_content.clear()
         self._render_state()
@@ -347,6 +350,7 @@ class SummaryPanel(QFrame):
 
         self._displayed_result = None
         self._last_error_code = None
+        self._last_error_message = ""
         self.summary_content.clear()
         self.timestamp_label.clear()
         self._state = (
@@ -365,6 +369,7 @@ class SummaryPanel(QFrame):
 
         self._is_running = False
         if not isinstance(value, SummaryResult):
+            self._last_error_message = ""
             self._state = "unexpected_failure"
             self._render_state()
             self.generation_failed.emit()
@@ -372,6 +377,7 @@ class SummaryPanel(QFrame):
 
         result = value
         if result.article_id != self._current_source.article_id:
+            self._last_error_message = ""
             self._state = "unexpected_failure"
             self._render_state()
             self.generation_failed.emit()
@@ -382,6 +388,7 @@ class SummaryPanel(QFrame):
             self._show_result(result)
         else:
             self._last_error_code = result.error_code
+            self._last_error_message = result.error_message.strip()
             self._state = "result_failure"
             self._render_state()
 
@@ -396,6 +403,7 @@ class SummaryPanel(QFrame):
 
         self._is_running = False
         self._last_error_code = None
+        self._last_error_message = ""
         self._state = "unexpected_failure"
         self._render_state()
         self.generation_failed.emit()
@@ -404,6 +412,7 @@ class SummaryPanel(QFrame):
         self._displayed_result = result
         self.summary_content.setPlainText(result.text)
         self._last_error_code = result.error_code
+        self._last_error_message = result.error_message.strip()
         self._state = (
             "storage_warning"
             if result.status is SummaryStatus.GENERATED_NOT_SAVED
@@ -441,10 +450,25 @@ class SummaryPanel(QFrame):
                 self._last_error_code,
                 "summary.error.unexpected",
             )
+            status_parts = [self._translator.text(key)]
+            if self._displayed_result is not None:
+                status_parts.append(
+                    self._translator.text(
+                        "summary.status.showing_previous"
+                    )
+                )
+            if self._last_error_message:
+                status_parts.append(
+                    self._translator.text("summary.error.reason").format(
+                        reason=self._last_error_message,
+                    )
+                )
+            status_text = " ".join(status_parts)
         else:
             key = state_keys.get(self._state, "summary.error.unexpected")
+            status_text = self._translator.text(key)
 
-        self.status_label.setText(self._translator.text(key))
+        self.status_label.setText(status_text)
         self.generate_button.setText(
             self._translator.text(
                 "summary.regenerate"

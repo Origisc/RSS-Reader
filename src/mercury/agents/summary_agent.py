@@ -278,7 +278,6 @@ class SummaryAgent:
         return LLMRequest(
             prompt=prompt,
             system_prompt=system_prompt,
-            temperature=0,
         )
 
     def build_language_correction_request(
@@ -324,7 +323,6 @@ class SummaryAgent:
         return LLMRequest(
             prompt=f"{instruction}\n\n{summary_text.strip()}",
             system_prompt=system_prompt,
-            temperature=0,
         )
 
     def _validate_input(

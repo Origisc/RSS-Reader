@@ -446,9 +446,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "summary.status.running": "正在后台生成摘要，正文仍可阅读……",
         "summary.status.generated": "摘要已生成。",
         "summary.status.storage_warning": "摘要已生成，但未能保存到本地。",
+        "summary.status.showing_previous": "当前显示的是上次成功生成的摘要。",
         "summary.error.invalid_input": "当前文章没有可用于摘要的正文。",
         "summary.error.provider_not_configured": "请先配置 AI Provider。",
         "summary.error.provider_failure": "摘要生成失败，文章正文仍可正常阅读。",
+        "summary.error.reason": "原因：{reason}",
         "summary.error.empty_response": "Provider 没有返回摘要内容。",
         "summary.error.wrong_language": (
             "Provider 未使用所选摘要语言；已自动校正重试，请检查模型设置。"
@@ -1078,6 +1080,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "summary.status.storage_warning": (
             "Summary generated but could not be saved locally."
         ),
+        "summary.status.showing_previous": (
+            "The previous successful summary is still displayed."
+        ),
         "summary.error.invalid_input": (
             "This article has no readable content to summarize."
         ),
@@ -1087,6 +1092,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "summary.error.provider_failure": (
             "Summary generation failed; the article remains readable."
         ),
+        "summary.error.reason": "Reason: {reason}",
         "summary.error.empty_response": (
             "The Provider returned no summary content."
         ),

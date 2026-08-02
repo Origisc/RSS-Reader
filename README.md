@@ -70,7 +70,11 @@ Mercury 不需要注册、登录或配置 AI。启动后可以直接：
 | --- | --- | --- | --- |
 | OpenAI API | `https://api.openai.com/v1` | 填写你的 API 账户可用模型 ID | OpenAI API Key |
 | Google Gemini API | `https://generativelanguage.googleapis.com/v1beta/openai/` | 填写你的 Gemini API 账户可用模型 ID | Gemini API Key |
+| DeepSeek API | `https://api.deepseek.com` | `deepseek-v4-flash` 或账户可用模型 ID | DeepSeek API Key |
+| 本地 Ollama | `http://127.0.0.1:11434/v1` | 已通过 Ollama 下载的模型 ID | 不需要 |
 | 其他兼容服务 | 服务商给出的 OpenAI-compatible 根地址 | 服务商提供的模型 ID | 按服务商要求 |
+
+Mercury 直接支持的是 OpenAI-compatible Chat Completions 接口。使用 Anthropic Messages 等厂商原生私有接口时，需要该厂商提供兼容地址，或由用户配置可信的本地兼容网关；Mercury 不会在未配置的情况下把文章发送给任何转换服务。
 
 点击“测试连接”后再保存。失败信息会明确区分：
 

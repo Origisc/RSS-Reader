@@ -19,8 +19,11 @@ from mercury.agents import (
     InMemorySummaryResultStore,
     InMemoryTranslationResultStore,
     SummaryAgent,
+    TagAgent,
+    TagSource,
     TranslationAgent,
 )
+from mercury.domain import SummaryDetail
 from mercury.llm import (
     HTTPChatCompletionsProvider,
     InMemoryProviderConfigStore,
@@ -49,25 +52,32 @@ class AIProviderIntegrationTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
 
-    def test_saved_settings_power_summary_and_translation_agents(
+    def test_gemini_settings_power_all_three_agents(
         self,
     ) -> None:
         calls: list[dict[str, object]] = []
 
         def transport(_url, headers, payload, _timeout):
+            if "temperature" in payload:
+                raise AssertionError(
+                    "Gemini 3.6 requests must omit deprecated sampling "
+                    "parameters."
+                )
             calls.append(
                 {
+                    "url": _url,
                     "headers": dict(headers),
                     "payload": dict(payload),
                 }
             )
             messages = payload["messages"]
             user_prompt = messages[-1]["content"]
-            response_text = (
-                "逐段译文"
-                if "Target language:" in user_prompt
-                else "Summary through the HTTP adapter"
-            )
+            if "Target language:" in user_prompt:
+                response_text = "逐段译文"
+            elif "Maximum suggestions:" in user_prompt:
+                response_text = '["Gemini", "AI"]'
+            else:
+                response_text = "Summary through the HTTP adapter"
             return {
                 "choices": [
                     {
@@ -90,6 +100,7 @@ class AIProviderIntegrationTest(unittest.TestCase):
             provider,
             translation_store,
         )
+        tag_agent = TagAgent(provider)
         window = MainWindow(
             MockArticleService(),
             provider_config_store=config_store,
@@ -106,9 +117,17 @@ class AIProviderIntegrationTest(unittest.TestCase):
 
         config_store.save(
             ProviderConfig(
-                base_url="http://127.0.0.1:8080/v1",
-                model="integration-model",
+                base_url=(
+                    "https://generativelanguage.googleapis.com/"
+                    "v1beta/openai/"
+                ),
+                model="gemini-3.6-flash",
                 api_key="integration-secret",
+            )
+        )
+        window.summary_panel.detail_combo.setCurrentIndex(
+            window.summary_panel.detail_combo.findData(
+                SummaryDetail.DETAILED.value
             )
         )
 
@@ -152,15 +171,50 @@ class AIProviderIntegrationTest(unittest.TestCase):
             self.assertLess(original_position, translation_position)
             cursor = translation_position + len(paragraph.translated_text)
         self.assertFalse(window.translation_panel.isVisible())
+        tag_result = tag_agent.suggest(
+            TagSource(
+                article_id="mercury-start",
+                title="Mercury Reader",
+                raw_html="",
+                cleaned_markdown=(
+                    "A local-first RSS reader with optional AI tools."
+                ),
+            )
+        )
+        self.assertEqual(tag_result.suggestions, ("Gemini", "AI"))
         self.assertEqual(
             len(calls),
-            1 + len(displayed_result.paragraphs),
+            2 + len(displayed_result.paragraphs),
         )
         self.assertTrue(
             all(
-                call["payload"]["model"] == "integration-model"
+                call["payload"]["model"] == "gemini-3.6-flash"
                 for call in calls
             )
+        )
+        self.assertTrue(
+            all(
+                call["url"]
+                == (
+                    "https://generativelanguage.googleapis.com/"
+                    "v1beta/openai/chat/completions"
+                )
+                for call in calls
+            )
+        )
+        self.assertIn(
+            "Detail level: detailed",
+            calls[0]["payload"]["messages"][-1]["content"],
+        )
+        self.assertTrue(
+            any(
+                "Maximum suggestions:"
+                in call["payload"]["messages"][-1]["content"]
+                for call in calls
+            )
+        )
+        self.assertTrue(
+            all("temperature" not in call["payload"] for call in calls)
         )
         self.assertTrue(
             all(

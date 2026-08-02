@@ -116,6 +116,7 @@ class SummaryAgentTest(unittest.TestCase):
         self.assertIn("Summary language: 简体中文", request.prompt)
         self.assertIn("Detail level: detailed", request.prompt)
         self.assertIn("thorough structured summary", request.prompt)
+        self.assertIsNone(request.temperature)
 
     def test_custom_prompt_keeps_mandatory_language_constraint(self) -> None:
         provider = configured_provider(response_text="Summary")

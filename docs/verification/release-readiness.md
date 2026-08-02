@@ -39,8 +39,14 @@ The Provider adapter is verified with local transports for both of these URL sha
 
 - OpenAI: `https://api.openai.com/v1/chat/completions`
 - Gemini OpenAI compatibility: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`
+- DeepSeek: `https://api.deepseek.com/chat/completions`
+- Ollama and other local OpenAI-compatible services, with no API key header when the user leaves the key empty.
 
 The tests assert Bearer authentication, selected model forwarding, Chat Completions messages, compatible response parsing, secret redaction, and readable errors for invalid request/model, authentication, billing, permission, missing path/model, rate limit, server error, timeout, proxy, TLS, network, invalid JSON, and incompatible responses.
+
+Summary, Translation, and Tag Agent requests omit optional sampling parameters by default. This keeps the shared adapter compatible with providers such as Gemini 3.6 that reject deprecated `temperature`, `top_p`, or `top_k` fields, while the provider abstraction can still forward an explicitly requested temperature.
+
+The direct compatibility boundary is the OpenAI Chat Completions request and response shape. A provider-native API with a different path or schema requires an explicitly configured compatible gateway and is expected to fail with a readable incompatibility error when used directly.
 
 Real cloud requests are intentionally not part of automated verification. They require a user-owned API key, an API-enabled account, a currently available model ID, and an explicit click on **Test Connection**.
 

@@ -166,7 +166,6 @@ class TagAgent:
         return LLMRequest(
             prompt=prompt,
             system_prompt=system_prompt,
-            temperature=0,
         )
 
     def _validate_input(

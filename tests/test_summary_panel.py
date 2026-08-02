@@ -255,6 +255,11 @@ class SummaryPanelTest(unittest.TestCase):
             "Previous summary",
         )
         self.assertIn("article remains readable", panel.status_label.text())
+        self.assertIn(
+            "previous successful summary is still displayed",
+            panel.status_label.text(),
+        )
+        self.assertIn("offline fixture", panel.status_label.text())
 
     def test_chinese_selection_hides_stale_english_summary_on_failure(
         self,

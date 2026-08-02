@@ -620,7 +620,6 @@ class TranslationAgent:
         return LLMRequest(
             prompt=prompt,
             system_prompt=system_prompt,
-            temperature=0,
         )
 
     def _translate_paragraph(

@@ -85,6 +85,7 @@ class TagAgentTest(unittest.TestCase):
             "return only a JSON array",
             provider.requests[0].system_prompt,
         )
+        self.assertIsNone(provider.requests[0].temperature)
 
     def test_custom_prompt_enters_request_without_replacing_json_contract(
         self,

@@ -268,7 +268,7 @@ class TranslationAgentTest(unittest.TestCase):
             "Translate technical terms consistently.",
             request.system_prompt,
         )
-        self.assertEqual(request.temperature, 0)
+        self.assertIsNone(request.temperature)
 
     def test_leading_model_reasoning_is_not_mixed_into_translation(
         self,

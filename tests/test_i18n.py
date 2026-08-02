@@ -88,6 +88,17 @@ class TranslatorTest(unittest.TestCase):
         self.assertIn("VPN/代理", remote_reason)
         self.assertIn("DNS", remote_reason)
 
+    def test_summary_failure_context_exists_in_both_languages(self) -> None:
+        keys = (
+            "summary.status.showing_previous",
+            "summary.error.reason",
+        )
+
+        for language in ("zh_CN", "en_US"):
+            translator = Translator(language)
+            for key in keys:
+                self.assertNotEqual(translator.text(key), key)
+
     def test_can_switch_to_english(self) -> None:
         translator = Translator("en_US")
 
